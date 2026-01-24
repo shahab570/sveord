@@ -57,6 +57,7 @@ import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { Progress } from "@/components/ui/progress";
 import { PopulateMeaningsSection } from "@/components/settings/PopulateMeaningsSection";
+import { ApiKeySection } from "@/components/settings/ApiKeySection";
 
 // File upload constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -115,7 +116,7 @@ export default function Settings() {
   const { resetProgress } = useUserProgress();
   const { history, addUpload, deleteUpload } = useUploadHistory();
   const addWord = useAddWord();
-  
+
   const kellyFileInputRef = useRef<HTMLInputElement>(null);
   const frequencyFileInputRef = useRef<HTMLInputElement>(null);
   const sidorFileInputRef = useRef<HTMLInputElement>(null);
@@ -124,7 +125,7 @@ export default function Settings() {
   const [importingSidor, setImportingSidor] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [exporting, setExporting] = useState(false);
-  
+
   // Add word form state
   const [addWordOpen, setAddWordOpen] = useState(false);
   const [newWord, setNewWord] = useState("");
@@ -179,7 +180,7 @@ export default function Settings() {
 
     setImportingKelly(true);
     setImportProgress(0);
-    
+
     try {
       const extension = file.name.split(".").pop()?.toLowerCase();
       let data: any[];
@@ -220,7 +221,7 @@ export default function Settings() {
       for (let i = 0; i < data.length; i++) {
         const item = data[i];
         const result = KellyWordSchema.safeParse(item);
-        
+
         if (result.success) {
           const jsonId = result.data.id;
           const wordKey = result.data.word.toLowerCase();
@@ -310,7 +311,7 @@ export default function Settings() {
 
     setImportingFrequency(true);
     setImportProgress(0);
-    
+
     try {
       const extension = file.name.split(".").pop()?.toLowerCase();
       let data: any[];
@@ -351,7 +352,7 @@ export default function Settings() {
       for (let i = 0; i < data.length; i++) {
         const item = data[i];
         const result = FrequencyWordSchema.safeParse(item);
-        
+
         if (result.success) {
           validWords.push({
             swedish_word: result.data.word.toLowerCase(),
@@ -420,7 +421,7 @@ export default function Settings() {
 
     setImportingSidor(true);
     setImportProgress(0);
-    
+
     try {
       const extension = file.name.split(".").pop()?.toLowerCase();
       let data: any[];
@@ -462,7 +463,7 @@ export default function Settings() {
       for (let i = 0; i < data.length; i++) {
         const item = data[i];
         const result = SidorWordSchema.safeParse(item);
-        
+
         if (result.success) {
           const wordKey = result.data.word.toLowerCase();
           // Keep only the first occurrence (lowest JSON id) to avoid duplicates
@@ -531,7 +532,7 @@ export default function Settings() {
     setExporting(true);
     try {
       let query = supabase.from("words").select("*");
-      
+
       // Filter by list type
       if (listType === "kelly") {
         query = query.not("kelly_level", "is", null).order("kelly_source_id", { ascending: true });
@@ -551,7 +552,7 @@ export default function Settings() {
 
       const exportData = words?.map((word) => {
         const userProgress = progressMap.get(word.id);
-        
+
         if (listType === "kelly") {
           return {
             id: word.kelly_source_id,
@@ -642,29 +643,29 @@ export default function Settings() {
         .from("words")
         .select("id")
         .not("kelly_level", "is", null);
-      
+
       if (kellyWords && kellyWords.length > 0) {
         const wordIds = kellyWords.map((w) => w.id);
-        
+
         // Delete user progress for these words
         await supabase
           .from("user_progress")
           .delete()
           .eq("user_id", user.id)
           .in("word_id", wordIds);
-        
+
         // Delete the words (admin only)
         await supabase
           .from("words")
           .delete()
           .not("kelly_level", "is", null);
       }
-      
+
       // Delete the upload history entry
       if (kellyUpload) {
         await deleteUpload.mutateAsync(kellyUpload.id);
       }
-      
+
       toast.success("Kelly List removed - all words and progress deleted");
     } catch (error: any) {
       toast.error(`Failed to remove Kelly List: ${error.message}`);
@@ -683,29 +684,29 @@ export default function Settings() {
         .from("words")
         .select("id")
         .not("frequency_rank", "is", null);
-      
+
       if (frequencyWords && frequencyWords.length > 0) {
         const wordIds = frequencyWords.map((w) => w.id);
-        
+
         // Delete user progress for these words
         await supabase
           .from("user_progress")
           .delete()
           .eq("user_id", user.id)
           .in("word_id", wordIds);
-        
+
         // Delete the words (admin only)
         await supabase
           .from("words")
           .delete()
           .not("frequency_rank", "is", null);
       }
-      
+
       // Delete the upload history entry
       if (frequencyUpload) {
         await deleteUpload.mutateAsync(frequencyUpload.id);
       }
-      
+
       toast.success("Frequency List removed - all words and progress deleted");
     } catch (error: any) {
       toast.error(`Failed to remove Frequency List: ${error.message}`);
@@ -724,29 +725,29 @@ export default function Settings() {
         .from("words")
         .select("id")
         .not("sidor_rank", "is", null);
-      
+
       if (sidorWords && sidorWords.length > 0) {
         const wordIds = sidorWords.map((w) => w.id);
-        
+
         // Delete user progress for these words
         await supabase
           .from("user_progress")
           .delete()
           .eq("user_id", user.id)
           .in("word_id", wordIds);
-        
+
         // Delete the words (admin only)
         await supabase
           .from("words")
           .delete()
           .not("sidor_rank", "is", null);
       }
-      
+
       // Delete the upload history entry
       if (sidorUpload) {
         await deleteUpload.mutateAsync(sidorUpload.id);
       }
-      
+
       toast.success("Sidor List removed - all words and progress deleted");
     } catch (error: any) {
       toast.error(`Failed to remove Sidor List: ${error.message}`);
@@ -784,10 +785,10 @@ export default function Settings() {
           .lte("frequency_rank", levelInfo.range[1])
           .order("frequency_rank", { ascending: false })
           .limit(1);
-        
+
         const maxInRange = existingInRange?.[0]?.frequency_rank || (levelInfo.range[0] - 1);
         frequencyRank = maxInRange + 1;
-        
+
         // Check if we're exceeding the range
         if (frequencyRank > levelInfo.range[1]) {
           toast.error(`Level ${frequencyLevel} range is full (${levelInfo.range[0]}-${levelInfo.range[1]})`);
@@ -902,11 +903,11 @@ export default function Settings() {
                       placeholder="Enter meaning or notes"
                     />
                   </div>
-                  
+
                   {/* List selection */}
                   <div className="space-y-3 pt-2">
                     <Label className="text-base">Add to Lists</Label>
-                    
+
                     {/* Kelly List option */}
                     <div className="flex items-start gap-3 p-3 border rounded-lg">
                       <Checkbox
@@ -988,7 +989,10 @@ export default function Settings() {
           </p>
         </section>
 
-        {/* AI Word Meanings Section */}
+        {/* API Key Management */}
+        <ApiKeySection />
+
+        {/* Google Translate Word Meanings Section */}
         <PopulateMeaningsSection />
 
         {/* Kelly List Import Section */}
@@ -999,7 +1003,7 @@ export default function Settings() {
               Kelly List
             </h2>
           </div>
-          
+
           {/* Show current Kelly file or upload option */}
           {kellyUpload ? (
             <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-50 border border-emerald-200">
@@ -1014,9 +1018,9 @@ export default function Settings() {
               </div>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                     disabled={removingList}
                   >
@@ -1083,7 +1087,7 @@ export default function Settings() {
               Frequency List
             </h2>
           </div>
-          
+
           {/* Show current Frequency file or upload option */}
           {frequencyUpload ? (
             <div className="flex items-center justify-between p-4 rounded-lg bg-blue-50 border border-blue-200">
@@ -1098,9 +1102,9 @@ export default function Settings() {
               </div>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                     disabled={removingList}
                   >
@@ -1167,7 +1171,7 @@ export default function Settings() {
               Sidor List
             </h2>
           </div>
-          
+
           {/* Show current Sidor file or upload option */}
           {sidorUpload ? (
             <div className="flex items-center justify-between p-4 rounded-lg bg-purple-50 border border-purple-200">
@@ -1182,9 +1186,9 @@ export default function Settings() {
               </div>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                     disabled={removingList}
                   >
@@ -1254,7 +1258,7 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground">
             Download your vocabulary with meanings and custom spellings.
           </p>
-          
+
           {/* Export Kelly List */}
           <div className="space-y-2 p-4 border border-border rounded-lg bg-secondary/30">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -1387,7 +1391,7 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground">
             Reset your learning progress. This cannot be undone.
           </p>
-          
+
           {/* Kelly List Reset */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-emerald-700">

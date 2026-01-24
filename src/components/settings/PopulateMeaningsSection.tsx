@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Sparkles, Play, Pause, RefreshCw, CheckCircle, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Sparkles, Play, Pause, RefreshCw, CheckCircle, AlertTriangle, Settings } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useApiKeys } from '@/hooks/useApiKeys';
+import { generateMeaningsBatch } from '@/services/geminiApi';
+import { Link } from 'react-router-dom';
 
 interface PopulationStatus {
   completed: number;
@@ -12,84 +15,125 @@ interface PopulationStatus {
 }
 
 export function PopulateMeaningsSection() {
+  const { apiKeys } = useApiKeys();
   const [status, setStatus] = useState<PopulationStatus | null>(null);
   const [isPopulating, setIsPopulating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [lastBatchInfo, setLastBatchInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const pauseRef = useRef(false);
 
-  // Fetch initial status
-  useEffect(() => {
-    fetchStatus();
-  }, []);
+  const hasApiKey = !!apiKeys.geminiApiKey;
 
-  // Cleanup interval on unmount
   useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, []);
+    if (hasApiKey) {
+      fetchStatus();
+    }
+  }, [hasApiKey]);
 
   const fetchStatus = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("populate-meanings", {
-        body: { action: "status" },
-      });
+      // Count total words
+      const { count: totalCount, error: totalError } = await supabase
+        .from('words')
+        .select('*', { count: 'exact', head: true });
 
-      if (error) throw error;
-      setStatus(data);
+      if (totalError) throw totalError;
+
+      // Count words with meanings (word_data is not null and has meanings array)
+      const { count: completedCount, error: completedError } = await supabase
+        .from('words')
+        .select('*', { count: 'exact', head: true })
+        .not('word_data', 'is', null);
+
+      if (completedError) throw completedError;
+
+      const total = totalCount || 0;
+      const completed = completedCount || 0;
+
+      setStatus({
+        total,
+        completed,
+        remaining: total - completed,
+      });
       setError(null);
     } catch (err: any) {
-      console.error("Failed to fetch status:", err);
-      setError(err.message || "Failed to fetch status");
+      console.error('Failed to fetch status:', err);
+      setError(err.message || 'Failed to fetch status');
     }
   };
 
-  const runBatch = async (): Promise<boolean> => {
-    if (pauseRef.current) return false;
+  const runBatch = async (batchSize: number = 10): Promise<boolean> => {
+    if (!hasApiKey || !apiKeys.geminiApiKey) {
+      setError('No API key configured');
+      return false;
+    }
+
+    if (pauseRef.current) {
+      return false;
+    }
 
     try {
-      const { data, error } = await supabase.functions.invoke("populate-meanings", {
-        body: { action: "populate", batchSize: 30 },
-      });
+      // Fetch words without meanings
+      const { data: words, error: fetchError } = await supabase
+        .from('words')
+        .select('id, swedish_word')
+        .is('word_data', null)
+        .limit(batchSize);
 
-      if (error) {
-        if (error.message?.includes("429") || error.message?.includes("Rate limit")) {
-          toast.error("Rate limit reached. Pausing for 30 seconds...");
-          await new Promise((resolve) => setTimeout(resolve, 30000));
-          return true; // Continue after waiting
+      if (fetchError) throw fetchError;
+
+      if (!words || words.length === 0) {
+        return false; // No more words to process
+      }
+
+      // Generate meanings for the batch
+      const swedishWords = words.map(w => w.swedish_word);
+      const meanings = await generateMeaningsBatch(
+        swedishWords,
+        apiKeys.geminiApiKey,
+        (completed, total, currentWord) => {
+          setLastBatchInfo(`Generating meaning for "${currentWord}" (${completed + 1}/${total})...`);
         }
-        if (error.message?.includes("402") || error.message?.includes("Payment")) {
-          toast.error("Payment required. Please add credits to continue.");
-          return false;
-        }
-        throw error;
+      );
+
+      // Update database with meanings
+      const updates = words.map(word => {
+        const meaning = meanings.get(word.swedish_word);
+        if (!meaning) return null;
+
+        return {
+          id: word.id,
+          swedish_word: word.swedish_word,
+          word_data: {
+            word_type: '',
+            meanings: meaning.meanings || [],
+            examples: meaning.examples || [],
+            synonyms: meaning.synonyms || [],
+            antonyms: meaning.antonyms || [],
+            populated_at: new Date().toISOString(),
+          },
+        };
+      }).filter(u => u !== null);
+
+      // Batch update
+      if (updates.length > 0) {
+        const { error: updateError } = await supabase
+          .from('words')
+          .upsert(updates, { onConflict: 'id' });
+
+        if (updateError) throw updateError;
       }
 
-      if (data.processed === 0 && data.message?.includes("already populated")) {
-        return false; // All done
-      }
+      setLastBatchInfo(`Processed ${updates.length} words`);
 
-      setStatus(data.status);
-      setLastBatchInfo(`Processed ${data.processed} words`);
+      // Update status
+      await fetchStatus();
 
-      if (data.errors && data.errors.length > 0) {
-        console.warn("Batch errors:", data.errors);
-      }
-
-      // Check if we're done
-      if (data.status.remaining === 0) {
-        return false;
-      }
-
-      return true; // Continue
+      return words.length === batchSize; // Continue if we got a full batch
     } catch (err: any) {
-      console.error("Batch error:", err);
-      setError(err.message || "Failed to process batch");
+      console.error('Batch error:', err);
+      setError(err.message || 'Failed to process batch');
       return false;
     }
   };
@@ -99,7 +143,7 @@ export function PopulateMeaningsSection() {
     setIsPaused(false);
     pauseRef.current = false;
     setError(null);
-    toast.success("Starting meaning population...");
+    toast.success('Starting word meaning generation...');
 
     const runNextBatch = async () => {
       if (pauseRef.current) {
@@ -107,15 +151,16 @@ export function PopulateMeaningsSection() {
         return;
       }
 
-      const shouldContinue = await runBatch();
+      const shouldContinue = await runBatch(10);
 
       if (shouldContinue && !pauseRef.current) {
-        // Wait 2 seconds between batches to respect rate limits
-        setTimeout(runNextBatch, 2000);
+        // Wait 1 second between batches
+        setTimeout(runNextBatch, 1000);
       } else if (!pauseRef.current) {
         setIsPopulating(false);
         if (status?.remaining === 0 || !shouldContinue) {
-          toast.success("🎉 All words have been populated with meanings!");
+          toast.success('🎉 All words have been populated with meanings!');
+          await fetchStatus();
         }
       }
     };
@@ -127,7 +172,7 @@ export function PopulateMeaningsSection() {
     pauseRef.current = true;
     setIsPaused(true);
     setIsPopulating(false);
-    toast.info("Population paused");
+    toast.info('Meaning generation paused');
   };
 
   const resumePopulation = () => {
@@ -143,22 +188,45 @@ export function PopulateMeaningsSection() {
 
   const isComplete = status && status.remaining === 0;
 
+  if (!hasApiKey) {
+    return (
+      <section className="word-card space-y-4 border-l-4 border-l-amber-500">
+        <div className="flex items-center gap-3">
+          <Sparkles className="h-5 w-5 text-amber-600" />
+          <h2 className="text-lg font-semibold text-foreground">
+            AI-Generated Word Meanings
+          </h2>
+        </div>
+
+        <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            To generate detailed word meanings, you need to configure your Gemini API key first.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            ⚡ Get detailed definitions, examples, synonyms, and antonyms - not just simple translations!
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="word-card space-y-4 border-l-4 border-l-amber-500">
+    <section className="word-card space-y-4 border-l-4 border-l-purple-500">
       <div className="flex items-center gap-3">
-        <Sparkles className="h-5 w-5 text-amber-600" />
+        <Sparkles className="h-5 w-5 text-purple-600" />
         <h2 className="text-lg font-semibold text-foreground">
-          AI Word Meanings
+          AI-Generated Word Meanings
         </h2>
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Automatically populate Swedish word meanings, examples, synonyms, and antonyms using AI.
+        Automatically generate detailed Swedish word meanings using Google Gemini AI.
+        Get definitions, usage examples, synonyms, and antonyms for each word.
       </p>
 
       {/* Status display */}
       {status && (
-        <div className="space-y-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
+        <div className="space-y-3 p-4 rounded-lg bg-purple-50 border border-purple-200">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">Progress</span>
             <span className="text-sm text-muted-foreground">
@@ -193,7 +261,7 @@ export function PopulateMeaningsSection() {
       {isComplete && (
         <div className="p-3 rounded-lg bg-success/10 border border-success/20 text-sm text-success flex items-center gap-2">
           <CheckCircle className="h-4 w-4" />
-          All words have been populated with meanings!
+          All words have been populated with AI-generated meanings!
         </div>
       )}
 
@@ -202,10 +270,10 @@ export function PopulateMeaningsSection() {
         {!isPopulating && !isComplete && (
           <Button
             onClick={isPaused ? resumePopulation : startPopulation}
-            className="gap-2 bg-amber-600 hover:bg-amber-700"
+            className="gap-2 bg-purple-600 hover:bg-purple-700"
           >
             <Play className="h-4 w-4" />
-            {isPaused ? "Resume" : "Start Population"}
+            {isPaused ? 'Resume' : 'Start Generation'}
           </Button>
         )}
 
@@ -213,7 +281,7 @@ export function PopulateMeaningsSection() {
           <Button
             onClick={pausePopulation}
             variant="outline"
-            className="gap-2 border-amber-300 hover:bg-amber-50"
+            className="gap-2 border-purple-300 hover:bg-purple-50"
           >
             <Pause className="h-4 w-4" />
             Pause
@@ -234,7 +302,11 @@ export function PopulateMeaningsSection() {
 
       {/* Info note */}
       <p className="text-xs text-muted-foreground mt-2">
-        ⚡ Processing ~30 words every 2 seconds. Estimated time: ~{Math.ceil((status?.remaining || 0) / 30 * 2 / 60)} minutes for remaining words.
+        ⚡ Processing ~10 words per batch with 4 seconds between requests (Gemini rate limit).
+        Estimated time: ~{Math.ceil((status?.remaining || 0) / 10 * 4 / 60)} minutes for remaining words.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        💡 You can pause and resume anytime. Your progress is saved automatically.
       </p>
     </section>
   );
