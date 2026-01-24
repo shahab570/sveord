@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SveOrd - Nordic Design System */
+
+@layer base {
+  :root {
+    /* Core colors - SveOrd palette */
+    --background: 140 33% 99%; /* #fdfefd */
+    --foreground: 197 46% 31%; /* Blue Slate */
+
+    /* Card surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 197 46% 31%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 197 46% 31%;
+
+    /* Primary - Blue Slate (#295f76) */
+    --primary: 197 46% 31%;
+    --primary-foreground: 140 33% 99%;
+
+    /* Secondary - Mint Cream */
+    --secondary: 154 47% 96%; /* #f2faf7 */
+    --secondary-foreground: 197 46% 31%;
+
+    /* Muted */
+    --muted: 154 47% 96%;
+    --muted-foreground: 197 30% 50%;
+
+    /* Accent - Royal Gold (#f8d45d) */
+    --accent: 45 92% 67%;
+    --accent-foreground: 197 46% 20%;
+
+    /* Success - Cerulean (#326e8b) */
+    --success: 198 47% 37%;
+    --success-foreground: 140 33% 99%;
+
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* UI elements */
+    --border: 154 30% 88%;
+    --input: 154 30% 88%;
+    --ring: 197 46% 31%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar - Mint Cream base */
+    --sidebar-background: 154 47% 97%;
+    --sidebar-foreground: 197 46% 31%;
+    --sidebar-primary: 197 46% 31%;
+    --sidebar-primary-foreground: 140 33% 99%;
+    --sidebar-accent: 154 47% 92%;
+    --sidebar-accent-foreground: 197 46% 25%;
+    --sidebar-border: 154 30% 88%;
+    --sidebar-ring: 197 46% 31%;
+
+    /* Custom gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(197 46% 31%), hsl(198 47% 37%));
+    --gradient-hero: linear-gradient(135deg, hsl(197 46% 31%), hsl(198 47% 45%));
+    --gradient-gold: linear-gradient(135deg, hsl(45 92% 67%), hsl(45 92% 72%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(154 47% 98%));
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(197 46% 31% / 0.03);
+    --shadow-md: 0 4px 6px -1px hsl(197 46% 31% / 0.05), 0 2px 4px -2px hsl(197 46% 31% / 0.05);
+    --shadow-lg: 0 10px 15px -3px hsl(197 46% 31% / 0.08), 0 4px 6px -4px hsl(197 46% 31% / 0.08);
+    --shadow-card: 0 4px 20px -4px hsl(197 46% 31% / 0.1);
+    --shadow-gold: 0 4px 20px -4px hsl(45 92% 67% / 0.3);
+  }
+
+  .dark {
+    --background: 200 20% 10%;
+    --foreground: 154 30% 95%;
+
+    --card: 200 20% 12%;
+    --card-foreground: 154 30% 95%;
+
+    --popover: 200 20% 12%;
+    --popover-foreground: 154 30% 95%;
+
+    --primary: 197 46% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 200 20% 18%;
+    --secondary-foreground: 154 30% 90%;
+
+    --muted: 200 20% 18%;
+    --muted-foreground: 154 20% 60%;
+
+    --accent: 45 92% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 198 47% 50%;
+    --success-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 20% 20%;
+    --input: 200 20% 20%;
+    --ring: 197 46% 45%;
+
+    --sidebar-background: 200 20% 8%;
+    --sidebar-foreground: 154 30% 90%;
+    --sidebar-primary: 197 46% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 197 30% 20%;
+    --sidebar-accent-foreground: 197 46% 70%;
+    --sidebar-border: 200 20% 18%;
+    --sidebar-ring: 197 46% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  .word-card {
+    @apply bg-card rounded-2xl p-8 transition-all duration-300;
+    box-shadow: var(--shadow-card);
+  }
+
+  .word-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px -8px hsl(197 46% 31% / 0.15);
+  }
+
+  .study-button {
+    @apply inline-flex items-center justify-center rounded-xl px-6 py-3 font-medium transition-all duration-200;
+  }
+
+  .study-button-primary {
+    @apply study-button bg-primary text-primary-foreground hover:opacity-90;
+  }
+
+  .study-button-secondary {
+    @apply study-button bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+
+  .study-button-success {
+    @apply study-button text-white;
+    background: hsl(var(--success));
+  }
+
+  .study-button-gold {
+    @apply study-button font-semibold;
+    background: linear-gradient(135deg, hsl(45 92% 67%), hsl(45 92% 62%));
+    color: hsl(197 46% 20%);
+    box-shadow: var(--shadow-gold);
+  }
+
+  .study-button-gold:hover {
+    background: linear-gradient(135deg, hsl(45 92% 72%), hsl(45 92% 67%));
+  }
+
+  .nav-link {
+    @apply flex items-center gap-3 rounded-xl px-4 py-3 text-sidebar-foreground transition-all duration-200;
+  }
+
+  .nav-link:hover {
+    @apply bg-sidebar-accent text-sidebar-accent-foreground;
+  }
+
+  .nav-link-active {
+    @apply bg-sidebar-accent text-sidebar-accent-foreground font-medium;
+  }
+
+  .level-badge {
+    @apply inline-flex items-center rounded-lg px-3 py-1 text-sm font-medium;
+  }
+
+  .level-badge-a1 {
+    @apply level-badge;
+    background: hsl(154 47% 92%);
+    color: hsl(154 50% 30%);
+  }
+
+  .level-badge-a2 {
+    @apply level-badge;
+    background: hsl(170 45% 90%);
+    color: hsl(170 50% 28%);
+  }
+
+  .level-badge-b1 {
+    @apply level-badge;
+    background: hsl(197 45% 90%);
+    color: hsl(197 46% 31%);
+  }
+
+  .level-badge-b2 {
+    @apply level-badge;
+    background: hsl(210 45% 88%);
+    color: hsl(210 50% 30%);
+  }
+
+  .level-badge-c1 {
+    @apply level-badge;
+    background: hsl(45 92% 85%);
+    color: hsl(45 80% 25%);
+  }
+
+  .level-badge-c2 {
+    @apply level-badge;
+    background: hsl(45 92% 75%);
+    color: hsl(45 80% 20%);
+  }
+
+  .stat-card {
+    @apply bg-card rounded-xl p-6 border border-border transition-all duration-200;
+  }
+
+  .stat-card:hover {
+    box-shadow: var(--shadow-md);
+  }
+
+  .gold-highlight {
+    background: linear-gradient(135deg, hsl(45 92% 90%), hsl(45 92% 95%));
+    border: 1px solid hsl(45 92% 67% / 0.3);
+  }
+
+  .progress-gold {
+    background: linear-gradient(90deg, hsl(45 92% 67%), hsl(45 92% 57%));
+  }
+}
