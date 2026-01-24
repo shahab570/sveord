@@ -38,10 +38,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
+    // Get redirect URI from environment variables with fallbacks
+    // Priority: VITE_REDIRECT_URI > VITE_APP_URL/auth > window.location.origin/auth
+    const getRedirectUri = () => {
+      // If explicit redirect URI is set, use it
+      if (import.meta.env.VITE_REDIRECT_URI) {
+        return import.meta.env.VITE_REDIRECT_URI;
+      }
+
+      // If app URL is set, construct redirect URI from it
+      if (import.meta.env.VITE_APP_URL) {
+        return `${import.meta.env.VITE_APP_URL}/auth`;
+      }
+
+      // Default to current origin for local development
+      return `${window.location.origin}/auth`;
+    };
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth`,
+        redirectTo: getRedirectUri(),
       },
     });
     return { error };
