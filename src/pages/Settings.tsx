@@ -58,6 +58,8 @@ import { format } from "date-fns";
 import { Progress } from "@/components/ui/progress";
 import { PopulateMeaningsSection } from "@/components/settings/PopulateMeaningsSection";
 import { ApiKeySection } from "@/components/settings/ApiKeySection";
+import { useSync } from "@/contexts/SyncContext";
+import { RefreshCw, Clock } from "lucide-react";
 
 // File upload constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -116,6 +118,7 @@ export default function Settings() {
   const { resetProgress } = useUserProgress();
   const { history, addUpload, deleteUpload } = useUploadHistory();
   const addWord = useAddWord();
+  const { syncAll, isSyncing, lastSyncTime } = useSync();
 
   const kellyFileInputRef = useRef<HTMLInputElement>(null);
   const frequencyFileInputRef = useRef<HTMLInputElement>(null);
@@ -1245,6 +1248,48 @@ export default function Settings() {
               )}
             </div>
           )}
+        </section>
+
+        {/* Sync Section */}
+        <section className="word-card space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <RefreshCw className={`h-5 w-5 text-primary ${isSyncing ? 'animate-spin' : ''}`} />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Data Synchronization
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Synchronize your local database with Supabase cloud.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => syncAll()}
+              disabled={isSyncing}
+              className="gap-2 rounded-xl"
+            >
+              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            </Button>
+          </div>
+
+          {lastSyncTime && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 p-2 rounded-lg w-fit">
+              <Clock className="h-3 w-3" />
+              Last synced: {format(lastSyncTime, "MMM d, HH:mm:ss")}
+            </div>
+          )}
+
+          <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+            <div className="text-sm text-blue-700">
+              <p className="font-semibold">Note for Large Datasets</p>
+              <p>Your library contains 13,000+ words. A full sync may take 10-20 seconds to complete. Do not close the app during synchronization.</p>
+            </div>
+          </div>
         </section>
 
         {/* Export Section */}

@@ -23,25 +23,41 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setIsSyncing(true);
         try {
             console.log('Starting full sync...');
+            let allWords: any[] = [];
+            let from = 0;
+            const PAGE_SIZE = 1000;
+            let hasMore = true;
 
-            // 1. Sync Words
-            const { data: words, error: wordsError } = await supabase
-                .from('words')
-                .select('*');
+            // 1. Sync Words (Paginated)
+            while (hasMore) {
+                const { data: words, error: wordsError } = await supabase
+                    .from('words')
+                    .select('*')
+                    .range(from, from + PAGE_SIZE - 1);
 
-            if (wordsError) throw wordsError;
+                if (wordsError) throw wordsError;
 
-            if (words) {
-                // Bulk put to merge duplicates (handled by schema &swedish_word)
-                await db.words.bulkPut(words.map(w => ({
-                    swedish_word: w.swedish_word,
-                    kelly_level: w.kelly_level || undefined,
-                    kelly_source_id: w.kelly_source_id || undefined,
-                    frequency_rank: w.frequency_rank || undefined,
-                    sidor_rank: w.sidor_rank || undefined,
-                    word_data: w.word_data as any,
-                    last_synced_at: new Date().toISOString()
-                })));
+                if (words && words.length > 0) {
+                    allWords = [...allWords, ...words];
+                    // Bulk put current batch immediately to save memory and show progress if needed
+                    await db.words.bulkPut(words.map(w => ({
+                        swedish_word: w.swedish_word,
+                        kelly_level: w.kelly_level || undefined,
+                        kelly_source_id: w.kelly_source_id || undefined,
+                        frequency_rank: w.frequency_rank || undefined,
+                        sidor_rank: w.sidor_rank || undefined,
+                        word_data: w.word_data as any,
+                        last_synced_at: new Date().toISOString()
+                    })));
+
+                    if (words.length < PAGE_SIZE) {
+                        hasMore = false;
+                    } else {
+                        from += PAGE_SIZE;
+                    }
+                } else {
+                    hasMore = false;
+                }
             }
 
             // 2. Sync Progress
@@ -60,22 +76,37 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const syncProgress = useCallback(async () => {
         if (!user) return;
         try {
-            const { data: progress, error: progressError } = await supabase
-                .from('user_progress')
-                .select('*, words(swedish_word)')
-                .eq('user_id', user.id);
+            let from = 0;
+            const PAGE_SIZE = 1000;
+            let hasMore = true;
 
-            if (progressError) throw progressError;
+            while (hasMore) {
+                const { data: progress, error: progressError } = await supabase
+                    .from('user_progress')
+                    .select('*, words(swedish_word)')
+                    .eq('user_id', user.id)
+                    .range(from, from + PAGE_SIZE - 1);
 
-            if (progress) {
-                await db.progress.bulkPut(progress.map(p => ({
-                    word_swedish: (p.words as any).swedish_word,
-                    is_learned: p.is_learned || false,
-                    user_meaning: p.user_meaning || undefined,
-                    custom_spelling: p.custom_spelling || undefined,
-                    learned_date: p.learned_date || undefined,
-                    last_synced_at: new Date().toISOString()
-                })));
+                if (progressError) throw progressError;
+
+                if (progress && progress.length > 0) {
+                    await db.progress.bulkPut(progress.map(p => ({
+                        word_swedish: (p.words as any)?.swedish_word || '',
+                        is_learned: p.is_learned || false,
+                        user_meaning: p.user_meaning || undefined,
+                        custom_spelling: p.custom_spelling || undefined,
+                        learned_date: p.learned_date || undefined,
+                        last_synced_at: new Date().toISOString()
+                    })).filter(p => p.word_swedish !== ''));
+
+                    if (progress.length < PAGE_SIZE) {
+                        hasMore = false;
+                    } else {
+                        from += PAGE_SIZE;
+                    }
+                } else {
+                    hasMore = false;
+                }
             }
         } catch (error) {
             console.error('Progress sync failed:', error);

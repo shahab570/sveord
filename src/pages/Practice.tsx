@@ -18,7 +18,7 @@ export default function Practice() {
         // Get words that are learned and due for review
         const dueProgress = await db.progress
             .where("is_learned")
-            .equals(1)
+            .equals(true as any)
             .filter((p) => !p.srs_next_review || p.srs_next_review <= now)
             .toArray();
 
@@ -55,7 +55,7 @@ export default function Practice() {
     });
 
     const allLearnedWords = useLiveQuery(async () => {
-        const progress = await db.progress.where("is_learned").equals(1).toArray();
+        const progress = await db.progress.where("is_learned").equals(true as any).toArray();
         const results: WordWithProgress[] = [];
         for (const p of progress) {
             const w = await db.words.where("swedish_word").equals(p.word_swedish).first();
