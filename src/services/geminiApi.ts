@@ -173,15 +173,34 @@ export async function generateMeaningsBatch(
 }
 
 /**
+ * List available models for the API key (Debug only)
+ */
+async function listModels(apiKey: string): Promise<any> {
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        if (!response.ok) return { error: `HTTP ${response.status}: ${response.statusText}` };
+        return await response.json();
+    } catch (e: any) {
+        return { error: e.message };
+    }
+}
+
+/**
  * Validate Gemini API key
  */
 export async function validateGeminiApiKey(apiKey: string): Promise<boolean> {
     console.log('validateGeminiApiKey called with key:', apiKey.substring(0, 10) + '...');
+
+    // Debug: List available models to find out why we get 404
+    const availableModels = await listModels(apiKey);
+    console.log('Available models for this key:', availableModels);
+
     const result = await generateWordMeaning('test', apiKey);
     console.log('generateWordMeaning result:', result);
 
     if ('error' in result) {
         console.error('Validation error:', result.error, result.details);
+        // Even if validation fails, show the models listed above in the console
         return false;
     }
 
