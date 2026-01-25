@@ -175,6 +175,14 @@ export async function generateMeaningsBatch(
  * Validate Gemini API key
  */
 export async function validateGeminiApiKey(apiKey: string): Promise<boolean> {
+    console.log('validateGeminiApiKey called with key:', apiKey.substring(0, 10) + '...');
     const result = await generateWordMeaning('test', apiKey);
-    return 'meanings' in result;
+    console.log('generateWordMeaning result:', result);
+
+    if ('error' in result) {
+        console.error('Validation error:', result.error, result.details);
+        return false;
+    }
+
+    return true;
 }
