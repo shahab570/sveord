@@ -106,7 +106,6 @@ export async function generateMeaningsBatch(
         }
 
         completed++;
-        // Keep rate limiting for batch processing
         if (completed < words.length) await new Promise(r => setTimeout(r, 4000));
     }
     return results;
@@ -117,18 +116,11 @@ export async function generateMeaningsBatch(
  */
 async function listModels(apiKey: string): Promise<string[]> {
     try {
-        console.log('Fetching model list...');
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-        if (!response.ok) {
-            console.error(`Failed to fetch model list: HTTP ${response.status} ${response.statusText}`);
-            return [];
-        }
+        if (!response.ok) return [];
         const data = await response.json();
-        const models = (data.models || []).map((m: any) => m.name.replace('models/', ''));
-        console.log('Successfully fetched models:', models);
-        return models;
-    } catch (e: any) {
-        console.error('Error listing models:', e.message);
+        return (data.models || []).map((m: any) => m.name.replace('models/', ''));
+    } catch (e) {
         return [];
     }
 }
@@ -139,32 +131,25 @@ async function listModels(apiKey: string): Promise<string[]> {
 export async function validateGeminiApiKey(apiKey: string): Promise<{ success: boolean; error?: string }> {
     console.log('validateGeminiApiKey starting probe...');
 
-    // 1. Try to list models to see exactly what this key can do
     const availableModels = await listModels(apiKey);
     console.log('Available models from API list:', availableModels);
 
-    // 2. Build the list of models to probe (prioritize discovered ones)
+    // Prioritize the models we saw in your screenshot!
     const modelsToTry = [...new Set([
-        ...availableModels,
-        'gemini-1.5-flash',
-        'gemini-3-flash',
+        ...availableModels.filter(m => m.includes('flash') || m.includes('pro')),
         'gemini-2.0-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-pro',
-        'gemini-pro',
+        'gemini-1.5-flash',
+        'gemini-2.5-flash',
+        'gemini-flash-latest',
+        'gemini-pro-latest'
     ])].filter(m => !m.includes('vision') && !m.includes('embedding') && m !== '');
 
-    if (modelsToTry.length === 0) {
-        return { success: false, error: 'No models found to test. Check if Gemini API is enabled.' };
-    }
-
     const versions = ['v1beta', 'v1'];
-    let lastError = 'All probes failed.';
+    let lastError = 'No models found to test.';
 
     for (const model of modelsToTry) {
         for (const version of versions) {
             console.log(`Probing: ${model} (${version})...`);
-            // No wait time during validation probe to make it fast
             const result = await generateWordMeaning('test', apiKey, model, version);
 
             if ('meanings' in result) {
