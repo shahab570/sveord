@@ -13,7 +13,7 @@ export function ApiKeySection() {
     const [showKey, setShowKey] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
-    const [debugVersion] = useState('v5');
+    const [debugVersion] = useState('v6');
 
     const hasExistingKey = !!apiKeys.geminiApiKey;
 
