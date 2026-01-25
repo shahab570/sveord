@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useApiKeys } from '@/hooks/useApiKeys';
+import { db } from '@/services/db';
 import { generateWordMeaning } from '@/services/geminiApi';
 import { toast } from 'sonner';
 
@@ -111,20 +112,25 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 const result = await generateWordMeaning(word.swedish_word, apiKeys.geminiApiKey);
 
                 if ('meanings' in result) {
+                    const wordData = {
+                        word_type: result.partOfSpeech || '',
+                        gender: result.gender || '',
+                        meanings: result.meanings || [],
+                        examples: result.examples || [],
+                        synonyms: result.synonyms || [],
+                        antonyms: result.antonyms || [],
+                        populated_at: new Date().toISOString(),
+                    };
+
                     await supabase
                         .from('words')
                         .update({
-                            word_data: {
-                                word_type: result.partOfSpeech || '',
-                                gender: result.gender || '',
-                                meanings: result.meanings || [],
-                                examples: result.examples || [],
-                                synonyms: result.synonyms || [],
-                                antonyms: result.antonyms || [],
-                                populated_at: new Date().toISOString(),
-                            },
+                            word_data: wordData,
                         })
                         .eq('id', word.id);
+
+                    // Update local DB for instant feedback
+                    await db.words.update(word.swedish_word, { word_data: wordData });
                 }
 
                 if (!overwrite) {
@@ -155,22 +161,28 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             const result = await generateWordMeaning(swedishWord, apiKeys.geminiApiKey);
 
             if ('meanings' in result) {
+                const wordData = {
+                    word_type: result.partOfSpeech || '',
+                    gender: result.gender || '',
+                    meanings: result.meanings || [],
+                    examples: result.examples || [],
+                    synonyms: result.synonyms || [],
+                    antonyms: result.antonyms || [],
+                    populated_at: new Date().toISOString(),
+                };
+
                 const { error: updateError } = await supabase
                     .from('words')
                     .update({
-                        word_data: {
-                            word_type: result.partOfSpeech || '',
-                            gender: result.gender || '',
-                            meanings: result.meanings || [],
-                            examples: result.examples || [],
-                            synonyms: result.synonyms || [],
-                            antonyms: result.antonyms || [],
-                            populated_at: new Date().toISOString(),
-                        },
+                        word_data: wordData,
                     })
                     .eq('id', wordId);
 
                 if (updateError) throw updateError;
+
+                // Update local DB for instant feedback
+                await db.words.update(swedishWord, { word_data: wordData });
+
                 toast.success(`Updated "${swedishWord}"`);
                 await fetchStatus();
             } else {
