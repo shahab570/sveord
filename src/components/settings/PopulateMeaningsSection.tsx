@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Sparkles, Play, Pause, RefreshCw, CheckCircle, AlertTriangle, CloudLightning } from 'lucide-react';
+import { Sparkles, Play, Pause, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
 import { usePopulation } from '@/contexts/PopulationContext';
 
 export function PopulateMeaningsSection() {
@@ -8,7 +8,7 @@ export function PopulateMeaningsSection() {
     status, isPopulating, isPaused, overwrite, setOverwrite,
     rangeStart, setRangeStart, rangeEnd, setRangeEnd,
     lastBatchInfo, error, startPopulation, pausePopulation,
-    resumePopulation, fetchStatus, startBackgroundPopulation
+    resumePopulation, fetchStatus
   } = usePopulation();
 
   const handleRefresh = async () => {
@@ -113,16 +113,6 @@ export function PopulateMeaningsSection() {
           Refresh Status
         </Button>
 
-        <Button
-          onClick={startBackgroundPopulation}
-          variant="outline"
-          size="sm"
-          className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-          disabled={isPopulating}
-        >
-          <CloudLightning className="h-4 w-4" />
-          Cloud Job (PC Off)
-        </Button>
 
         <div className="flex items-center gap-2 ml-auto">
           <div className="flex flex-col">
