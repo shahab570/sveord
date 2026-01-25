@@ -18,9 +18,10 @@ export default function KellyList() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRandomMode, setIsRandomMode] = useState(false);
 
-  const { data: words, isLoading } = useWords({
+  const words = useWords({
     kellyLevel: selectedLevel,
   });
+  const isLoading = words === undefined;
 
   const { data: levelStats } = useLevelStats("kelly");
 

@@ -20,9 +20,10 @@ export default function SidorList() {
     (r) => r.value === selectedLevel
   )?.range;
 
-  const { data: words, isLoading } = useWords({
+  const words = useWords({
     sidorRange: currentSidorRange,
   });
+  const isLoading = words === undefined;
 
   const { data: levelStats } = useLevelStats("sidor");
 

@@ -47,6 +47,12 @@
     --input: 154 30% 88%;
     --ring: 197 46% 31%;
 
+    /* Safe Area Insets */
+    --sab: env(safe-area-inset-bottom);
+    --sat: env(safe-area-inset-top);
+    --sal: env(safe-area-inset-left);
+    --sar: env(safe-area-inset-right);
+
     --radius: 0.75rem;
 
     /* Sidebar - Mint Cream base */
@@ -71,6 +77,25 @@
     --shadow-lg: 0 10px 15px -3px hsl(197 46% 31% / 0.08), 0 4px 6px -4px hsl(197 46% 31% / 0.08);
     --shadow-card: 0 4px 20px -4px hsl(197 46% 31% / 0.1);
     --shadow-gold: 0 4px 20px -4px hsl(45 92% 67% / 0.3);
+  }
+
+  .safe-top {
+    padding-top: var(--sat);
+  }
+  .safe-bottom {
+    padding-bottom: var(--sab);
+  }
+  .safe-left {
+    padding-left: var(--sal);
+  }
+  .safe-right {
+    padding-right: var(--sar);
+  }
+  .m-safe-top {
+    margin-top: var(--sat);
+  }
+  .m-safe-bottom {
+    margin-bottom: var(--sab);
   }
 
   .dark {

@@ -1,8 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useStats, useDetailedStats, FREQUENCY_LEVELS, SIDOR_LEVELS, useTodaysLearnedWords, useLearningPrediction } from "@/hooks/useWords";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  BookOpen, 
+import {
+  BookOpen,
   Flame,
   TrendingUp,
   Calendar,
@@ -29,8 +29,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { data: stats, isLoading: statsLoading } = useStats();
-  const { data: detailedStats, isLoading: detailedLoading } = useDetailedStats();
+  const stats = useStats();
+  const statsLoading = stats === undefined;
+
+  const detailedStats = useDetailedStats();
+  const detailedLoading = detailedStats === undefined;
+
   const { data: todaysWords, isLoading: todaysLoading } = useTodaysLearnedWords();
   const { data: prediction, isLoading: predictionLoading } = useLearningPrediction();
 

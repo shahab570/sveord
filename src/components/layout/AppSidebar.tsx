@@ -8,6 +8,7 @@ import {
   Hash,
   GraduationCap,
   BookMarked,
+  BrainCircuit,
 } from "lucide-react";
 
 const navItems = [
@@ -16,6 +17,7 @@ const navItems = [
   { href: "/frequency", label: "Frequency List", icon: Hash },
   { href: "/sidor", label: "Sidor List", icon: BookMarked },
   { href: "/search", label: "Search", icon: Search },
+  { href: "/practice", label: "SRS Mastery", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -24,7 +26,7 @@ export function AppSidebar() {
   const { signOut } = useAuth();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
+    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border hidden md:block safe-top">
       <div className="flex h-full flex-col">
         {/* Logo - Text only */}
         <div className="p-6 border-b border-sidebar-border">

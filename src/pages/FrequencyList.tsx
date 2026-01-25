@@ -20,9 +20,10 @@ export default function FrequencyList() {
     (r) => r.value === selectedLevel
   )?.range;
 
-  const { data: words, isLoading } = useWords({
+  const words = useWords({
     frequencyRange: currentFrequencyRange,
   });
+  const isLoading = words === undefined;
 
   const { data: levelStats } = useLevelStats("frequency");
 

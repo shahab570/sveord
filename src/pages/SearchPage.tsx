@@ -4,6 +4,7 @@ import { WordCard } from "@/components/study/WordCard";
 import { useWords, WordWithProgress } from "@/hooks/useWords";
 import { Input } from "@/components/ui/input";
 import { Search, BookOpen, GraduationCap, Hash, BookMarked } from "lucide-react";
+import { VirtualList } from "@/components/common/VirtualList";
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -11,16 +12,18 @@ export default function SearchPage() {
     null
   );
 
-  // Search uses partial matching (ILIKE %query%) - already implemented in useWords
-  const { data: words, isLoading } = useWords({
+  // useWords now uses useLiveQuery and returns the array directly
+  const words = useWords({
     search: searchQuery.length >= 2 ? searchQuery : undefined,
   });
+
+  const isLoading = searchQuery.length >= 2 && words === undefined;
 
   // Sync selectedWord with fresh data after mutations
   useEffect(() => {
     if (selectedWord && words) {
       const updatedWord = words.find(w => w.id === selectedWord.id);
-      if (updatedWord && updatedWord.progress?.is_learned !== selectedWord.progress?.is_learned) {
+      if (updatedWord && JSON.stringify(updatedWord.progress) !== JSON.stringify(selectedWord.progress)) {
         setSelectedWord(updatedWord);
       }
     }
@@ -38,29 +41,21 @@ export default function SearchPage() {
 
   const getLevelBadgeClass = (level: string | null) => {
     switch (level) {
-      case "A1":
-        return "level-badge-a1";
-      case "A2":
-        return "level-badge-a2";
-      case "B1":
-        return "level-badge-b1";
-      case "B2":
-        return "level-badge-b2";
-      case "C1":
-        return "level-badge-c1";
-      case "C2":
-        return "level-badge-c2";
-      default:
-        return "level-badge bg-gray-100 text-gray-700";
+      case "A1": return "level-badge-a1";
+      case "A2": return "level-badge-a2";
+      case "B1": return "level-badge-b1";
+      case "B2": return "level-badge-b2";
+      case "C1": return "level-badge-c1";
+      case "C2": return "level-badge-c2";
+      default: return "level-badge bg-gray-100 text-gray-700";
     }
   };
 
   const renderWordItem = (word: WordWithProgress, listType: "kelly" | "frequency" | "sidor") => {
     const isLearned = word.progress?.is_learned;
-    
-    // Different background colors for learned vs unlearned
-    const learnedBg = listType === "kelly" 
-      ? "bg-emerald-100 border-emerald-400" 
+
+    const learnedBg = listType === "kelly"
+      ? "bg-emerald-100 border-emerald-400"
       : listType === "frequency"
         ? "bg-blue-100 border-blue-400"
         : "bg-purple-100 border-purple-400";
@@ -69,33 +64,25 @@ export default function SearchPage() {
       : listType === "frequency"
         ? "bg-blue-50/30 border-blue-200"
         : "bg-purple-50/30 border-purple-200";
-    
+
     return (
       <button
-        key={`${listType}-${word.id}`}
         onClick={() => setSelectedWord(word)}
-        className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${
-          isLearned ? learnedBg : unlearnedBg
-        } hover:opacity-80`}
+        className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${isLearned ? learnedBg : unlearnedBg
+          } hover:opacity-80 shadow-sm`}
       >
         <div className="flex items-center gap-3">
           <div
-            className={`w-2.5 h-2.5 rounded-full ${
-              isLearned ? "bg-success" : "bg-muted-foreground/30"
-            }`}
+            className={`w-2.5 h-2.5 rounded-full ${isLearned ? "bg-success" : "bg-muted-foreground/30"
+              }`}
           />
-          <div>
-            <span className="text-base font-medium text-foreground">
+          <div className="flex flex-col">
+            <span className="text-base font-bold text-foreground">
               {word.swedish_word}
             </span>
-            {isLearned && (
-              <span className="text-xs ml-2 px-1.5 py-0.5 bg-success/20 text-success rounded">
-                Learned
-              </span>
-            )}
             {word.progress?.user_meaning && (
-              <span className="text-sm text-muted-foreground ml-2">
-                - {word.progress.user_meaning}
+              <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+                {word.progress.user_meaning}
               </span>
             )}
           </div>
@@ -103,12 +90,12 @@ export default function SearchPage() {
 
         <div className="flex items-center gap-2">
           {listType === "frequency" && word.frequency_rank && (
-            <span className="text-sm text-blue-600 font-medium">
+            <span className="text-xs text-blue-600 font-mono">
               #{word.frequency_rank}
             </span>
           )}
           {listType === "sidor" && word.sidor_rank && (
-            <span className="text-sm text-purple-600 font-medium">
+            <span className="text-xs text-purple-600 font-mono">
               #{word.sidor_rank}
             </span>
           )}
@@ -124,185 +111,129 @@ export default function SearchPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-primary/10 rounded-xl">
-            <Search className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Search Words</h1>
-            <p className="text-sm text-muted-foreground">
-              Find any word in your vocabulary (partial matching supported)
-            </p>
+      <div className="max-w-7xl mx-auto space-y-6 animate-fade-in pb-20 md:pb-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-primary/10 rounded-xl">
+              <Search className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">Search Words</h1>
+              <p className="text-sm text-muted-foreground">Find any word across all lists</p>
+            </div>
           </div>
         </div>
 
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+        <div className="relative group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setSelectedWord(null);
             }}
-            placeholder="Type at least 2 characters to search (e.g., 'bil' finds bil, bilen, bilar...)"
-            className="pl-10 h-14 text-lg"
+            placeholder="Search keywords..."
+            className="pl-12 h-14 text-lg bg-card border-2 border-border focus:border-primary rounded-2xl shadow-sm transition-all"
             autoFocus
           />
         </div>
 
-        {/* Selected Word Card - without random mode button */}
         {selectedWord && (
-          <div className="relative">
+          <div className="relative animate-in slide-in-from-top-4 duration-300">
             <button
               onClick={() => setSelectedWord(null)}
-              className="absolute -top-2 -right-2 z-10 p-2 bg-muted rounded-full hover:bg-muted/80 transition-colors text-lg font-bold"
+              className="absolute -top-3 -right-3 z-10 p-2 bg-background border border-border rounded-full shadow-lg hover:bg-muted transition-colors"
             >
-              <span className="sr-only">Close</span>
-              ×
+              <span className="text-xl">×</span>
             </button>
             <WordCard
               word={selectedWord}
-              onPrevious={() => {}}
-              onNext={() => {}}
+              onPrevious={() => { }}
+              onNext={() => { }}
               hasPrevious={false}
               hasNext={false}
               currentIndex={0}
               totalCount={1}
               learnedCount={selectedWord.progress?.is_learned ? 1 : 0}
               isRandomMode={false}
-              onToggleRandom={() => {}}
+              onToggleRandom={() => { }}
               showRandomButton={false}
             />
           </div>
         )}
 
-        {/* Search Results - Three separate boxes */}
         {!selectedWord && searchQuery.length >= 2 && (
           <div className="space-y-4">
             {isLoading ? (
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[...Array(3)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-16 bg-card rounded-xl animate-pulse"
-                  />
+                  <div key={i} className="h-64 bg-card rounded-2xl animate-pulse border border-border" />
                 ))}
               </div>
             ) : words && words.length > 0 ? (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Found {words.length} word{words.length !== 1 ? 's' : ''} containing "{searchQuery}"
-                </p>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Kelly List Box */}
-                  <div className="border-2 border-emerald-300 rounded-xl p-4 bg-emerald-50/30">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-200">
-                      <GraduationCap className="h-5 w-5 text-emerald-600" />
-                      <h3 className="text-lg font-semibold text-emerald-800">
-                        Kelly List
-                      </h3>
-                      <span className="ml-auto text-sm text-emerald-600 font-medium">
-                        {kellyWords.length} found
-                      </span>
-                    </div>
-                    {kellyWords.length > 0 ? (
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {kellyWords.slice(0, 25).map((word) => renderWordItem(word, "kelly"))}
-                        {kellyWords.length > 25 && (
-                          <p className="text-sm text-muted-foreground text-center pt-2">
-                            Showing first 25 of {kellyWords.length} results
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No Kelly List words found
-                      </p>
-                    )}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Kelly */}
+                <div className="border border-emerald-500/20 rounded-2xl p-5 bg-emerald-50/10 flex flex-col h-[600px] shadow-sm">
+                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-500/10">
+                    <GraduationCap className="h-5 w-5 text-emerald-600" />
+                    <h3 className="text-lg font-bold text-emerald-800">Kelly List</h3>
+                    <span className="ml-auto bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">{kellyWords.length}</span>
                   </div>
-
-                  {/* Frequency List Box */}
-                  <div className="border-2 border-blue-300 rounded-xl p-4 bg-blue-50/30">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-200">
-                      <Hash className="h-5 w-5 text-blue-600" />
-                      <h3 className="text-lg font-semibold text-blue-800">
-                        Frequency List
-                      </h3>
-                      <span className="ml-auto text-sm text-blue-600 font-medium">
-                        {frequencyWords.length} found
-                      </span>
-                    </div>
-                    {frequencyWords.length > 0 ? (
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {frequencyWords.slice(0, 25).map((word) => renderWordItem(word, "frequency"))}
-                        {frequencyWords.length > 25 && (
-                          <p className="text-sm text-muted-foreground text-center pt-2">
-                            Showing first 25 of {frequencyWords.length} results
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No Frequency List words found
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Sidor List Box */}
-                  <div className="border-2 border-purple-300 rounded-xl p-4 bg-purple-50/30">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-200">
-                      <BookMarked className="h-5 w-5 text-purple-600" />
-                      <h3 className="text-lg font-semibold text-purple-800">
-                        Sidor List
-                      </h3>
-                      <span className="ml-auto text-sm text-purple-600 font-medium">
-                        {sidorWords.length} found
-                      </span>
-                    </div>
-                    {sidorWords.length > 0 ? (
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {sidorWords.slice(0, 25).map((word) => renderWordItem(word, "sidor"))}
-                        {sidorWords.length > 25 && (
-                          <p className="text-sm text-muted-foreground text-center pt-2">
-                            Showing first 25 of {sidorWords.length} results
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No Sidor List words found
-                      </p>
-                    )}
-                  </div>
+                  <VirtualList
+                    items={kellyWords}
+                    height="100%"
+                    itemHeight={64}
+                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "kelly")}</div>}
+                  />
                 </div>
-              </>
+
+                {/* Frequency */}
+                <div className="border border-blue-500/20 rounded-2xl p-5 bg-blue-50/10 flex flex-col h-[600px] shadow-sm">
+                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/10">
+                    <Hash className="h-5 w-5 text-blue-600" />
+                    <h3 className="text-lg font-bold text-blue-800">Frequency List</h3>
+                    <span className="ml-auto bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{frequencyWords.length}</span>
+                  </div>
+                  <VirtualList
+                    items={frequencyWords}
+                    height="100%"
+                    itemHeight={64}
+                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "frequency")}</div>}
+                  />
+                </div>
+
+                {/* Sidor */}
+                <div className="border border-purple-500/20 rounded-2xl p-5 bg-purple-50/10 flex flex-col h-[600px] shadow-sm">
+                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-500/10">
+                    <BookMarked className="h-5 w-5 text-purple-600" />
+                    <h3 className="text-lg font-bold text-purple-800">Sidor List</h3>
+                    <span className="ml-auto bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">{sidorWords.length}</span>
+                  </div>
+                  <VirtualList
+                    items={sidorWords}
+                    height="100%"
+                    itemHeight={64}
+                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "sidor")}</div>}
+                  />
+                </div>
+              </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No words found containing "{searchQuery}"
+              <div className="text-center py-20 bg-card border border-dashed border-border rounded-3xl">
+                <p className="text-muted-foreground text-lg">No results found for "{searchQuery}"</p>
               </div>
             )}
           </div>
         )}
 
-        {/* Initial State */}
         {!selectedWord && searchQuery.length < 2 && (
-          <div className="text-center py-12">
-            <div className="p-4 bg-muted rounded-2xl w-fit mx-auto mb-4">
-              <BookOpen className="h-12 w-12 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 bg-secondary/10 rounded-3xl border border-dashed border-border/50">
+            <div className="p-5 bg-primary/10 rounded-full animate-pulse">
+              <BookOpen className="h-12 w-12 text-primary/60" />
             </div>
-            <h3 className="text-xl font-semibold text-foreground">
-              Search your vocabulary
-            </h3>
-            <p className="text-muted-foreground mt-2">
-              Type at least 2 characters to find words. Partial matches are supported.
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Example: searching "bil" will find bil, bilen, bilar, bilarna, rosbil, etc.
-            </p>
+            <div>
+              <h3 className="text-xl font-bold">Start Searching</h3>
+              <p className="text-muted-foreground max-w-sm mx-auto">Type at least 2 characters to find words in your Swedish vocabulary database.</p>
+            </div>
           </div>
         )}
       </div>

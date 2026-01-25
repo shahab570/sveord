@@ -76,17 +76,17 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
-    const runBatch = async (batchSize: number = 50): Promise<boolean> => {
+    const runBatch = async (batchSize: number = 50, startFromId: number): Promise<{ lastId: number, count: number }> => {
         if (!hasApiKey || !apiKeys.geminiApiKey) {
             setError('No API key configured');
-            return false;
+            return { lastId: startFromId, count: 0 };
         }
 
         try {
             let query = supabase.from('words').select('id, swedish_word');
 
-            // Range filtering
-            query = query.gte('id', rangeStart).lte('id', rangeEnd);
+            // Range filtering starting from the cursor
+            query = query.gte('id', startFromId).lte('id', rangeEnd);
 
             if (!overwrite) {
                 query = query.is('word_data', null);
@@ -97,12 +97,15 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 .limit(batchSize);
 
             if (fetchError) throw fetchError;
-            if (!words || words.length === 0) return false;
+            if (!words || words.length === 0) return { lastId: startFromId, count: 0 };
+
+            let maxId = startFromId;
 
             for (let i = 0; i < words.length; i++) {
-                if (pauseRef.current) return false;
+                if (pauseRef.current) return { lastId: maxId, count: i };
 
                 const word = words[i];
+                maxId = word.id;
                 setLastBatchInfo(`Generating meaning for "${word.swedish_word}" (${i + 1}/${words.length})...`);
 
                 const result = await generateWordMeaning(word.swedish_word, apiKeys.geminiApiKey);
@@ -133,10 +136,11 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 }
             }
 
-            return words.length === batchSize;
+            // Return the next ID to start from (maxId + 1)
+            return { lastId: maxId + 1, count: words.length };
         } catch (err: any) {
             setError(err.message || 'Failed to process batch');
-            return false;
+            return { lastId: startFromId, count: 0 };
         }
     };
 
@@ -184,15 +188,20 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         setError(null);
         toast.success(`Starting generation for IDs ${rangeStart} to ${rangeEnd}...`);
 
+        let currentCursor = rangeStart;
+
         const runNextBatch = async () => {
             if (pauseRef.current) {
                 setIsPopulating(false);
                 return;
             }
 
-            const shouldContinue = await runBatch(50);
+            const { lastId, count } = await runBatch(50, currentCursor);
+            currentCursor = lastId;
 
-            if (shouldContinue && !pauseRef.current) {
+            const hasMore = count === 50 && currentCursor <= rangeEnd;
+
+            if (hasMore && !pauseRef.current) {
                 setTimeout(runNextBatch, 200);
             } else if (!pauseRef.current) {
                 setIsPopulating(false);
@@ -212,6 +221,10 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
     };
 
     const resumePopulation = () => {
+        // Resume should probably keep the cursor, but since we don't store it in state,
+        // it resets to rangeStart. However, if overwrite is false, it naturally skips.
+        // If overwrite is true, the user might want it to continue from where it stopped.
+        // For now, we'll let it start from rangeStart or the user can manually update rangeStart.
         setIsPaused(false);
         startPopulation();
     };
