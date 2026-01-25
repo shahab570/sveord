@@ -16,12 +16,17 @@ interface PopulationContextType {
     isPaused: boolean;
     overwrite: boolean;
     setOverwrite: (val: boolean) => void;
+    rangeStart: number;
+    setRangeStart: (val: number) => void;
+    rangeEnd: number;
+    setRangeEnd: (val: number) => void;
     lastBatchInfo: string | null;
     error: string | null;
     startPopulation: () => Promise<void>;
     pausePopulation: () => void;
     resumePopulation: () => void;
     fetchStatus: () => Promise<void>;
+    regenerateSingleWord: (wordId: number, swedishWord: string) => Promise<void>;
 }
 
 const PopulationContext = createContext<PopulationContextType | undefined>(undefined);
@@ -32,6 +37,8 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
     const [isPopulating, setIsPopulating] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [overwrite, setOverwrite] = useState(false);
+    const [rangeStart, setRangeStart] = useState<number>(1);
+    const [rangeEnd, setRangeEnd] = useState<number>(15000);
     const [lastBatchInfo, setLastBatchInfo] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const pauseRef = useRef(false);
@@ -77,6 +84,10 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
 
         try {
             let query = supabase.from('words').select('id, swedish_word');
+
+            // Range filtering
+            query = query.gte('id', rangeStart).lte('id', rangeEnd);
+
             if (!overwrite) {
                 query = query.is('word_data', null);
             }
@@ -129,12 +140,49 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
+    const regenerateSingleWord = async (wordId: number, swedishWord: string) => {
+        if (!hasApiKey || !apiKeys.geminiApiKey) {
+            toast.error('No API key configured');
+            return;
+        }
+
+        try {
+            toast.info(`Regenerating "${swedishWord}"...`);
+            const result = await generateWordMeaning(swedishWord, apiKeys.geminiApiKey);
+
+            if ('meanings' in result) {
+                const { error: updateError } = await supabase
+                    .from('words')
+                    .update({
+                        word_data: {
+                            word_type: result.partOfSpeech || '',
+                            gender: result.gender || '',
+                            meanings: result.meanings || [],
+                            examples: result.examples || [],
+                            synonyms: result.synonyms || [],
+                            antonyms: result.antonyms || [],
+                            populated_at: new Date().toISOString(),
+                        },
+                    })
+                    .eq('id', wordId);
+
+                if (updateError) throw updateError;
+                toast.success(`Updated "${swedishWord}"`);
+                await fetchStatus();
+            } else {
+                toast.error(`Failed: ${result.error}`);
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Regeneration failed');
+        }
+    };
+
     const startPopulation = async () => {
         setIsPopulating(true);
         setIsPaused(false);
         pauseRef.current = false;
         setError(null);
-        toast.success('Starting background generation...');
+        toast.success(`Starting generation for IDs ${rangeStart} to ${rangeEnd}...`);
 
         const runNextBatch = async () => {
             if (pauseRef.current) {
@@ -149,7 +197,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             } else if (!pauseRef.current) {
                 setIsPopulating(false);
                 await fetchStatus();
-                toast.success('🎉 Generation complete!');
+                toast.success(`🎉 Segment ${rangeStart}-${rangeEnd} complete!`);
             }
         };
 
@@ -171,8 +219,9 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
     return (
         <PopulationContext.Provider value={{
             status, isPopulating, isPaused, overwrite, setOverwrite,
+            rangeStart, setRangeStart, rangeEnd, setRangeEnd,
             lastBatchInfo, error, startPopulation, pausePopulation,
-            resumePopulation, fetchStatus
+            resumePopulation, fetchStatus, regenerateSingleWord
         }}>
             {children}
         </PopulationContext.Provider>

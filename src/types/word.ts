@@ -11,6 +11,7 @@ export interface WordExample {
 
 export interface WordData {
   word_type: string;
+  gender?: string;
   meanings: WordMeaning[];
   examples: WordExample[];
   synonyms: string[];

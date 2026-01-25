@@ -13,8 +13,10 @@ import {
   BookOpen,
   Languages,
   Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { usePopulation } from "@/contexts/PopulationContext";
 
 interface WordCardProps {
   word: WordWithProgress;
@@ -46,6 +48,7 @@ export function WordCard({
   listType = "frequency",
 }: WordCardProps) {
   const { upsertProgress } = useUserProgress();
+  const { regenerateSingleWord } = usePopulation();
   const [isEditingSpelling, setIsEditingSpelling] = useState(false);
   const [customSpelling, setCustomSpelling] = useState(
     word.progress?.custom_spelling || ""
@@ -135,31 +138,36 @@ export function WordCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-        {listType === "frequency" && word.frequency_rank && (
-          <span className="text-sm font-medium text-muted-foreground">
-            #{word.frequency_rank}
-          </span>
-        )}
-        {listType === "kelly" && word.kelly_source_id && (
-          <span className="text-sm font-medium text-muted-foreground">
-            #{word.kelly_source_id}
-          </span>
-        )}
-        {listType === "sidor" && word.sidor_rank && (
-          <span className="text-sm font-medium text-muted-foreground">
-            #{word.sidor_rank}
-          </span>
-        )}
-        {word.kelly_level && (
-          <span className={getLevelBadgeClass(word.kelly_level)}>
-            {word.kelly_level}
-          </span>
-        )}
-        {wordData?.word_type && (
-          <span className="text-xs px-2 py-0.5 rounded bg-secondary text-muted-foreground">
-            {wordData.word_type}
-          </span>
-        )}
+          {listType === "frequency" && word.frequency_rank && (
+            <span className="text-sm font-medium text-muted-foreground">
+              #{word.frequency_rank}
+            </span>
+          )}
+          {listType === "kelly" && word.kelly_source_id && (
+            <span className="text-sm font-medium text-muted-foreground">
+              #{word.kelly_source_id}
+            </span>
+          )}
+          {listType === "sidor" && word.sidor_rank && (
+            <span className="text-sm font-medium text-muted-foreground">
+              #{word.sidor_rank}
+            </span>
+          )}
+          {word.kelly_level && (
+            <span className={getLevelBadgeClass(word.kelly_level)}>
+              {word.kelly_level}
+            </span>
+          )}
+          {wordData?.word_type && (
+            <span className="text-xs px-2 py-0.5 rounded bg-secondary text-muted-foreground font-medium">
+              {wordData.word_type}
+            </span>
+          )}
+          {wordData?.gender && (
+            <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-bold uppercase">
+              {wordData.gender} Word
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {showRandomButton && (
@@ -245,11 +253,25 @@ export function WordCard({
             <Sparkles className="h-4 w-4 text-amber-500" />
             <Languages className="h-4 w-4" />
             <span>AI Meanings</span>
-            <span className="text-xs text-muted-foreground ml-auto">
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 gap-1 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                regenerateSingleWord(word.id, word.swedish_word);
+              }}
+            >
+              <RefreshCw className="h-3 w-3" />
+              Regenerate
+            </Button>
+
+            <span className="text-xs text-muted-foreground ml-2">
               {showAIMeanings ? "Hide" : "Show"}
             </span>
           </button>
-          
+
           {showAIMeanings && (
             <div className="space-y-4 p-4 rounded-lg bg-secondary/30 border border-border">
               {/* Meanings */}
@@ -349,11 +371,10 @@ export function WordCard({
         <Button
           onClick={handleToggleLearned}
           disabled={isSaving}
-          className={`gap-2 px-8 ${
-            isLearned
+          className={`gap-2 px-8 ${isLearned
               ? "bg-success hover:bg-success/90 text-success-foreground"
               : ""
-          }`}
+            }`}
         >
           <Check className="h-5 w-5" />
           {isLearned ? "Learned ✓" : "Mark Learned"}

@@ -6,6 +6,7 @@ import { usePopulation } from '@/contexts/PopulationContext';
 export function PopulateMeaningsSection() {
   const {
     status, isPopulating, isPaused, overwrite, setOverwrite,
+    rangeStart, setRangeStart, rangeEnd, setRangeEnd,
     lastBatchInfo, error, startPopulation, pausePopulation,
     resumePopulation, fetchStatus
   } = usePopulation();
@@ -111,6 +112,29 @@ export function PopulateMeaningsSection() {
           <RefreshCw className="h-4 w-4" />
           Refresh Status
         </Button>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="flex flex-col">
+            <label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Start ID</label>
+            <input
+              type="number"
+              value={rangeStart}
+              onChange={(e) => setRangeStart(parseInt(e.target.value) || 1)}
+              disabled={isPopulating}
+              className="w-20 rounded border-purple-300 text-sm p-1"
+            />
+          </div>
+          <div className="flex flex-col">
+            <label className="text-[10px] text-muted-foreground uppercase font-bold px-1">End ID</label>
+            <input
+              type="number"
+              value={rangeEnd}
+              onChange={(e) => setRangeEnd(parseInt(e.target.value) || 15000)}
+              disabled={isPopulating}
+              className="w-24 rounded border-purple-300 text-sm p-1"
+            />
+          </div>
+        </div>
 
         <div className="flex items-center gap-2 ml-2">
           <input
