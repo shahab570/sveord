@@ -1,8 +1,9 @@
 // Gemini API service for generating Swedish word meanings
 let ACTIVE_MODEL = 'gemini-1.5-flash';
-const API_VERSION = 'v1beta';
+let ACTIVE_VERSION = 'v1beta';
 
-const getApiUrl = (model: string) => `https://generativelanguage.googleapis.com/${API_VERSION}/models/${model}:generateContent`;
+const getApiUrl = (version: string, model: string) =>
+    `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent`;
 
 export interface WordMeaningResult {
     meanings: Array<{
@@ -28,72 +29,45 @@ export interface GeminiError {
 export async function generateWordMeaning(
     swedishWord: string,
     apiKey: string,
-    modelOverride?: string
+    modelOverride?: string,
+    versionOverride?: string
 ): Promise<WordMeaningResult | GeminiError> {
     const model = modelOverride || ACTIVE_MODEL;
+    const version = versionOverride || ACTIVE_VERSION;
+
     try {
         const prompt = `You are a Swedish-English language expert. Provide a detailed explanation of the Swedish word "${swedishWord}" in English.
 
-Please provide:
-1. 2-3 different meanings/definitions (if the word has multiple meanings)
-2. 1-2 example sentences in Swedish with English translations
-3. 2-3 synonyms (Swedish words with similar meaning)
-4. 1-2 antonyms (if applicable)
-
 Format your response as JSON with this exact structure:
 {
-  "meanings": [
-    {"english": "definition 1", "context": "when used in this context"},
-    {"english": "definition 2", "context": "when used in this context"}
-  ],
-  "examples": [
-    {"swedish": "example sentence in Swedish", "english": "English translation"}
-  ],
-  "synonyms": ["synonym1", "synonym2"],
-  "antonyms": ["antonym1"]
+  "meanings": [{"english": "definition", "context": "context"}],
+  "examples": [{"swedish": "sentence", "english": "translation"}],
+  "synonyms": ["synonym"],
+  "antonyms": ["antonym"]
 }
 
-Only return the JSON, no additional text.`;
+Only return the JSON.`;
 
-        const response = await fetch(`${getApiUrl(model)}?key=${apiKey}`, {
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: prompt
-                    }]
-                }],
-                generationConfig: {
-                    temperature: 0.3,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 1024,
-                }
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.3 }
             }),
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            return { error: `Request failed (${response.status})`, details: errorData.error?.message || response.statusText };
+            return { error: `HTTP ${response.status}`, details: errorData.error?.message || response.statusText };
         }
 
         const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!responseText) return { error: 'Empty response' };
 
-        if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-            return { error: 'Invalid response from Gemini API' };
-        }
-
-        const responseText = data.candidates[0].content.parts[0].text;
-        let jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-            jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) jsonMatch = [jsonMatch[1]];
-        }
-
-        if (!jsonMatch) return { error: 'Could not parse response' };
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return { error: 'JSON not found' };
 
         const result = JSON.parse(jsonMatch[0]);
         return {
@@ -103,7 +77,7 @@ Only return the JSON, no additional text.`;
             antonyms: result.antonyms || [],
         };
     } catch (error: any) {
-        return { error: 'Connection error', details: error.message };
+        return { error: 'Network error', details: error.message };
     }
 }
 
@@ -120,56 +94,52 @@ export async function generateMeaningsBatch(
 
     for (const word of words) {
         if (onProgress) onProgress(completed, words.length, word);
-
         const result = await generateWordMeaning(word, apiKey);
 
         if ('meanings' in result) {
             results.set(word, result);
         } else {
             results.set(word, {
-                meanings: [{ english: 'Failed to generate meaning' }],
-                examples: [],
-                synonyms: [],
-                antonyms: [],
+                meanings: [{ english: 'Failed' }],
+                examples: [], synonyms: [], antonyms: [],
             });
         }
 
         completed++;
-        if (completed < words.length) {
-            await new Promise(resolve => setTimeout(resolve, 4000));
-        }
+        if (completed < words.length) await new Promise(r => setTimeout(r, 4000));
     }
-
     return results;
 }
 
 /**
- * Validate Gemini API key by probing multiple models
+ * Validate Gemini API key by probing multiple models and versions
  */
 export async function validateGeminiApiKey(apiKey: string): Promise<boolean> {
-    // List of models to try in order of preference
-    const modelsToTry = [
+    const models = [
         'gemini-1.5-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-3-flash',
+        'gemini-1.5-flash-8b',
         'gemini-pro',
-        'gemini-flash'
+        'gemini-3-flash',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash-exp'
     ];
+    const versions = ['v1', 'v1beta'];
 
-    for (const model of modelsToTry) {
-        console.log(`Checking model: ${model}...`);
-        const result = await generateWordMeaning('test', apiKey, model);
+    for (const model of models) {
+        for (const version of versions) {
+            console.log(`Probing: ${model} (${version})...`);
+            const result = await generateWordMeaning('test', apiKey, model, version);
 
-        if ('meanings' in result) {
-            console.log(`✅ Success with model: ${model}`);
-            ACTIVE_MODEL = model; // Set it globally for subsequent calls
-            return true;
+            if ('meanings' in result) {
+                console.log(`✅ Success! Using ${model} on ${version}`);
+                ACTIVE_MODEL = model;
+                ACTIVE_VERSION = version;
+                return true;
+            }
+            console.log(`❌ ${model} (${version}) failed:`, result.details);
         }
-
-        console.log(`❌ Model ${model} returned error:`, result.details);
     }
 
-    console.error('All models failed validation.');
+    console.error('All combinations failed.');
     return false;
 }
-
