@@ -22,14 +22,14 @@ serve(async (req) => {
   }
 
   try {
+    // Default batchSize reduced to 5 to avoid timeouts
     const { action, batchSize = 5, apiKey, startId = 1, rangeEnd = 15000, recursionDepth = 0 } = await req.json();
 
     if (!apiKey) {
       throw new Error("Gemini API Key is required");
     }
 
-    // Safety limit to prevent infinite runaways if something goes wrong
-    if (recursionDepth > 500) {
+    if (recursionDepth > 1000) {
       console.log("Max recursion depth reached. Stopping.");
       return new Response(JSON.stringify({ complete: false, reason: "Max depth" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -42,7 +42,6 @@ serve(async (req) => {
     if (action === "populate_background") {
       console.log(`Starting batch: ID ${startId} to ${rangeEnd} (Depth: ${recursionDepth})`);
 
-      // 1. Fetch unpopulated words
       const { data: words, error: fetchError } = await supabase
         .from("words")
         .select("id, swedish_word")
@@ -50,7 +49,6 @@ serve(async (req) => {
         .lte("id", rangeEnd)
         .is("word_data", null)
         .order("id", { ascending: true })
-        // Use smaller batches for Edge Functions to avoid timeout (limit is often 60s)
         .limit(batchSize);
 
       if (fetchError) throw fetchError;
@@ -62,7 +60,9 @@ serve(async (req) => {
 
       console.log(`Processing ${words.length} words...`);
 
-      // 2. Process words (Sequential to avoid rate limits on user's key)
+      let processedCount = 0;
+      let errorCount = 0;
+
       for (const word of words) {
         const prompt = `You are a Swedish-English language expert. Provide a detailed explanation of the Swedish word "${word.swedish_word}" in English.
 Format your response as JSON with this exact structure:
@@ -87,16 +87,23 @@ Only return the JSON.`;
           });
 
           if (!response.ok) {
-            console.error(`Gemini API error for ${word.swedish_word}: ${response.status}`);
-            continue; // Skip and try next
+            console.error(`Gemini API error for ${word.swedish_word}: ${response.status} - ${response.statusText}`);
+            errorCount++;
+            continue;
           }
 
           const data = await response.json();
           const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!responseText) continue;
+          if (!responseText) {
+            errorCount++;
+            continue;
+          };
 
           const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) continue;
+          if (!jsonMatch) {
+            errorCount++;
+            continue;
+          };
 
           const result = JSON.parse(jsonMatch[0]);
           const wordData: WordData = {
@@ -110,31 +117,26 @@ Only return the JSON.`;
           };
 
           await supabase.from("words").update({ word_data: wordData }).eq("id", word.id);
+          processedCount++;
 
-          // Small delay to be nice to the API
-          await new Promise(r => setTimeout(r, 200));
+          // SAFETY DELAY FOR FREE TIER (15 Requests/Min = 1 req / 4 sec)
+          await new Promise(r => setTimeout(r, 4000));
 
         } catch (err) {
           console.error(`Error processing word ${word.swedish_word}:`, err);
+          errorCount++;
         }
       }
 
-      // 3. Recursive Trigger
-      // If we processed words, there might be more. Trigger next batch.
-      // We trigger asynchronously so THIS function can return successfully.
-
+      // Recursive Trigger
       const lastProcessedId = words[words.length - 1].id;
 
-      // Only trigger if we actually processed something and aren't at the end
       if (lastProcessedId < rangeEnd) {
         const nextStartId = lastProcessedId + 1;
         console.log(`Triggering next batch starting at ${nextStartId}...`);
 
-        // Fire and forget (don't await the result of the fetch, just dispatch it)
         const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/populate-meanings`;
 
-        // We use the anon key for the fetch, but strict security might require service role.
-        // But usually functions are protected. We'll use Service Role to bypass auth checks if configured.
         fetch(functionUrl, {
           method: 'POST',
           headers: {
@@ -154,7 +156,8 @@ Only return the JSON.`;
 
       return new Response(JSON.stringify({
         success: true,
-        message: `Processed ${words.length} words. Background job continuing.`
+        message: `Processed ${processedCount} words (${errorCount} failed). Background job continuing.`,
+        details: { processed: processedCount, errors: errorCount }
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
