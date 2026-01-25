@@ -99,16 +99,17 @@ export async function generateMeaningsBatch(
         if ('meanings' in result) {
             results.set(word, result);
         } else {
+            console.error(`Failed to generate meaning for "${word}":`, result.error, result.details);
             results.set(word, {
-                meanings: [{ english: 'Generation failed' }],
+                meanings: [{ english: `Generation failed: ${result.error}` }],
                 examples: [], synonyms: [], antonyms: [],
             });
         }
 
         completed++;
         // Rate limiting removed for paid tier.
-        // We still add a tiny 100ms delay to prevent browser fetch congestion.
-        if (completed < words.length) await new Promise(r => setTimeout(r, 100));
+        // We still add a tiny 200ms delay to prevent browser fetch congestion and 429 errors.
+        if (completed < words.length) await new Promise(r => setTimeout(r, 200));
     }
     return results;
 }
