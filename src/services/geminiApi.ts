@@ -112,21 +112,46 @@ export async function generateMeaningsBatch(
 }
 
 /**
+ * List available models for the API key
+ */
+async function listModels(apiKey: string): Promise<string[]> {
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        if (!response.ok) {
+            console.error('Failed to list models:', response.statusText);
+            return [];
+        }
+        const data = await response.json();
+        return (data.models || []).map((m: any) => m.name.replace('models/', ''));
+    } catch (e) {
+        console.error('Error listing models:', e);
+        return [];
+    }
+}
+
+/**
  * Validate Gemini API key by probing multiple models and versions
  */
 export async function validateGeminiApiKey(apiKey: string): Promise<boolean> {
-    const models = [
+    console.log('validateGeminiApiKey starting probe...');
+
+    // First, try to list models to see what we actually have access to
+    const availableModels = await listModels(apiKey);
+    console.log('Available models from API:', availableModels);
+
+    // Combine standard models with available models
+    const modelsToTry = [...new Set([
+        ...availableModels,
         'gemini-1.5-flash',
         'gemini-1.5-pro',
         'gemini-2.0-flash',
         'gemini-2.0-flash-exp',
-        'gemini-1.5-flash-8b',
         'gemini-pro',
-        'gemini-3-flash'
-    ];
-    const versions = ['v1', 'v1beta'];
+    ])];
 
-    for (const model of models) {
+    const versions = ['v1beta', 'v1'];
+
+    for (const model of modelsToTry) {
         for (const version of versions) {
             console.log(`Probing: ${model} (${version})...`);
             const result = await generateWordMeaning('test', apiKey, model, version);
