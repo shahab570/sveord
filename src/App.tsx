@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { PopulationProvider } from "@/contexts/PopulationContext";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import KellyList from "./pages/KellyList";
@@ -29,17 +30,19 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/kelly" element={<KellyList />} />
-            <Route path="/frequency" element={<FrequencyList />} />
-            <Route path="/sidor" element={<SidorList />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <PopulationProvider>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/kelly" element={<KellyList />} />
+              <Route path="/frequency" element={<FrequencyList />} />
+              <Route path="/sidor" element={<SidorList />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </PopulationProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
