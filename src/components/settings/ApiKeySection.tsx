@@ -41,8 +41,8 @@ export function ApiKeySection() {
                 return;
             }
 
-            // Save the validated key
-            await saveGeminiApiKey(apiKey.trim());
+            // Save the validated key along with its working model/version
+            await saveGeminiApiKey(apiKey.trim(), result.model, result.version);
             toast.success('API key saved successfully!');
             setApiKey('');
             setShowKey(false);

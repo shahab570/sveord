@@ -5,6 +5,15 @@ let ACTIVE_VERSION = 'v1beta';
 const getApiUrl = (version: string, model: string) =>
     `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent`;
 
+/**
+ * Configure the active model and version (used to persist selection)
+ */
+export function setActiveConfig(model: string, version: string) {
+    ACTIVE_MODEL = model;
+    ACTIVE_VERSION = version;
+    console.log(`Gemini API configured: ${model} (${version})`);
+}
+
 export interface WordMeaningResult {
     meanings: Array<{
         english: string;
@@ -131,7 +140,7 @@ async function listModels(apiKey: string): Promise<string[]> {
 /**
  * Validate Gemini API key by probing multiple models and versions
  */
-export async function validateGeminiApiKey(apiKey: string): Promise<{ success: boolean; error?: string }> {
+export async function validateGeminiApiKey(apiKey: string): Promise<{ success: boolean; error?: string; model?: string; version?: string }> {
     console.log('validateGeminiApiKey starting probe...');
 
     const availableModels = await listModels(apiKey);
@@ -159,7 +168,7 @@ export async function validateGeminiApiKey(apiKey: string): Promise<{ success: b
                 console.log(`✅ Success! Using ${model} on ${version}`);
                 ACTIVE_MODEL = model;
                 ACTIVE_VERSION = version;
-                return { success: true };
+                return { success: true, model, version };
             }
 
             lastError = `Model ${model} (${version}): ${result.details || result.error}`;
