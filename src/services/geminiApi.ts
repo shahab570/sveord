@@ -106,7 +106,9 @@ export async function generateMeaningsBatch(
         }
 
         completed++;
-        if (completed < words.length) await new Promise(r => setTimeout(r, 4000));
+        // Rate limiting removed for paid tier.
+        // We still add a tiny 100ms delay to prevent browser fetch congestion.
+        if (completed < words.length) await new Promise(r => setTimeout(r, 100));
     }
     return results;
 }

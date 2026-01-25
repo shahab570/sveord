@@ -63,7 +63,7 @@ export function PopulateMeaningsSection() {
     }
   };
 
-  const runBatch = async (batchSize: number = 10): Promise<boolean> => {
+  const runBatch = async (batchSize: number = 50): Promise<boolean> => {
     if (!hasApiKey || !apiKeys.geminiApiKey) {
       setError('No API key configured');
       return false;
@@ -151,11 +151,11 @@ export function PopulateMeaningsSection() {
         return;
       }
 
-      const shouldContinue = await runBatch(10);
+      const shouldContinue = await runBatch(50);
 
       if (shouldContinue && !pauseRef.current) {
-        // Wait 1 second between batches
-        setTimeout(runNextBatch, 1000);
+        // Wait 100ms between batches (paid tier)
+        setTimeout(runNextBatch, 100);
       } else if (!pauseRef.current) {
         setIsPopulating(false);
         if (status?.remaining === 0 || !shouldContinue) {
@@ -302,8 +302,7 @@ export function PopulateMeaningsSection() {
 
       {/* Info note */}
       <p className="text-xs text-muted-foreground mt-2">
-        ⚡ Processing ~10 words per batch with 4 seconds between requests (Gemini rate limit).
-        Estimated time: ~{Math.ceil((status?.remaining || 0) / 10 * 4 / 60)} minutes for remaining words.
+        ⚡ High-speed generation enabled (Paid Tier). Estimated time: ~{Math.ceil((status?.remaining || 0) / 20 / 60)} minutes for remaining words.
       </p>
       <p className="text-xs text-muted-foreground">
         💡 You can pause and resume anytime. Your progress is saved automatically.
