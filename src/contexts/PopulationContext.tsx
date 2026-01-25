@@ -266,7 +266,17 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             toast.success("Background job started! You can close this tab/PC now. Check back later.");
         } catch (err: any) {
             toast.dismiss();
-            toast.error("Failed to start cloud job: " + err.message);
+            console.error("Cloud Job Error Full:", err);
+
+            let errorMessage = err.message || "Unknown error";
+            if (err.context && err.context.headers) {
+                errorMessage += ` (Status: ${err.context.status})`;
+            }
+            if (typeof err === 'object' && err !== null) {
+                errorMessage += " - Check console for full details";
+            }
+
+            toast.error("Failed to start cloud job: " + errorMessage);
         }
     };
 
