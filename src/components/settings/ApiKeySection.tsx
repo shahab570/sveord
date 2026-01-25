@@ -13,6 +13,7 @@ export function ApiKeySection() {
     const [showKey, setShowKey] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
+    const [debugVersion] = useState('v5');
 
     const hasExistingKey = !!apiKeys.geminiApiKey;
 
@@ -71,7 +72,7 @@ export function ApiKeySection() {
             <div className="flex items-center gap-3">
                 <Key className="h-5 w-5 text-purple-600" />
                 <h2 className="text-lg font-semibold text-foreground">
-                    Google Gemini API Key
+                    Google Gemini API Key <span className="text-[10px] opacity-30 font-mono">{debugVersion}</span>
                 </h2>
             </div>
 
