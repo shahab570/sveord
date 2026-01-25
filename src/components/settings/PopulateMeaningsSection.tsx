@@ -5,7 +5,7 @@ import { Sparkles, Play, Pause, RefreshCw, CheckCircle, AlertTriangle, Settings 
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useApiKeys } from '@/hooks/useApiKeys';
-import { generateMeaningsBatch } from '@/services/geminiApi';
+import { generateWordMeaning } from '@/services/geminiApi';
 import { Link } from 'react-router-dom';
 
 interface PopulationStatus {
@@ -87,49 +87,43 @@ export function PopulateMeaningsSection() {
         return false; // No more words to process
       }
 
-      // Generate meanings for the batch
-      const swedishWords = words.map(w => w.swedish_word);
-      const meanings = await generateMeaningsBatch(
-        swedishWords,
-        apiKeys.geminiApiKey,
-        (completed, total, currentWord) => {
-          setLastBatchInfo(`Generating meaning for "${currentWord}" (${completed + 1}/${total})...`);
+      // Process each word one by one for "Live" updates
+      for (let i = 0; i < words.length; i++) {
+        if (pauseRef.current) return false;
+
+        const word = words[i];
+        setLastBatchInfo(`Generating meaning for "${word.swedish_word}" (${i + 1}/${words.length})...`);
+
+        const result = await generateWordMeaning(word.swedish_word, apiKeys.geminiApiKey);
+
+        if ('meanings' in result) {
+          // Update database for THIS word immediately
+          const { error: updateError } = await supabase
+            .from('words')
+            .update({
+              word_data: {
+                word_type: '',
+                meanings: result.meanings || [],
+                examples: result.examples || [],
+                synonyms: result.synonyms || [],
+                antonyms: result.antonyms || [],
+                populated_at: new Date().toISOString(),
+              },
+            })
+            .eq('id', word.id);
+
+          if (updateError) throw updateError;
         }
-      );
 
-      // Update database with meanings
-      const updates = words.map(word => {
-        const meaning = meanings.get(word.swedish_word);
-        if (!meaning) return null;
-
-        return {
-          id: word.id,
-          swedish_word: word.swedish_word,
-          word_data: {
-            word_type: '',
-            meanings: meaning.meanings || [],
-            examples: meaning.examples || [],
-            synonyms: meaning.synonyms || [],
-            antonyms: meaning.antonyms || [],
-            populated_at: new Date().toISOString(),
-          },
-        };
-      }).filter(u => u !== null);
-
-      // Batch update
-      if (updates.length > 0) {
-        const { error: updateError } = await supabase
-          .from('words')
-          .upsert(updates, { onConflict: 'id' });
-
-        if (updateError) throw updateError;
+        // Update the main progress counter in the UI after each word
+        setStatus(prev => prev ? {
+          ...prev,
+          completed: prev.completed + 1,
+          remaining: prev.remaining - 1
+        } : null);
       }
 
-      setLastBatchInfo(`Processed ${updates.length} words`);
-
-      // Update status
-      await fetchStatus();
-
+      setLastBatchInfo(`Processed batch of ${words.length} words`);
       return words.length === batchSize; // Continue if we got a full batch
     } catch (err: any) {
       console.error('Batch error:', err);
