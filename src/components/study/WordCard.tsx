@@ -341,6 +341,26 @@ export function WordCard({
         </div>
       )}
 
+      {/* Generate Button - Shows when no AI meanings exist */}
+      {(!wordData || !wordData.meanings || wordData.meanings.length === 0) && (
+        <div className="mb-6 p-4 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-amber-500" />
+            <span className="text-sm text-amber-800">No AI meanings yet</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-amber-600 border-amber-300 hover:bg-amber-100"
+            onClick={() => regenerateSingleWord(word.id, word.swedish_word)}
+          >
+            <Sparkles className="h-4 w-4" />
+            Generate Meaning
+          </Button>
+        </div>
+      )}
+
+
       {/* Personal Notes Section */}
       <div className="space-y-3">
         <label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -372,8 +392,8 @@ export function WordCard({
           onClick={handleToggleLearned}
           disabled={isSaving}
           className={`gap-2 px-8 ${isLearned
-              ? "bg-success hover:bg-success/90 text-success-foreground"
-              : ""
+            ? "bg-success hover:bg-success/90 text-success-foreground"
+            : ""
             }`}
         >
           <Check className="h-5 w-5" />

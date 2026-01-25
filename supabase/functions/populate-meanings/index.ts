@@ -119,8 +119,8 @@ Only return the JSON.`;
           await supabase.from("words").update({ word_data: wordData }).eq("id", word.id);
           processedCount++;
 
-          // SAFETY DELAY FOR FREE TIER (15 Requests/Min = 1 req / 4 sec)
-          await new Promise(r => setTimeout(r, 4000));
+          // FAST MODE: Small 200ms delay just to be polite to the API, but effectively instant
+          await new Promise(r => setTimeout(r, 200));
 
         } catch (err) {
           console.error(`Error processing word ${word.swedish_word}:`, err);
