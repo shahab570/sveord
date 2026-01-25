@@ -117,7 +117,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                 if (progress && progress.length > 0) {
                     await db.progress.bulkPut(progress.map(p => ({
                         word_swedish: (p.words as any)?.swedish_word || '',
-                        is_learned: p.is_learned || false,
+                        is_learned: p.is_learned ? 1 : 0,
                         user_meaning: p.user_meaning || undefined,
                         custom_spelling: p.custom_spelling || undefined,
                         learned_date: p.learned_date || undefined,

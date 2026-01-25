@@ -15,7 +15,7 @@ export interface LocalWord {
 export interface LocalUserProgress {
     id?: string;
     word_swedish: string;
-    is_learned: boolean;
+    is_learned: number;
     user_meaning?: string;
     custom_spelling?: string;
     learned_date?: string;

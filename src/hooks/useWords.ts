@@ -21,7 +21,7 @@ export interface UserProgress {
   id: string;
   user_id: string;
   word_id: number;
-  is_learned: boolean;
+  is_learned: boolean | number;
   learned_date: string | null;
   user_meaning: string | null;
   custom_spelling: string | null;
@@ -289,7 +289,7 @@ export function useUserProgress() {
       // 3. Update Local DB
       const progressData: LocalUserProgress = {
         word_swedish: swedishWord,
-        is_learned: data.is_learned ?? existing?.is_learned ?? false,
+        is_learned: data.is_learned === undefined ? (existing?.is_learned ?? 0) : (typeof data.is_learned === 'boolean' ? (data.is_learned ? 1 : 0) : data.is_learned),
         user_meaning: data.user_meaning ?? existing?.user_meaning,
         custom_spelling: data.custom_spelling ?? existing?.custom_spelling,
         learned_date: data.is_learned ? (existing?.learned_date || new Date().toISOString()) : existing?.learned_date,
@@ -319,7 +319,7 @@ export function useUserProgress() {
         const remotePayload = {
           user_id: user.id,
           word_id: rid,
-          is_learned: progressData.is_learned,
+          is_learned: !!progressData.is_learned,
           user_meaning: progressData.user_meaning,
           custom_spelling: progressData.custom_spelling,
           learned_date: progressData.learned_date,
