@@ -118,7 +118,7 @@ export default function Settings() {
   const { resetProgress } = useUserProgress();
   const { history, addUpload, deleteUpload } = useUploadHistory();
   const addWord = useAddWord();
-  const { syncAll, isSyncing, lastSyncTime } = useSync();
+  const { syncAll, isSyncing, lastSyncTime, forceRefresh } = useSync();
 
   const kellyFileInputRef = useRef<HTMLInputElement>(null);
   const frequencyFileInputRef = useRef<HTMLInputElement>(null);
@@ -1266,14 +1266,25 @@ export default function Settings() {
                 </p>
               </div>
             </div>
-            <Button
-              onClick={() => syncAll()}
-              disabled={isSyncing}
-              className="gap-2 rounded-xl"
-            >
-              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Syncing...' : 'Sync Now'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => syncAll()}
+                disabled={isSyncing}
+                className="gap-2 rounded-xl"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Sync Now'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => forceRefresh()}
+                disabled={isSyncing}
+                className="gap-2 rounded-xl border-destructive/20 text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" />
+                Force Refresh
+              </Button>
+            </div>
           </div>
 
           {lastSyncTime && (
@@ -1286,8 +1297,8 @@ export default function Settings() {
           <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
             <div className="text-sm text-blue-700">
-              <p className="font-semibold">Note for Large Datasets</p>
-              <p>Your library contains 13,000+ words. A full sync may take 10-20 seconds to complete. Do not close the app during synchronization.</p>
+              <p className="font-semibold">Troubleshooting</p>
+              <p>Use <strong>Sync Now</strong> to pull updates. Use <strong>Force Refresh</strong> if you see errors or if data seems missing/incorrect. Note: Force Refresh will clear local cache and re-download all 13,000+ words.</p>
             </div>
           </div>
         </section>

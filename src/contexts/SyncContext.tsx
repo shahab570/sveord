@@ -9,6 +9,7 @@ interface SyncContextType {
     lastSyncTime: Date | null;
     syncAll: () => Promise<void>;
     syncProgress: () => Promise<void>;
+    forceRefresh: () => Promise<void>;
 }
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
@@ -65,13 +66,37 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
             setLastSyncTime(new Date());
             console.log('Full sync completed');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Sync failed:', error);
-            toast.error('Failed to sync data with server');
+            if (error.name === 'BulkError') {
+                toast.error(`Sync failed for some records: ${error.message}. Try Force Refresh.`);
+            } else {
+                toast.error(`Failed to sync data: ${error.message}`);
+            }
         } finally {
             setIsSyncing(false);
         }
     }, [user, isSyncing]);
+
+    const forceRefresh = useCallback(async () => {
+        if (!user || isSyncing) return;
+        const confirm = window.confirm("This will clear your local cache and re-download everything. Continue?");
+        if (!confirm) return;
+
+        setIsSyncing(true);
+        try {
+            console.log('Clearing local database...');
+            await db.words.clear();
+            await db.progress.clear();
+            setIsSyncing(false); // Enable syncAll to run
+            await syncAll();
+        } catch (error: any) {
+            console.error('Force refresh failed:', error);
+            toast.error('Failed to clear local database');
+        } finally {
+            setIsSyncing(false);
+        }
+    }, [user, isSyncing, syncAll]);
 
     const syncProgress = useCallback(async () => {
         if (!user) return;
@@ -108,8 +133,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                     hasMore = false;
                 }
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Progress sync failed:', error);
+            if (error.name === 'BulkError') {
+                toast.error(`Progress sync failed for some records: ${error.message}. Try Force Refresh.`);
+            } else {
+                toast.error(`Failed to sync progress: ${error.message}`);
+            }
+            throw error;
         }
     }, [user]);
 
@@ -125,7 +156,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }, [user, syncAll]);
 
     return (
-        <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress }}>
+        <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress, forceRefresh }}>
             {children}
         </SyncContext.Provider>
     );
