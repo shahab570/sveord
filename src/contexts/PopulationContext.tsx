@@ -28,6 +28,7 @@ interface PopulationContextType {
     resumePopulation: () => void;
     fetchStatus: () => Promise<void>;
     regenerateSingleWord: (wordId: number, swedishWord: string) => Promise<void>;
+    startBackgroundPopulation: () => Promise<void>;
 }
 
 const PopulationContext = createContext<PopulationContextType | undefined>(undefined);
@@ -241,12 +242,40 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         startPopulation();
     };
 
+    const startBackgroundPopulation = async () => {
+        if (!hasApiKey || !apiKeys.geminiApiKey) {
+            toast.error('No API key configured');
+            return;
+        }
+
+        toast.loading("Starting cloud job...");
+        try {
+            const { error } = await supabase.functions.invoke('populate-meanings', {
+                body: {
+                    action: 'populate_background',
+                    apiKey: apiKeys.geminiApiKey,
+                    batchSize: 20,
+                    startId: rangeStart,
+                    rangeEnd: rangeEnd
+                }
+            });
+
+            if (error) throw error;
+
+            toast.dismiss();
+            toast.success("Background job started! You can close this tab/PC now. Check back later.");
+        } catch (err: any) {
+            toast.dismiss();
+            toast.error("Failed to start cloud job: " + err.message);
+        }
+    };
+
     return (
         <PopulationContext.Provider value={{
             status, isPopulating, isPaused, overwrite, setOverwrite,
             rangeStart, setRangeStart, rangeEnd, setRangeEnd,
             lastBatchInfo, error, startPopulation, pausePopulation,
-            resumePopulation, fetchStatus, regenerateSingleWord
+            resumePopulation, fetchStatus, regenerateSingleWord, startBackgroundPopulation
         }}>
             {children}
         </PopulationContext.Provider>
