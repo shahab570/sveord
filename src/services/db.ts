@@ -31,9 +31,9 @@ export class SveordDB extends Dexie {
 
     constructor() {
         super('SveordDB');
-        this.version(1).stores({
-            words: '++id, &swedish_word, kelly_level, frequency_rank, sidor_rank',
-            progress: '++id, &word_swedish, is_learned, srs_next_review'
+        this.version(2).stores({
+            words: 'swedish_word, kelly_level, frequency_rank, sidor_rank',
+            progress: 'word_swedish, is_learned, srs_next_review'
         });
     }
 }
