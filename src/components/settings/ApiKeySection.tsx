@@ -26,15 +26,15 @@ export function ApiKeySection() {
         setIsValidating(true);
 
         try {
-            // Validate the API key first
             toast.info('Validating API key... This may take a few seconds.');
             console.log('Validating API key...');
+
             const result = await validateGeminiApiKey(apiKey.trim());
             console.log('Validation result:', result);
 
-            if (!result) {
+            if (!result.success) {
                 console.error('API key validation failed');
-                toast.error('Invalid API key or Gemini API not enabled. Please check your key and try again.');
+                toast.error(`Validation failed: ${result.error || 'Invalid API key or Gemini API not enabled.'}`);
                 setIsValidating(false);
                 setIsSaving(false);
                 return;

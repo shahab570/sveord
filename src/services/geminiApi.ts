@@ -64,10 +64,10 @@ Only return the JSON.`;
 
         const data = await response.json();
         const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!responseText) return { error: 'Empty response' };
+        if (!responseText) return { error: 'Empty response body' };
 
         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) return { error: 'JSON not found' };
+        if (!jsonMatch) return { error: 'JSON content not found' };
 
         const result = JSON.parse(jsonMatch[0]);
         return {
@@ -77,7 +77,7 @@ Only return the JSON.`;
             antonyms: result.antonyms || [],
         };
     } catch (error: any) {
-        return { error: 'Network error', details: error.message };
+        return { error: 'Network connection error', details: error.message };
     }
 }
 
@@ -100,7 +100,7 @@ export async function generateMeaningsBatch(
             results.set(word, result);
         } else {
             results.set(word, {
-                meanings: [{ english: 'Failed' }],
+                meanings: [{ english: 'Generation failed' }],
                 examples: [], synonyms: [], antonyms: [],
             });
         }
@@ -118,13 +118,11 @@ async function listModels(apiKey: string): Promise<string[]> {
     try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
         if (!response.ok) {
-            console.error('Failed to list models:', response.statusText);
             return [];
         }
         const data = await response.json();
         return (data.models || []).map((m: any) => m.name.replace('models/', ''));
     } catch (e) {
-        console.error('Error listing models:', e);
         return [];
     }
 }
@@ -132,14 +130,12 @@ async function listModels(apiKey: string): Promise<string[]> {
 /**
  * Validate Gemini API key by probing multiple models and versions
  */
-export async function validateGeminiApiKey(apiKey: string): Promise<boolean> {
+export async function validateGeminiApiKey(apiKey: string): Promise<{ success: boolean; error?: string }> {
     console.log('validateGeminiApiKey starting probe...');
 
-    // First, try to list models to see what we actually have access to
     const availableModels = await listModels(apiKey);
     console.log('Available models from API:', availableModels);
 
-    // Combine standard models with available models
     const modelsToTry = [...new Set([
         ...availableModels,
         'gemini-1.5-flash',
@@ -147,9 +143,10 @@ export async function validateGeminiApiKey(apiKey: string): Promise<boolean> {
         'gemini-2.0-flash',
         'gemini-2.0-flash-exp',
         'gemini-pro',
-    ])];
+    ])].filter(m => !m.includes('vision') && !m.includes('embedding'));
 
     const versions = ['v1beta', 'v1'];
+    let lastError = 'No models found to test.';
 
     for (const model of modelsToTry) {
         for (const version of versions) {
@@ -160,12 +157,13 @@ export async function validateGeminiApiKey(apiKey: string): Promise<boolean> {
                 console.log(`✅ Success! Using ${model} on ${version}`);
                 ACTIVE_MODEL = model;
                 ACTIVE_VERSION = version;
-                return true;
+                return { success: true };
             }
-            console.log(`❌ ${model} (${version}) failed:`, result.details);
+
+            lastError = `Model ${model} (${version}): ${result.details || result.error}`;
+            console.log(`❌ Probe failed:`, lastError);
         }
     }
 
-    console.error('All combinations failed.');
-    return false;
+    return { success: false, error: lastError };
 }
