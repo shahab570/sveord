@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import { lazyRetry } from "@/utils/lazyRetry";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,16 +10,16 @@ import { PopulationProvider } from "@/contexts/PopulationContext";
 import { SyncProvider } from "@/contexts/SyncContext";
 import { BookOpen } from "lucide-react";
 
-// Lazy load pages
-const Auth = lazy(() => import("./pages/Auth"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const KellyList = lazy(() => import("./pages/KellyList"));
-const FrequencyList = lazy(() => import("./pages/FrequencyList"));
-const SidorList = lazy(() => import("./pages/SidorList"));
-const SearchPage = lazy(() => import("./pages/SearchPage"));
-const Practice = lazy(() => import("./pages/Practice"));
-const Settings = lazy(() => import("./pages/Settings"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+// Lazy load pages with automatic retry
+const Auth = lazyRetry(() => import("./pages/Auth"), "Auth");
+const Dashboard = lazyRetry(() => import("./pages/Dashboard"), "Dashboard");
+const KellyList = lazyRetry(() => import("./pages/KellyList"), "KellyList");
+const FrequencyList = lazyRetry(() => import("./pages/FrequencyList"), "FrequencyList");
+const SidorList = lazyRetry(() => import("./pages/SidorList"), "SidorList");
+const SearchPage = lazyRetry(() => import("./pages/SearchPage"), "SearchPage");
+const Practice = lazyRetry(() => import("./pages/Practice"), "Practice");
+const Settings = lazyRetry(() => import("./pages/Settings"), "Settings");
+const NotFound = lazyRetry(() => import("./pages/NotFound"), "NotFound");
 
 const queryClient = new QueryClient({
   defaultOptions: {
