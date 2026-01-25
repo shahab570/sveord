@@ -22,7 +22,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, batchSize = 25, apiKey, startId = 1, rangeEnd = 15000, recursionDepth = 0 } = await req.json();
+    const { action, batchSize = 5, apiKey, startId = 1, rangeEnd = 15000, recursionDepth = 0 } = await req.json();
 
     if (!apiKey) {
       throw new Error("Gemini API Key is required");

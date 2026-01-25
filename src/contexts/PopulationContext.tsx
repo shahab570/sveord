@@ -254,7 +254,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 body: {
                     action: 'populate_background',
                     apiKey: apiKeys.geminiApiKey,
-                    batchSize: 20,
+                    batchSize: 5,
                     startId: rangeStart,
                     rangeEnd: rangeEnd
                 }
