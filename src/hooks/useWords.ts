@@ -289,10 +289,10 @@ export function useUserProgress() {
       // 3. Update Local DB
       const progressData: LocalUserProgress = {
         word_swedish: swedishWord,
-        is_learned: data.is_learned === undefined ? (existing?.is_learned ?? 0) : (typeof data.is_learned === 'boolean' ? (data.is_learned ? 1 : 0) : data.is_learned),
+        is_learned: data.is_learned === undefined ? (existing?.is_learned || 0) : (data.is_learned ? 1 : 0),
         user_meaning: data.user_meaning ?? existing?.user_meaning,
         custom_spelling: data.custom_spelling ?? existing?.custom_spelling,
-        learned_date: data.is_learned ? (existing?.learned_date || new Date().toISOString()) : existing?.learned_date,
+        learned_date: data.is_learned ? ((existing?.learned_date) || new Date().toISOString()) : existing?.learned_date,
         last_synced_at: new Date().toISOString(),
         ...srsUpdate,
       };
