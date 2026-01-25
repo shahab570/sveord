@@ -25,6 +25,8 @@ export interface WordMeaningResult {
     }>;
     synonyms?: string[];
     antonyms?: string[];
+    partOfSpeech?: string;
+    gender?: string;
 }
 
 export interface GeminiError {
@@ -48,15 +50,19 @@ export async function generateWordMeaning(
         const prompt = `You are a Swedish-English language expert. Provide a detailed explanation of the Swedish word "${swedishWord}" in English.
 
 For each word:
-1. Provide one or more clear English meanings (definitions).
-2. List relevant synonyms.
-3. List relevant antonyms.
-4. Provide between 2 and 3 usage examples (Swedish sentences with English translations).
+1. Identify the part of speech (noun, verb, adjective, etc.).
+2. If it is a noun, specify if it is an "en" word or "ett" word.
+3. Provide exactly 3 clear English meanings (definitions) if possible.
+4. List relevant synonyms.
+5. List relevant antonyms.
+6. Provide exactly 2 usage examples (Swedish sentences with English translations).
 
 Format your response as JSON with this exact structure:
 {
-  "meanings": [{"english": "definition", "context": "context"}],
-  "examples": [{"swedish": "sentence", "english": "translation"}],
+  "partOfSpeech": "noun/verb/etc",
+  "gender": "en/ett/null",
+  "meanings": [{"english": "meaning 1", "context": ""}, {"english": "meaning 2", "context": ""}, {"english": "meaning 3", "context": ""}],
+  "examples": [{"swedish": "sentence 1", "english": "translation 1"}, {"swedish": "sentence 2", "english": "translation 2"}],
   "synonyms": ["synonym"],
   "antonyms": ["antonym"]
 }
@@ -90,6 +96,8 @@ Only return the JSON.`;
             examples: result.examples || [],
             synonyms: result.synonyms || [],
             antonyms: result.antonyms || [],
+            partOfSpeech: result.partOfSpeech,
+            gender: result.gender,
         };
     } catch (error: any) {
         return { error: 'Network connection error', details: error.message };

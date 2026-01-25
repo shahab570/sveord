@@ -19,6 +19,7 @@ export function PopulateMeaningsSection() {
   const [status, setStatus] = useState<PopulationStatus | null>(null);
   const [isPopulating, setIsPopulating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [overwrite, setOverwrite] = useState(false);
   const [lastBatchInfo, setLastBatchInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pauseRef = useRef(false);
@@ -40,7 +41,7 @@ export function PopulateMeaningsSection() {
 
       if (totalError) throw totalError;
 
-      // Count words with meanings (word_data is not null and has meanings array)
+      // Count words with meanings
       const { count: completedCount, error: completedError } = await supabase
         .from('words')
         .select('*', { count: 'exact', head: true })
@@ -63,6 +64,11 @@ export function PopulateMeaningsSection() {
     }
   };
 
+  const handleRefresh = async () => {
+    await fetchStatus();
+    toast.success('Status updated');
+  };
+
   const runBatch = async (batchSize: number = 50): Promise<boolean> => {
     if (!hasApiKey || !apiKeys.geminiApiKey) {
       setError('No API key configured');
@@ -74,11 +80,18 @@ export function PopulateMeaningsSection() {
     }
 
     try {
-      // Fetch words without meanings
-      const { data: words, error: fetchError } = await supabase
+      // Fetch words
+      let query = supabase
         .from('words')
-        .select('id, swedish_word')
-        .is('word_data', null)
+        .select('id, swedish_word');
+
+      // If not overwriting, only fetch words without meanings
+      if (!overwrite) {
+        query = query.is('word_data', null);
+      }
+
+      const { data: words, error: fetchError } = await query
+        .order('id', { ascending: true })
         .limit(batchSize);
 
       if (fetchError) throw fetchError;
@@ -102,7 +115,8 @@ export function PopulateMeaningsSection() {
             .from('words')
             .update({
               word_data: {
-                word_type: '',
+                word_type: result.partOfSpeech || '',
+                gender: result.gender || '',
                 meanings: result.meanings || [],
                 examples: result.examples || [],
                 synonyms: result.synonyms || [],
@@ -115,12 +129,14 @@ export function PopulateMeaningsSection() {
           if (updateError) throw updateError;
         }
 
-        // Update the main progress counter in the UI after each word
-        setStatus(prev => prev ? {
-          ...prev,
-          completed: prev.completed + 1,
-          remaining: prev.remaining - 1
-        } : null);
+        // Update the main progress counter in the UI after each word (only if not in overwrite mode)
+        if (!overwrite) {
+          setStatus(prev => prev ? {
+            ...prev,
+            completed: prev.completed + 1,
+            remaining: prev.remaining - 1
+          } : null);
+        }
       }
 
       setLastBatchInfo(`Processed batch of ${words.length} words`);
@@ -260,7 +276,7 @@ export function PopulateMeaningsSection() {
       )}
 
       {/* Action buttons */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
         {!isPopulating && !isComplete && (
           <Button
             onClick={isPaused ? resumePopulation : startPopulation}
@@ -283,7 +299,7 @@ export function PopulateMeaningsSection() {
         )}
 
         <Button
-          onClick={fetchStatus}
+          onClick={handleRefresh}
           variant="outline"
           size="sm"
           className="gap-2"
@@ -292,6 +308,20 @@ export function PopulateMeaningsSection() {
           <RefreshCw className="h-4 w-4" />
           Refresh Status
         </Button>
+
+        <div className="flex items-center gap-2 ml-2">
+          <input
+            type="checkbox"
+            id="overwrite"
+            checked={overwrite}
+            onChange={(e) => setOverwrite(e.target.checked)}
+            disabled={isPopulating}
+            className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
+          />
+          <label htmlFor="overwrite" className="text-xs font-medium text-foreground cursor-pointer">
+            Overwrite existing (New format: Part of Speech, Gender, 3 Meanings, 2 Examples)
+          </label>
+        </div>
       </div>
 
       {/* Info note */}
