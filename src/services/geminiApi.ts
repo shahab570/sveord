@@ -1,6 +1,8 @@
 // Gemini API service for generating Swedish word meanings
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
-console.log('DEBUG: Using model gemini-1.5-flash');
+let ACTIVE_MODEL = 'gemini-1.5-flash';
+const API_VERSION = 'v1beta';
+
+const getApiUrl = (model: string) => `https://generativelanguage.googleapis.com/${API_VERSION}/models/${model}:generateContent`;
 
 export interface WordMeaningResult {
     meanings: Array<{
@@ -25,8 +27,10 @@ export interface GeminiError {
  */
 export async function generateWordMeaning(
     swedishWord: string,
-    apiKey: string
+    apiKey: string,
+    modelOverride?: string
 ): Promise<WordMeaningResult | GeminiError> {
+    const model = modelOverride || ACTIVE_MODEL;
     try {
         const prompt = `You are a Swedish-English language expert. Provide a detailed explanation of the Swedish word "${swedishWord}" in English.
 
@@ -51,7 +55,7 @@ Format your response as JSON with this exact structure:
 
 Only return the JSON, no additional text.`;
 
-        const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+        const response = await fetch(`${getApiUrl(model)}?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -73,18 +77,7 @@ Only return the JSON, no additional text.`;
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-
-            if (response.status === 400) {
-                return { error: 'Invalid API key or request', details: errorData.error?.message };
-            }
-            if (response.status === 403) {
-                return { error: 'API key not authorized or Gemini API not enabled', details: errorData.error?.message };
-            }
-            if (response.status === 429) {
-                return { error: 'Rate limit exceeded. Please wait a moment and try again.', details: errorData.error?.message };
-            }
-
-            return { error: `Request failed: ${response.statusText}`, details: errorData.error?.message };
+            return { error: `Request failed (${response.status})`, details: errorData.error?.message || response.statusText };
         }
 
         const data = await response.json();
@@ -93,30 +86,16 @@ Only return the JSON, no additional text.`;
             return { error: 'Invalid response from Gemini API' };
         }
 
-        // Extract JSON from response
         const responseText = data.candidates[0].content.parts[0].text;
-
-        // Try to parse JSON from the response
         let jsonMatch = responseText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-            // If no JSON found, try to extract it from markdown code blocks
             jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
-            if (jsonMatch) {
-                jsonMatch = [jsonMatch[1]];
-            }
+            if (jsonMatch) jsonMatch = [jsonMatch[1]];
         }
 
-        if (!jsonMatch) {
-            return { error: 'Could not parse response from Gemini' };
-        }
+        if (!jsonMatch) return { error: 'Could not parse response' };
 
         const result = JSON.parse(jsonMatch[0]);
-
-        // Validate the structure
-        if (!result.meanings || !Array.isArray(result.meanings)) {
-            return { error: 'Invalid response structure from Gemini' };
-        }
-
         return {
             meanings: result.meanings || [],
             examples: result.examples || [],
@@ -124,8 +103,7 @@ Only return the JSON, no additional text.`;
             antonyms: result.antonyms || [],
         };
     } catch (error: any) {
-        console.error('Gemini API error:', error);
-        return { error: 'Network error or invalid API key', details: error.message };
+        return { error: 'Connection error', details: error.message };
     }
 }
 
@@ -141,17 +119,13 @@ export async function generateMeaningsBatch(
     let completed = 0;
 
     for (const word of words) {
-        if (onProgress) {
-            onProgress(completed, words.length, word);
-        }
+        if (onProgress) onProgress(completed, words.length, word);
 
         const result = await generateWordMeaning(word, apiKey);
 
         if ('meanings' in result) {
             results.set(word, result);
         } else {
-            console.error(`Failed to generate meaning for "${word}":`, result.error);
-            // Store empty result for failed words
             results.set(word, {
                 meanings: [{ english: 'Failed to generate meaning' }],
                 examples: [],
@@ -161,9 +135,6 @@ export async function generateMeaningsBatch(
         }
 
         completed++;
-
-        // Rate limiting: Wait 4 seconds between requests
-        // Gemini free tier: 15 requests per minute = 1 request per 4 seconds
         if (completed < words.length) {
             await new Promise(resolve => setTimeout(resolve, 4000));
         }
@@ -173,36 +144,32 @@ export async function generateMeaningsBatch(
 }
 
 /**
- * List available models for the API key (Debug only)
- */
-async function listModels(apiKey: string): Promise<any> {
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-        if (!response.ok) return { error: `HTTP ${response.status}: ${response.statusText}` };
-        return await response.json();
-    } catch (e: any) {
-        return { error: e.message };
-    }
-}
-
-/**
- * Validate Gemini API key
+ * Validate Gemini API key by probing multiple models
  */
 export async function validateGeminiApiKey(apiKey: string): Promise<boolean> {
-    console.log('validateGeminiApiKey called with key:', apiKey.substring(0, 10) + '...');
+    // List of models to try in order of preference
+    const modelsToTry = [
+        'gemini-1.5-flash',
+        'gemini-2.0-flash-exp',
+        'gemini-3-flash',
+        'gemini-pro',
+        'gemini-flash'
+    ];
 
-    // Debug: List available models to find out why we get 404
-    const availableModels = await listModels(apiKey);
-    console.log('Available models for this key:', availableModels);
+    for (const model of modelsToTry) {
+        console.log(`Checking model: ${model}...`);
+        const result = await generateWordMeaning('test', apiKey, model);
 
-    const result = await generateWordMeaning('test', apiKey);
-    console.log('generateWordMeaning result:', result);
+        if ('meanings' in result) {
+            console.log(`✅ Success with model: ${model}`);
+            ACTIVE_MODEL = model; // Set it globally for subsequent calls
+            return true;
+        }
 
-    if ('error' in result) {
-        console.error('Validation error:', result.error, result.details);
-        // Even if validation fails, show the models listed above in the console
-        return false;
+        console.log(`❌ Model ${model} returned error:`, result.details);
     }
 
-    return true;
+    console.error('All models failed validation.');
+    return false;
 }
+
