@@ -1,5 +1,6 @@
 // Gemini API service for generating Swedish word meanings
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+console.log('DEBUG: Using model gemini-1.5-flash');
 
 export interface WordMeaningResult {
     meanings: Array<{
