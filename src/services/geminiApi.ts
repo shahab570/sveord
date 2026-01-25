@@ -47,6 +47,12 @@ export async function generateWordMeaning(
     try {
         const prompt = `You are a Swedish-English language expert. Provide a detailed explanation of the Swedish word "${swedishWord}" in English.
 
+For each word:
+1. Provide one or more clear English meanings (definitions).
+2. List relevant synonyms.
+3. List relevant antonyms.
+4. Provide between 2 and 3 usage examples (Swedish sentences with English translations).
+
 Format your response as JSON with this exact structure:
 {
   "meanings": [{"english": "definition", "context": "context"}],
