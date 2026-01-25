@@ -30,8 +30,8 @@ export class SveordDB extends Dexie {
     progress!: Table<LocalUserProgress>;
 
     constructor() {
-        super('SveordDB');
-        this.version(2).stores({
+        super('Sveord_v2');
+        this.version(1).stores({
             words: 'swedish_word, kelly_level, frequency_rank, sidor_rank',
             progress: 'word_swedish, is_learned, srs_next_review'
         });
