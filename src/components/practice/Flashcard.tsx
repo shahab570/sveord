@@ -81,7 +81,7 @@ export function Flashcard({ word, onRate }: FlashcardProps) {
                 <Button
                     variant="outline"
                     onClick={() => handleRate("hard")}
-                    className="h-20 flex flex-col gap-1 border-destructive/30 hover:bg-destructive/10 text-destructive-foreground rounded-2xl"
+                    className="h-20 flex flex-col gap-1 border-destructive/30 hover:bg-destructive/10 text-destructive rounded-2xl"
                 >
                     <RotateCcw className="h-5 w-5 text-destructive" />
                     <span className="font-bold">Hard</span>
