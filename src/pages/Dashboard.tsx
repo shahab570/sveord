@@ -59,17 +59,53 @@ export default function Dashboard() {
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
-        {/* Header Illustration */}
-        <div className="w-full flex justify-center py-4 animate-fade-in" style={{ animationDelay: "0ms" }}>
-          <img
-            src="/reading_illustration.png"
-            alt="Reading a book"
-            className="h-48 md:h-64 object-contain drop-shadow-xl"
-            onError={(e) => {
-              // Fallback if image fails (though it shouldn't) - hides the image to avoid broken icon
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+        {/* Hero Section */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/10 shadow-sm animate-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 md:p-12 items-center">
+            <div className="space-y-4 relative z-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background/50 border border-primary/20 backdrop-blur-sm">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span className="text-xs font-medium text-primary">Ready to learn</span>
+              </div>
+
+              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground lg:leading-[1.1]">
+                Välkommen tillbaka, <br />
+                <span className="text-primary">{user?.user_metadata?.first_name || 'Shahab'}!</span>
+              </h1>
+
+              <p className="text-lg text-muted-foreground max-w-md leading-relaxed">
+                Your daily vocabulary journey continues. You're making great progress towards fluency!
+              </p>
+
+              <div className="flex flex-wrap gap-3 pt-2">
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background border shadow-sm">
+                  <Flame className="h-5 w-5 text-orange-500 fill-orange-500" />
+                  <span className="font-bold">{detailedStats?.learnedToday || 0}</span>
+                  <span className="text-sm text-muted-foreground">words today</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background border shadow-sm">
+                  <Target className="h-5 w-5 text-blue-500" />
+                  <span className="font-bold">{stats?.learnedWords || 0}</span>
+                  <span className="text-sm text-muted-foreground">total</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative flex justify-center md:justify-end">
+              <div className="relative z-10 w-full max-w-[320px] aspect-square">
+                <img
+                  src="/reading_illustration.png"
+                  alt="Reading illustration"
+                  className="w-full h-full object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
+                />
+              </div>
+              {/* Decorative background blobs */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-primary/20 to-transparent rounded-full blur-3xl -z-10 opacity-60" />
+            </div>
+          </div>
         </div>
 
         {/* Today's Progress Highlight */}
