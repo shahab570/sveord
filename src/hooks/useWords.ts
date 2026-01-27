@@ -111,7 +111,7 @@ export function useWords(filters?: {
     }
 
     // Sort
-    if (filters?.listType === "kelly") {
+    if (filters?.listType === "kelly" || filters?.kellyLevel) {
       words.sort((a, b) => (a.kelly_source_id || 0) - (b.kelly_source_id || 0));
     } else if (filters?.listType === "frequency") {
       words.sort((a, b) => (a.frequency_rank || 0) - (b.frequency_rank || 0));
