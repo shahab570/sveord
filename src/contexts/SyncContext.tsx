@@ -26,7 +26,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             console.log('Starting full sync...');
             let allWords: any[] = [];
             let from = 0;
-            const PAGE_SIZE = 1000;
+            const PAGE_SIZE = 500;
             let hasMore = true;
 
             // 1. Sync Words (Paginated)
@@ -34,6 +34,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                 const { data: words, error: wordsError } = await supabase
                     .from('words')
                     .select('*')
+                    .order('id', { ascending: true }) // Explicit ordering
                     .range(from, from + PAGE_SIZE - 1);
 
                 if (wordsError) throw wordsError;
