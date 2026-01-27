@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useStats, useDetailedStats, FREQUENCY_LEVELS, SIDOR_LEVELS, useTodaysLearnedWords, useLearningPrediction } from "@/hooks/useWords";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +27,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WordCard } from "@/components/study/WordCard";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -38,6 +41,10 @@ export default function Dashboard() {
   const todaysWords = useTodaysLearnedWords();
   const todaysLoading = todaysWords === undefined;
   const { data: prediction, isLoading: predictionLoading } = useLearningPrediction();
+  const [selectedWordId, setSelectedWordId] = useState<number | null>(null);
+
+  const selectedWord = todaysWords?.find(w => w.id === selectedWordId);
+  const selectedIndex = todaysWords?.findIndex(w => w.id === selectedWordId) ?? -1;
 
   const totalLearned = stats?.learnedWords || 0;
   const totalWords = stats?.totalWords || 0;
@@ -262,7 +269,11 @@ export default function Dashboard() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {todaysWords.map((word) => (
-                  <div key={word.id} className="p-4 border border-border rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                  <div
+                    key={word.id}
+                    className="p-4 border border-border rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedWordId(word.id)}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-lg font-semibold text-foreground">
                         {word.progress?.custom_spelling || word.swedish_word}
@@ -295,6 +306,38 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          <Dialog open={!!selectedWord} onOpenChange={(open) => !open && setSelectedWordId(null)}>
+            <DialogContent className="max-w-2xl">
+              <DialogTitle className="sr-only">Word Details</DialogTitle>
+              {selectedWord && (
+                <WordCard
+                  word={selectedWord}
+                  onPrevious={() => {
+                    const prevIndex = selectedIndex - 1;
+                    if (prevIndex >= 0 && todaysWords) {
+                      setSelectedWordId(todaysWords[prevIndex].id);
+                    }
+                  }}
+                  onNext={() => {
+                    const nextIndex = selectedIndex + 1;
+                    if (todaysWords && nextIndex < todaysWords.length) {
+                      setSelectedWordId(todaysWords[nextIndex].id);
+                    }
+                  }}
+                  hasPrevious={selectedIndex > 0}
+                  hasNext={todaysWords ? selectedIndex < todaysWords.length - 1 : false}
+                  currentIndex={selectedIndex}
+                  totalCount={todaysWords?.length || 0}
+                  learnedCount={todaysWords?.length || 0}
+                  isRandomMode={false}
+                  onToggleRandom={() => { }}
+                  showRandomButton={false}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+
         </div>
 
         {/* Stats Summary Cards */}
