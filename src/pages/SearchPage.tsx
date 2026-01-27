@@ -63,34 +63,37 @@ export default function SearchPage() {
   const renderWordItem = (word: WordWithProgress, listType: "kelly" | "frequency" | "sidor") => {
     const isLearned = word.progress?.is_learned;
 
-    const learnedBg = listType === "kelly"
-      ? "bg-emerald-100 border-emerald-400"
+    const learnedClasses = listType === "kelly"
+      ? "bg-emerald-100 border-l-4 border-l-emerald-600 border-y border-r border-emerald-200 shadow-md"
       : listType === "frequency"
-        ? "bg-blue-100 border-blue-400"
-        : "bg-purple-100 border-purple-400";
+        ? "bg-blue-100 border-l-4 border-l-blue-600 border-y border-r border-blue-200 shadow-md"
+        : "bg-purple-100 border-l-4 border-l-purple-600 border-y border-r border-purple-200 shadow-md";
+
     const unlearnedBg = listType === "kelly"
-      ? "bg-emerald-50/30 border-emerald-200"
+      ? "bg-emerald-50/30 border border-emerald-100 hover:border-emerald-300"
       : listType === "frequency"
-        ? "bg-blue-50/30 border-blue-200"
-        : "bg-purple-50/30 border-purple-200";
+        ? "bg-blue-50/30 border border-blue-100 hover:border-blue-300"
+        : "bg-purple-50/30 border border-purple-100 hover:border-purple-300";
 
     return (
       <button
         onClick={() => setSelectedWord(word)}
-        className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${isLearned ? learnedBg : unlearnedBg
-          } hover:opacity-80 shadow-sm`}
+        className={`w-full flex items-center justify-between p-4 rounded-lg transition-all text-left mb-2 group ${isLearned ? learnedClasses : unlearnedBg
+          } hover:translate-x-1`}
       >
         <div className="flex items-center gap-3">
           <div
-            className={`w-2.5 h-2.5 rounded-full ${isLearned ? "bg-success" : "bg-muted-foreground/30"
+            className={`w-3 h-3 rounded-full flex-shrink-0 ${isLearned
+                ? "bg-success ring-2 ring-white shadow-sm scale-110"
+                : "bg-muted-foreground/30"
               }`}
           />
           <div className="flex flex-col">
-            <span className="text-base font-bold text-foreground">
+            <span className={`text-base text-foreground ${isLearned ? 'font-black tracking-tight text-lg' : 'font-medium'}`}>
               {word.swedish_word}
             </span>
             {word.progress?.user_meaning && (
-              <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+              <span className={`text-xs truncate max-w-[150px] ${isLearned ? 'text-foreground/80 font-medium' : 'text-muted-foreground'}`}>
                 {word.progress.user_meaning}
               </span>
             )}
@@ -99,17 +102,17 @@ export default function SearchPage() {
 
         <div className="flex items-center gap-2">
           {listType === "frequency" && word.frequency_rank && (
-            <span className="text-xs text-blue-600 font-mono">
+            <span className={`text-xs font-mono font-bold ${isLearned ? 'text-blue-800' : 'text-blue-600'}`}>
               #{word.frequency_rank}
             </span>
           )}
           {listType === "sidor" && word.sidor_rank && (
-            <span className="text-xs text-purple-600 font-mono">
+            <span className={`text-xs font-mono font-bold ${isLearned ? 'text-purple-800' : 'text-purple-600'}`}>
               #{word.sidor_rank}
             </span>
           )}
           {listType === "kelly" && word.kelly_level && (
-            <span className={getLevelBadgeClass(word.kelly_level)}>
+            <span className={`${getLevelBadgeClass(word.kelly_level)} ${isLearned ? 'ring-1 ring-black/10 shadow-sm' : ''}`}>
               {word.kelly_level}
             </span>
           )}

@@ -142,6 +142,12 @@ export function WordCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
+          <div className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${listType === 'kelly' ? 'bg-emerald-100 text-emerald-700' :
+              listType === 'frequency' ? 'bg-blue-100 text-blue-700' :
+                'bg-purple-100 text-purple-700'
+            }`}>
+            {listType === 'kelly' ? 'Kelly List' : listType === 'frequency' ? 'Frequency List' : 'Sidor List'}
+          </div>
           {listType === "frequency" && word.frequency_rank && (
             <span className="text-sm font-medium text-muted-foreground">
               #{word.frequency_rank}
