@@ -404,46 +404,74 @@ export function useStats() {
     if (!user) return null;
 
     const totalWords = await db.words.count();
+
+    // Fetch all learned words once
     const learnedProgress = await db.progress.where('is_learned').equals(1).toArray();
     const learnedWords = learnedProgress.length;
 
-    // Kelly level counts
+    // Get the swedish words for all learned items
+    const learnedSwedishWords = learnedProgress.map(p => p.word_swedish);
+
+    // Fetch all learned word definitions in bulk to check levels
+    const learnedWordDefs = await db.words.where('swedish_word').anyOf(learnedSwedishWords).toArray();
+
+    // Index learned words by swedish_word for quick lookup (if needed) or just iterate
+    // Since we need to aggregate by different levels, iterating the definitions is easiest
+
+    // Initialize stats
     const kellyStats: Record<string, { total: number; learned: number }> = {};
-    for (const level of CEFR_LEVELS) {
-      const total = await db.words.where('kelly_level').equals(level).count();
-      const learned = (await Promise.all(
-        learnedProgress.map(async p => {
-          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
-          return w?.kelly_level === level ? 1 : 0;
-        })
-      )).reduce((a, b) => a + b, 0);
-      kellyStats[level] = { total, learned };
-    }
+    CEFR_LEVELS.forEach(l => kellyStats[l] = { total: 0, learned: 0 });
 
-    // Frequency level counts
     const frequencyStats: Record<string, { total: number; learned: number }> = {};
-    for (const freqLevel of FREQUENCY_LEVELS) {
-      const total = await db.words.where('frequency_rank').between(freqLevel.range[0], freqLevel.range[1], true, true).count();
-      const learned = (await Promise.all(
-        learnedProgress.map(async p => {
-          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
-          return (w?.frequency_rank && w.frequency_rank >= freqLevel.range[0] && w.frequency_rank <= freqLevel.range[1]) ? 1 : 0;
-        })
-      )).reduce((a, b) => a + b, 0);
-      frequencyStats[freqLevel.label] = { total, learned };
-    }
+    FREQUENCY_LEVELS.forEach(l => frequencyStats[l.label] = { total: 0, learned: 0 });
 
-    // Sidor level counts
     const sidorStats: Record<string, { total: number; learned: number }> = {};
-    for (const sidorLevel of SIDOR_LEVELS) {
-      const total = await db.words.where('sidor_rank').between(sidorLevel.range[0], sidorLevel.range[1], true, true).count();
-      const learned = (await Promise.all(
-        learnedProgress.map(async p => {
-          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
-          return (w?.sidor_rank && w.sidor_rank >= sidorLevel.range[0] && w.sidor_rank <= sidorLevel.range[1]) ? 1 : 0;
-        })
-      )).reduce((a, b) => a + b, 0);
-      sidorStats[sidorLevel.label] = { total, learned };
+    SIDOR_LEVELS.forEach(l => sidorStats[l.label] = { total: 0, learned: 0 });
+
+    // 1. Calculate totals (this still requires counting all words, but we can do it efficiently)
+    // We can't avoid 3 full scans for totals unless we cache them, but they are just counts.
+    // Optimization: Run these in parallel
+    await Promise.all([
+      ...CEFR_LEVELS.map(async level => {
+        const count = await db.words.where('kelly_level').equals(level).count();
+        if (kellyStats[level]) kellyStats[level].total = count;
+      }),
+      ...FREQUENCY_LEVELS.map(async l => {
+        const count = await db.words.where('frequency_rank').between(l.range[0], l.range[1], true, true).count();
+        if (frequencyStats[l.label]) frequencyStats[l.label].total = count;
+      }),
+      ...SIDOR_LEVELS.map(async l => {
+        const count = await db.words.where('sidor_rank').between(l.range[0], l.range[1], true, true).count();
+        if (sidorStats[l.label]) sidorStats[l.label].total = count;
+      })
+    ]);
+
+    // 2. Aggregate learned counts from the bulk-fetched definitions
+    for (const w of learnedWordDefs) {
+      // Kelly
+      if (w.kelly_level && kellyStats[w.kelly_level]) {
+        kellyStats[w.kelly_level].learned++;
+      }
+
+      // Frequency
+      if (w.frequency_rank) {
+        for (const l of FREQUENCY_LEVELS) {
+          if (w.frequency_rank >= l.range[0] && w.frequency_rank <= l.range[1]) {
+            frequencyStats[l.label].learned++;
+            break;
+          }
+        }
+      }
+
+      // Sidor
+      if (w.sidor_rank) {
+        for (const l of SIDOR_LEVELS) {
+          if (w.sidor_rank >= l.range[0] && w.sidor_rank <= l.range[1]) {
+            sidorStats[l.label].learned++;
+            break;
+          }
+        }
+      }
     }
 
     return {
@@ -481,11 +509,15 @@ export function useDetailedStats() {
     let frequencyToday = 0;
     let sidorToday = 0;
 
-    for (const p of learnedTodayItems) {
-      const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
-      if (w?.kelly_level) kellyToday++;
-      if (w?.frequency_rank) frequencyToday++;
-      if (w?.sidor_rank) sidorToday++;
+    // Bulk fetch words for today's learned items
+    const todaySwedishWords = learnedTodayItems.map(p => p.word_swedish);
+    if (todaySwedishWords.length > 0) {
+      const todayWords = await db.words.where('swedish_word').anyOf(todaySwedishWords).toArray();
+      for (const w of todayWords) {
+        if (w.kelly_level) kellyToday++;
+        if (w.frequency_rank) frequencyToday++;
+        if (w.sidor_rank) sidorToday++;
+      }
     }
 
     // Daily counts for chart
@@ -560,48 +592,58 @@ export function useLearningPrediction() {
 export function useTodaysLearnedWords() {
   const { user } = useAuth();
 
-  return useQuery({
-    queryKey: ["todaysLearnedWords", user?.id],
-    queryFn: async () => {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return useLiveQuery(async () => {
+    if (!user) return [];
 
-      const { data: todaysProgress } = await supabase
-        .from("user_progress")
-        .select("*, words!inner(id, swedish_word, kelly_level, kelly_source_id, frequency_rank, sidor_source_id, sidor_rank)")
-        .eq("user_id", user!.id)
-        .eq("is_learned", true)
-        .gte("learned_date", today.toISOString());
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      if (!todaysProgress) return [];
+    // Fetch progress for today from local DB
+    const todaysProgress = await db.progress
+      .where('is_learned')
+      .equals(1)
+      .filter(p => !!p.learned_date && new Date(p.learned_date) >= today)
+      .toArray();
 
-      return todaysProgress.map((p) => {
-        const word = p.words as any;
-        return {
-          id: word.id,
-          swedish_word: word.swedish_word,
-          kelly_level: word.kelly_level,
-          kelly_source_id: word.kelly_source_id,
-          frequency_rank: word.frequency_rank,
-          sidor_source_id: word.sidor_source_id,
-          sidor_rank: word.sidor_rank,
+    if (!todaysProgress.length) return [];
+
+    // Fetch corresponding word data efficiently
+    const result: WordWithProgress[] = [];
+    const swedishWords = todaysProgress.map(p => p.word_swedish);
+    const wordsList = await db.words.where('swedish_word').anyOf(swedishWords).toArray();
+    const wordsMap = new Map(wordsList.map(w => [w.swedish_word, w]));
+
+    for (const p of todaysProgress) {
+      const w = wordsMap.get(p.word_swedish);
+      if (w) {
+        result.push({
+          id: w.id || 0,
+          swedish_word: w.swedish_word,
+          kelly_level: w.kelly_level || null,
+          kelly_source_id: w.kelly_source_id || null,
+          frequency_rank: w.frequency_rank || null,
+          sidor_source_id: null,
+          sidor_rank: w.sidor_rank || null,
           created_at: "",
+          word_data: w.word_data || null,
           progress: {
-            id: p.id,
-            user_id: p.user_id,
-            word_id: p.word_id,
-            is_learned: p.is_learned,
-            learned_date: p.learned_date,
-            user_meaning: p.user_meaning,
-            custom_spelling: p.custom_spelling,
-            created_at: p.created_at,
-            updated_at: p.updated_at,
+            id: p.id || "",
+            user_id: user.id || "",
+            word_id: w.id || 0,
+            is_learned: !!p.is_learned,
+            learned_date: p.learned_date || null,
+            user_meaning: p.user_meaning || null,
+            custom_spelling: p.custom_spelling || null,
+            created_at: "",
+            updated_at: "",
+            srs_next_review: p.srs_next_review,
           },
-        } as WordWithProgress;
-      });
-    },
-    enabled: !!user,
-  });
+        });
+      }
+    }
+
+    return result;
+  }, [user?.id]);
 }
 
 export function useUploadHistory() {

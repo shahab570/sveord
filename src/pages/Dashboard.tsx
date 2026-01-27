@@ -35,7 +35,8 @@ export default function Dashboard() {
   const detailedStats = useDetailedStats();
   const detailedLoading = detailedStats === undefined;
 
-  const { data: todaysWords, isLoading: todaysLoading } = useTodaysLearnedWords();
+  const todaysWords = useTodaysLearnedWords();
+  const todaysLoading = todaysWords === undefined;
   const { data: prediction, isLoading: predictionLoading } = useLearningPrediction();
 
   const totalLearned = stats?.learnedWords || 0;
