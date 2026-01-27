@@ -128,6 +128,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
                     if (progressRecords.length > 0) {
                         await db.progress.bulkPut(progressRecords as any);
+                        console.log(`Synced ${progressRecords.length} progress items in this batch`); // Debug log
                     }
 
                     if (progress.length < PAGE_SIZE) {

@@ -20,6 +20,7 @@ export default function KellyList() {
 
   const words = useWords({
     kellyLevel: selectedLevel,
+    listType: "kelly",
   });
   const isLoading = words === undefined;
 
