@@ -7,6 +7,7 @@ interface VirtualListProps<T> {
     itemHeight?: number;
     renderItem: (item: T, index: number) => React.ReactNode;
     className?: string;
+    getItemKey?: (index: number) => number | string;
 }
 
 export function VirtualList<T>({
@@ -15,6 +16,7 @@ export function VirtualList<T>({
     itemHeight = 64,
     renderItem,
     className = '',
+    getItemKey,
 }: VirtualListProps<T>) {
     const parentRef = React.useRef<HTMLDivElement>(null);
 
@@ -23,6 +25,7 @@ export function VirtualList<T>({
         getScrollElement: () => parentRef.current,
         estimateSize: () => itemHeight,
         overscan: 5,
+        getItemKey: getItemKey,
     });
 
     return (

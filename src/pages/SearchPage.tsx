@@ -191,6 +191,7 @@ export default function SearchPage() {
                     items={kellyWords}
                     height="100%"
                     itemHeight={64}
+                    getItemKey={(index) => kellyWords[index].id}
                     renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "kelly")}</div>}
                   />
                 </div>
@@ -206,6 +207,7 @@ export default function SearchPage() {
                     items={frequencyWords}
                     height="100%"
                     itemHeight={64}
+                    getItemKey={(index) => frequencyWords[index].id}
                     renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "frequency")}</div>}
                   />
                 </div>
@@ -221,6 +223,7 @@ export default function SearchPage() {
                     items={sidorWords}
                     height="100%"
                     itemHeight={64}
+                    getItemKey={(index) => sidorWords[index].id}
                     renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "sidor")}</div>}
                   />
                 </div>
