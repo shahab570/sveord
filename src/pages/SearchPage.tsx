@@ -38,19 +38,167 @@ export default function SearchPage() {
     }
   }, [words, selectedWord]);
 
-  // ... (lines 33-193)
+  // Split words into Kelly, Frequency, and Sidor lists
+  const { kellyWords, frequencyWords, sidorWords } = useMemo(() => {
+    if (!words) return { kellyWords: [], frequencyWords: [], sidorWords: [] };
+    return {
+      kellyWords: words.filter((w) => w.kelly_level !== null),
+      frequencyWords: words.filter((w) => w.frequency_rank !== null),
+      sidorWords: words.filter((w) => w.sidor_rank !== null),
+    };
+  }, [words]);
 
-  <VirtualList
-    items={kellyWords}
-    height="100%"
-    itemHeight={64}
-    getItemKey={(index) => kellyWords[index].swedish_word}
-    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "kelly")}</div>}
-  />
-                </div >
+  const getLevelBadgeClass = (level: string | null) => {
+    switch (level) {
+      case "A1": return "level-badge-a1";
+      case "A2": return "level-badge-a2";
+      case "B1": return "level-badge-b1";
+      case "B2": return "level-badge-b2";
+      case "C1": return "level-badge-c1";
+      case "C2": return "level-badge-c2";
+      default: return "level-badge bg-gray-100 text-gray-700";
+    }
+  };
 
-    {/* Frequency */ }
-    < div className = "border border-blue-500/20 rounded-2xl p-5 bg-blue-50/10 flex flex-col h-[600px] shadow-sm" >
+  const renderWordItem = (word: WordWithProgress, listType: "kelly" | "frequency" | "sidor") => {
+    const isLearned = word.progress?.is_learned;
+
+    const learnedBg = listType === "kelly"
+      ? "bg-emerald-100 border-emerald-400"
+      : listType === "frequency"
+        ? "bg-blue-100 border-blue-400"
+        : "bg-purple-100 border-purple-400";
+    const unlearnedBg = listType === "kelly"
+      ? "bg-emerald-50/30 border-emerald-200"
+      : listType === "frequency"
+        ? "bg-blue-50/30 border-blue-200"
+        : "bg-purple-50/30 border-purple-200";
+
+    return (
+      <button
+        onClick={() => setSelectedWord(word)}
+        className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${isLearned ? learnedBg : unlearnedBg
+          } hover:opacity-80 shadow-sm`}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-2.5 h-2.5 rounded-full ${isLearned ? "bg-success" : "bg-muted-foreground/30"
+              }`}
+          />
+          <div className="flex flex-col">
+            <span className="text-base font-bold text-foreground">
+              {word.swedish_word}
+            </span>
+            {word.progress?.user_meaning && (
+              <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+                {word.progress.user_meaning}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {listType === "frequency" && word.frequency_rank && (
+            <span className="text-xs text-blue-600 font-mono">
+              #{word.frequency_rank}
+            </span>
+          )}
+          {listType === "sidor" && word.sidor_rank && (
+            <span className="text-xs text-purple-600 font-mono">
+              #{word.sidor_rank}
+            </span>
+          )}
+          {listType === "kelly" && word.kelly_level && (
+            <span className={getLevelBadgeClass(word.kelly_level)}>
+              {word.kelly_level}
+            </span>
+          )}
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <AppLayout>
+      <div className="max-w-7xl mx-auto space-y-6 animate-fade-in pb-20 md:pb-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-primary/10 rounded-xl">
+              <Search className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">Search Words</h1>
+              <p className="text-sm text-muted-foreground">Find any word across all lists</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSelectedWord(null);
+            }}
+            placeholder="Search keywords..."
+            className="pl-12 h-14 text-lg bg-card border-2 border-border focus:border-primary rounded-2xl shadow-sm transition-all"
+            autoFocus
+          />
+        </div>
+
+        {selectedWord && (
+          <div className="relative animate-in slide-in-from-top-4 duration-300">
+            <button
+              onClick={() => setSelectedWord(null)}
+              className="absolute -top-3 -right-3 z-10 p-2 bg-background border border-border rounded-full shadow-lg hover:bg-muted transition-colors"
+            >
+              <span className="text-xl">×</span>
+            </button>
+            <WordCard
+              word={selectedWord}
+              onPrevious={() => { }}
+              onNext={() => { }}
+              hasPrevious={false}
+              hasNext={false}
+              currentIndex={0}
+              totalCount={1}
+              learnedCount={selectedWord.progress?.is_learned ? 1 : 0}
+              isRandomMode={false}
+              onToggleRandom={() => { }}
+              showRandomButton={false}
+            />
+          </div>
+        )}
+
+        {!selectedWord && searchQuery.length >= 2 && (
+          <div className="space-y-4">
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-64 bg-card rounded-2xl animate-pulse border border-border" />
+                ))}
+              </div>
+            ) : words && words.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Kelly */}
+                <div className="border border-emerald-500/20 rounded-2xl p-5 bg-emerald-50/10 flex flex-col h-[600px] shadow-sm">
+                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-500/10">
+                    <GraduationCap className="h-5 w-5 text-emerald-600" />
+                    <h3 className="text-lg font-bold text-emerald-800">Kelly List</h3>
+                    <span className="ml-auto bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">{kellyWords.length}</span>
+                  </div>
+                  <VirtualList
+                    items={kellyWords}
+                    height="100%"
+                    itemHeight={64}
+                    getItemKey={(index) => kellyWords[index].swedish_word}
+                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "kelly")}</div>}
+                  />
+                </div>
+
+                {/* Frequency */}
+                <div className="border border-blue-500/20 rounded-2xl p-5 bg-blue-50/10 flex flex-col h-[600px] shadow-sm">
                   <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/10">
                     <Hash className="h-5 w-5 text-blue-600" />
                     <h3 className="text-lg font-bold text-blue-800">Frequency List</h3>
@@ -63,10 +211,10 @@ export default function SearchPage() {
                     getItemKey={(index) => frequencyWords[index].swedish_word}
                     renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "frequency")}</div>}
                   />
-                </div >
+                </div>
 
-    {/* Sidor */ }
-    < div className = "border border-purple-500/20 rounded-2xl p-5 bg-purple-50/10 flex flex-col h-[600px] shadow-sm" >
+                {/* Sidor */}
+                <div className="border border-purple-500/20 rounded-2xl p-5 bg-purple-50/10 flex flex-col h-[600px] shadow-sm">
                   <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-500/10">
                     <BookMarked className="h-5 w-5 text-purple-600" />
                     <h3 className="text-lg font-bold text-purple-800">Sidor List</h3>
@@ -79,31 +227,28 @@ export default function SearchPage() {
                     getItemKey={(index) => sidorWords[index].swedish_word}
                     renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "sidor")}</div>}
                   />
-                </div >
-              </div >
+                </div>
+              </div>
             ) : (
-    <div className="text-center py-20 bg-card border border-dashed border-border rounded-3xl">
-      <p className="text-muted-foreground text-lg">No results found for "{searchQuery}"</p>
-    </div>
-  )
-}
-          </div >
+              <div className="text-center py-20 bg-card border border-dashed border-border rounded-3xl">
+                <p className="text-muted-foreground text-lg">No results found for "{searchQuery}"</p>
+              </div>
+            )}
+          </div>
         )}
 
-{
-  !selectedWord && searchQuery.length < 2 && (
-    <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 bg-secondary/10 rounded-3xl border border-dashed border-border/50">
-      <div className="p-5 bg-primary/10 rounded-full animate-pulse">
-        <BookOpen className="h-12 w-12 text-primary/60" />
+        {!selectedWord && searchQuery.length < 2 && (
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 bg-secondary/10 rounded-3xl border border-dashed border-border/50">
+            <div className="p-5 bg-primary/10 rounded-full animate-pulse">
+              <BookOpen className="h-12 w-12 text-primary/60" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Start Searching</h3>
+              <p className="text-muted-foreground max-w-sm mx-auto">Type at least 2 characters to find words in your Swedish vocabulary database.</p>
+            </div>
+          </div>
+        )}
       </div>
-      <div>
-        <h3 className="text-xl font-bold">Start Searching</h3>
-        <p className="text-muted-foreground max-w-sm mx-auto">Type at least 2 characters to find words in your Swedish vocabulary database.</p>
-      </div>
-    </div>
-  )
-}
-      </div >
-    </AppLayout >
+    </AppLayout>
   );
 }
