@@ -159,75 +159,63 @@ export function useWords(filters?: {
 export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
   const { user } = useAuth();
 
-  return useQuery({
-    queryKey: ["levelStats", listType, user?.id],
-    queryFn: async () => {
-      if (listType === "kelly") {
-        const stats: Record<string, { total: number; learned: number }> = {};
+  return useLiveQuery(async () => {
+    // Initialize stats object
+    const stats: Record<string, { total: number; learned: number }> = {};
+    
+    // Get all learned items first to avoid repeated queries
+    const learnedProgress = await db.progress.where('is_learned').equals(1).toArray();
 
-        for (const level of CEFR_LEVELS) {
-          const { count: total } = await supabase
-            .from("words")
-            .select("id", { count: "exact", head: true })
-            .eq("kelly_level", level);
-
-          const { count: learnedCount } = await supabase
-            .from("user_progress")
-            .select("word_id, words!inner(kelly_level)", { count: "exact", head: true })
-            .eq("user_id", user!.id)
-            .eq("is_learned", true)
-            .eq("words.kelly_level", level);
-
-          stats[level] = { total: total || 0, learned: learnedCount || 0 };
+    if (listType === "kelly") {
+      for (const level of CEFR_LEVELS) {
+        // Count total words in this level
+        const total = await db.words.where('kelly_level').equals(level).count();
+        
+        // Count learned words in this level
+        // We filter the pre-fetched progress items
+        let learned = 0;
+        for (const p of learnedProgress) {
+          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
+          if (w && w.kelly_level === level) {
+            learned++;
+          }
         }
-        return stats;
-      } else if (listType === "frequency") {
-        const stats: Record<string, { total: number; learned: number }> = {};
-
-        for (const freqLevel of FREQUENCY_LEVELS) {
-          const { count: total } = await supabase
-            .from("words")
-            .select("id", { count: "exact", head: true })
-            .gte("frequency_rank", freqLevel.range[0])
-            .lte("frequency_rank", freqLevel.range[1]);
-
-          const { count: learnedCount } = await supabase
-            .from("user_progress")
-            .select("word_id, words!inner(frequency_rank)", { count: "exact", head: true })
-            .eq("user_id", user!.id)
-            .eq("is_learned", true)
-            .gte("words.frequency_rank", freqLevel.range[0])
-            .lte("words.frequency_rank", freqLevel.range[1]);
-
-          stats[freqLevel.label] = { total: total || 0, learned: learnedCount || 0 };
-        }
-        return stats;
-      } else {
-        // Sidor list
-        const stats: Record<string, { total: number; learned: number }> = {};
-
-        for (const sidorLevel of SIDOR_LEVELS) {
-          const { count: total } = await supabase
-            .from("words")
-            .select("id", { count: "exact", head: true })
-            .gte("sidor_rank", sidorLevel.range[0])
-            .lte("sidor_rank", sidorLevel.range[1]);
-
-          const { count: learnedCount } = await supabase
-            .from("user_progress")
-            .select("word_id, words!inner(sidor_rank)", { count: "exact", head: true })
-            .eq("user_id", user!.id)
-            .eq("is_learned", true)
-            .gte("words.sidor_rank", sidorLevel.range[0])
-            .lte("words.sidor_rank", sidorLevel.range[1]);
-
-          stats[sidorLevel.label] = { total: total || 0, learned: learnedCount || 0 };
-        }
-        return stats;
+        
+        stats[level] = { total, learned };
       }
-    },
-    enabled: !!user,
-  });
+    } else if (listType === "frequency") {
+      for (const freqLevel of FREQUENCY_LEVELS) {
+        const total = await db.words.where('frequency_rank').between(freqLevel.range[0], freqLevel.range[1], true, true).count();
+        
+        let learned = 0;
+        for (const p of learnedProgress) {
+          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
+          if (w && w.frequency_rank && w.frequency_rank >= freqLevel.range[0] && w.frequency_rank <= freqLevel.range[1]) {
+            learned++;
+          }
+        }
+        
+        stats[freqLevel.label] = { total, learned };
+      }
+    } else {
+      // Sidor list
+      for (const sidorLevel of SIDOR_LEVELS) {
+        const total = await db.words.where('sidor_rank').between(sidorLevel.range[0], sidorLevel.range[1], true, true).count();
+        
+        let learned = 0;
+        for (const p of learnedProgress) {
+          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
+          if (w && w.sidor_rank && w.sidor_rank >= sidorLevel.range[0] && w.sidor_rank <= sidorLevel.range[1]) {
+            learned++;
+          }
+        }
+        
+        stats[sidorLevel.label] = { total, learned };
+      }
+    }
+    
+    return stats;
+  }, [listType, user?.id]);
 }
 
 export function useUserProgress() {
@@ -245,8 +233,34 @@ export function useUserProgress() {
       if (!user) throw new Error("Not authenticated");
 
       // 1. Get word info
-      const word = await db.words.get(data.word_id);
-      if (!word) throw new Error("Word not found in local DB");
+      // 1. Get word info
+      let word = await db.words.get(data.word_id);
+      
+      // Fallback: If not finding local DB (partial sync?), fetch from Supabase and cache it
+      if (!word) {
+         console.log(`Word ${data.word_id} not found locally, fetching from remote...`);
+         const { data: remoteWord, error } = await supabase
+            .from('words')
+            .select('*')
+            .eq('id', data.word_id)
+            .single();
+            
+         if (error || !remoteWord) throw new Error("Word not found in local DB or Remote");
+         
+         word = {
+            id: remoteWord.id,
+            swedish_word: remoteWord.swedish_word,
+            kelly_level: remoteWord.kelly_level || undefined,
+            kelly_source_id: remoteWord.kelly_source_id || undefined,
+            frequency_rank: remoteWord.frequency_rank || undefined,
+            sidor_rank: remoteWord.sidor_rank || undefined,
+            word_data: remoteWord.word_data as any,
+            last_synced_at: new Date().toISOString()
+         };
+         
+         // Self-heal local DB
+         await db.words.put(word);
+      }
 
       const swedishWord = word.swedish_word;
 
