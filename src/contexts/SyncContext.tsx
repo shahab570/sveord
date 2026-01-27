@@ -42,6 +42,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                     allWords = [...allWords, ...words];
                     // Bulk put current batch immediately to save memory and show progress if needed
                     await db.words.bulkPut(words.map(w => ({
+                        id: w.id, // CRITICAL FIX: Save the Supabase ID locally
                         swedish_word: w.swedish_word,
                         kelly_level: w.kelly_level || undefined,
                         kelly_source_id: w.kelly_source_id || undefined,
@@ -106,23 +107,28 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             let hasMore = true;
 
             while (hasMore) {
+                // Use !inner to ensure we only get progress where the word still exists
                 const { data: progress, error: progressError } = await supabase
                     .from('user_progress')
-                    .select('*, words(swedish_word)')
+                    .select('*, words!inner(swedish_word)')
                     .eq('user_id', user.id)
                     .range(from, from + PAGE_SIZE - 1);
 
                 if (progressError) throw progressError;
 
                 if (progress && progress.length > 0) {
-                    await db.progress.bulkPut(progress.map(p => ({
-                        word_swedish: (p.words as any)?.swedish_word || '',
+                    const progressRecords = progress.map(p => ({
+                        word_swedish: (p.words as any)?.swedish_word,
                         is_learned: p.is_learned ? 1 : 0,
                         user_meaning: p.user_meaning || undefined,
                         custom_spelling: p.custom_spelling || undefined,
                         learned_date: p.learned_date || undefined,
                         last_synced_at: new Date().toISOString()
-                    })).filter(p => p.word_swedish !== ''));
+                    })).filter(p => p.word_swedish); // Filter out any undefined words
+
+                    if (progressRecords.length > 0) {
+                        await db.progress.bulkPut(progressRecords as any);
+                    }
 
                     if (progress.length < PAGE_SIZE) {
                         hasMore = false;
