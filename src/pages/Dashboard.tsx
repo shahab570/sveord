@@ -59,13 +59,17 @@ export default function Dashboard() {
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
-        <div className="space-y-2 animate-fade-in" style={{ animationDelay: "0ms" }}>
-          <h1 className="text-3xl font-bold text-foreground">
-            Välkommen tillbaka! 👋
-          </h1>
-          <p className="text-muted-foreground">
-            Continue your Swedish vocabulary journey
-          </p>
+        {/* Header Illustration */}
+        <div className="w-full flex justify-center py-4 animate-fade-in" style={{ animationDelay: "0ms" }}>
+          <img
+            src="/reading_illustration.png"
+            alt="Reading a book"
+            className="h-48 md:h-64 object-contain drop-shadow-xl"
+            onError={(e) => {
+              // Fallback if image fails (though it shouldn't) - hides the image to avoid broken icon
+              e.currentTarget.style.display = 'none';
+            }}
+          />
         </div>
 
         {/* Today's Progress Highlight */}
