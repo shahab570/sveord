@@ -25,7 +25,7 @@ export default function SidorList() {
   });
   const isLoading = words === undefined;
 
-  const { data: levelStats } = useLevelStats("sidor");
+  const levelStats = useLevelStats("sidor");
 
   const sortedWords = useMemo(() => {
     if (!words) return [];

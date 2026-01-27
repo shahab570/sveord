@@ -23,7 +23,7 @@ export default function KellyList() {
   });
   const isLoading = words === undefined;
 
-  const { data: levelStats } = useLevelStats("kelly");
+  const levelStats = useLevelStats("kelly");
 
   // Filter out learned words - they should not be shown
   const unlearnedWords = useMemo(() => {

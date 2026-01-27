@@ -88,6 +88,7 @@ export function WordCard({
     try {
       await upsertProgress.mutateAsync({
         word_id: word.id,
+        swedish_word: word.swedish_word,
         user_meaning: meaning,
       });
       toast.success("Notes saved!");
@@ -103,6 +104,7 @@ export function WordCard({
     try {
       await upsertProgress.mutateAsync({
         word_id: word.id,
+        swedish_word: word.swedish_word,
         custom_spelling: customSpelling || null,
       });
       setIsEditingSpelling(false);
@@ -119,6 +121,7 @@ export function WordCard({
     try {
       await upsertProgress.mutateAsync({
         word_id: word.id,
+        swedish_word: word.swedish_word,
         is_learned: !isLearned,
         user_meaning: meaning,
       });
@@ -126,8 +129,9 @@ export function WordCard({
       if (!isLearned && hasNext) {
         onNext();
       }
-    } catch (error) {
-      toast.error("Failed to update progress");
+    } catch (error: any) {
+      console.error("Update failed:", error);
+      toast.error(`Failed to update: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }

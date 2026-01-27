@@ -162,7 +162,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
   return useLiveQuery(async () => {
     // Initialize stats object
     const stats: Record<string, { total: number; learned: number }> = {};
-    
+
     // Get all learned items first to avoid repeated queries
     const learnedProgress = await db.progress.where('is_learned').equals(1).toArray();
 
@@ -170,7 +170,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
       for (const level of CEFR_LEVELS) {
         // Count total words in this level
         const total = await db.words.where('kelly_level').equals(level).count();
-        
+
         // Count learned words in this level
         // We filter the pre-fetched progress items
         let learned = 0;
@@ -180,13 +180,13 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
             learned++;
           }
         }
-        
+
         stats[level] = { total, learned };
       }
     } else if (listType === "frequency") {
       for (const freqLevel of FREQUENCY_LEVELS) {
         const total = await db.words.where('frequency_rank').between(freqLevel.range[0], freqLevel.range[1], true, true).count();
-        
+
         let learned = 0;
         for (const p of learnedProgress) {
           const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
@@ -194,14 +194,14 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
             learned++;
           }
         }
-        
+
         stats[freqLevel.label] = { total, learned };
       }
     } else {
       // Sidor list
       for (const sidorLevel of SIDOR_LEVELS) {
         const total = await db.words.where('sidor_rank').between(sidorLevel.range[0], sidorLevel.range[1], true, true).count();
-        
+
         let learned = 0;
         for (const p of learnedProgress) {
           const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
@@ -209,11 +209,11 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
             learned++;
           }
         }
-        
+
         stats[sidorLevel.label] = { total, learned };
       }
     }
-    
+
     return stats;
   }, [listType, user?.id]);
 }
@@ -225,6 +225,7 @@ export function useUserProgress() {
   const upsertProgress = useMutation({
     mutationFn: async (data: {
       word_id: number;
+      swedish_word?: string;
       is_learned?: boolean;
       user_meaning?: string;
       custom_spelling?: string;
@@ -233,36 +234,50 @@ export function useUserProgress() {
       if (!user) throw new Error("Not authenticated");
 
       // 1. Get word info
-      // 1. Get word info
-      let word = await db.words.get(data.word_id);
-      
-      // Fallback: If not finding local DB (partial sync?), fetch from Supabase and cache it
-      if (!word) {
-         console.log(`Word ${data.word_id} not found locally, fetching from remote...`);
-         const { data: remoteWord, error } = await supabase
-            .from('words')
-            .select('*')
-            .eq('id', data.word_id)
-            .single();
-            
-         if (error || !remoteWord) throw new Error("Word not found in local DB or Remote");
-         
-         word = {
-            id: remoteWord.id,
-            swedish_word: remoteWord.swedish_word,
-            kelly_level: remoteWord.kelly_level || undefined,
-            kelly_source_id: remoteWord.kelly_source_id || undefined,
-            frequency_rank: remoteWord.frequency_rank || undefined,
-            sidor_rank: remoteWord.sidor_rank || undefined,
-            word_data: remoteWord.word_data as any,
-            last_synced_at: new Date().toISOString()
-         };
-         
-         // Self-heal local DB
-         await db.words.put(word);
+      let swedishWord = data.swedish_word;
+      let word: LocalWord | undefined;
+
+      // If we have the swedish_word (PK), use it directly - fastest
+      if (swedishWord) {
+        word = await db.words.get(swedishWord);
       }
 
-      const swedishWord = word.swedish_word;
+      // If we don't have it, or it wasn't found by PK, try to find by ID (slower scan)
+      if (!word) {
+        word = await db.words.filter(w => w.id === data.word_id).first();
+      }
+
+      // Fallback: If still not found locally (partial sync?), fetch from Supabase and cache it
+      if (!word) {
+        console.log(`Word "${data.swedish_word || data.word_id}" not found locally, fetching from remote...`);
+
+        let query = supabase.from('words').select('*');
+        if (data.swedish_word) {
+          query = query.eq('swedish_word', data.swedish_word);
+        } else {
+          query = query.eq('id', data.word_id);
+        }
+
+        const { data: remoteWord, error } = await query.single();
+
+        if (error || !remoteWord) throw new Error("Word not found in local DB or Remote");
+
+        word = {
+          id: remoteWord.id,
+          swedish_word: remoteWord.swedish_word,
+          kelly_level: remoteWord.kelly_level || undefined,
+          kelly_source_id: remoteWord.kelly_source_id || undefined,
+          frequency_rank: remoteWord.frequency_rank || undefined,
+          sidor_rank: remoteWord.sidor_rank || undefined,
+          word_data: remoteWord.word_data as any,
+          last_synced_at: new Date().toISOString()
+        };
+
+        // Self-heal local DB
+        await db.words.put(word);
+      }
+
+      swedishWord = word.swedish_word;
 
       // 2. Calculate SRS if difficulty is provided
       const existing = await db.progress.where('word_swedish').equals(swedishWord).first();

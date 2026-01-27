@@ -25,7 +25,7 @@ export default function FrequencyList() {
   });
   const isLoading = words === undefined;
 
-  const { data: levelStats } = useLevelStats("frequency");
+  const levelStats = useLevelStats("frequency");
 
   const sortedWords = useMemo(() => {
     if (!words) return [];

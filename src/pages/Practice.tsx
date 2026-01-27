@@ -98,6 +98,7 @@ export default function Practice() {
 
         await upsertProgress.mutateAsync({
             word_id: currentWord.id,
+            swedish_word: currentWord.swedish_word,
             srs_difficulty: difficulty
         });
 
