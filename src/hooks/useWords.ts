@@ -324,12 +324,32 @@ export function useUserProgress() {
       }
 
       // 3. Update Local DB
+      const isNowLearned = data.is_learned === true;
+      const wasLearned = existing?.is_learned === 1; // stored as number 0/1 locally
+
+      // Determine new learned date:
+      // 1. If explicitly marking learned now -> update date to now (refreshes Today's review)
+      // 2. If just updating content (meaning/spelling) while already learned -> keep existing date
+      // 3. If unlearning -> keep existing date (or null? usually keep for history)
+
+      let newLearnedDate = existing?.learned_date;
+      if (isNowLearned && !wasLearned) {
+        // Transitioning to learned -> Set new date
+        newLearnedDate = new Date().toISOString();
+      } else if (isNowLearned && wasLearned) {
+        // Already learned, just updating fields -> Keep date (unless it was somehow null)
+        newLearnedDate = existing?.learned_date || new Date().toISOString();
+      } else if (isNowLearned) {
+        // Fallback
+        newLearnedDate = new Date().toISOString();
+      }
+
       const progressData: LocalUserProgress = {
         word_swedish: swedishWord,
         is_learned: data.is_learned === undefined ? (existing?.is_learned || 0) : (data.is_learned ? 1 : 0),
         user_meaning: data.user_meaning ?? existing?.user_meaning,
         custom_spelling: data.custom_spelling ?? existing?.custom_spelling,
-        learned_date: data.is_learned ? ((existing?.learned_date) || new Date().toISOString()) : existing?.learned_date,
+        learned_date: newLearnedDate,
         last_synced_at: new Date().toISOString(),
         ...srsUpdate,
       };
@@ -732,6 +752,16 @@ export function useAddWord() {
         }
         throw error;
       }
+
+      // Also add to local DB immediately for instant access
+      await db.words.put({
+        swedish_word: data.swedish_word.toLowerCase().trim(),
+        kelly_level: data.kelly_level || undefined,
+        frequency_rank: data.frequency_rank || undefined,
+        sidor_rank: data.sidor_rank || undefined,
+        kelly_source_id: undefined, // Add missing optional fields if needed by LocalWord
+        last_synced_at: new Date().toISOString()
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["words"] });
