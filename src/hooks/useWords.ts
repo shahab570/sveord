@@ -119,10 +119,18 @@ export function useWords(filters?: {
       words.sort((a, b) => (a.sidor_rank || 0) - (b.sidor_rank || 0));
     }
 
-    // Merge with progress
+    // Merge with progress - Optimized: Fetch all relevant progress at once
     const result: WordWithProgress[] = [];
+
+    // Create a Set of swedish words to query progress for (optimization)
+    const swedishWords = words.map(w => w.swedish_word);
+
+    // Bulk fetch progress for these words
+    const progressList = await db.progress.where('word_swedish').anyOf(swedishWords).toArray();
+    const progressMap = new Map(progressList.map(p => [p.word_swedish, p]));
+
     for (const w of words) {
-      const progress = await db.progress.where('word_swedish').equals(w.swedish_word).first();
+      const progress = progressMap.get(w.swedish_word);
 
       if (filters?.learnedOnly && !progress?.is_learned) continue;
 

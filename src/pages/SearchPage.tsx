@@ -8,13 +8,21 @@ import { VirtualList } from "@/components/common/VirtualList";
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedWord, setSelectedWord] = useState<WordWithProgress | null>(
     null
   );
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // useWords now uses useLiveQuery and returns the array directly
   const words = useWords({
-    search: searchQuery.length >= 2 ? searchQuery : undefined,
+    search: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
   });
 
   const isLoading = searchQuery.length >= 2 && words === undefined;
