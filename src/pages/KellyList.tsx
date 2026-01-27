@@ -63,12 +63,6 @@ export default function KellyList() {
 
   return (
     <AppLayout>
-      {/* DEBUG BLOCK - REMOVE AFTER VERIFICATION */}
-      <div className="bg-black text-xs text-green-400 p-2 font-mono overflow-auto max-h-32 mb-4 rounded mx-auto max-w-3xl">
-        DEBUG INFO: Words Count: {words?.length || 0} <br />
-        First Word: {words && words.length > 0 ? JSON.stringify(words[0]) : "None"}
-      </div>
-
       <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between">
