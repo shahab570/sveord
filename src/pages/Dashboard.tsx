@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useStats, useDetailedStats, FREQUENCY_LEVELS, SIDOR_LEVELS, useTodaysLearnedWords, useLearningPrediction } from "@/hooks/useWords";
+import { useStats, useDetailedStats, FREQUENCY_LEVELS, SIDOR_LEVELS, useTodaysLearnedWords, useLearningPrediction, useB1GoalProgress } from "@/hooks/useWords";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   BookOpen,
@@ -14,6 +14,9 @@ import {
   Moon,
   BookMarked,
   Clock,
+  Flag,
+  AlertTriangle,
+  CheckCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
@@ -41,10 +44,12 @@ export default function Dashboard() {
   const todaysWords = useTodaysLearnedWords();
   const todaysLoading = todaysWords === undefined;
   const { data: prediction, isLoading: predictionLoading } = useLearningPrediction();
-  const [selectedWordId, setSelectedWordId] = useState<number | null>(null);
+  const b1Goal = useB1GoalProgress();
+  const b1GoalLoading = b1Goal === undefined;
+  const [selectedWordKey, setSelectedWordKey] = useState<string | null>(null);
 
-  const selectedWord = todaysWords?.find(w => w.id === selectedWordId);
-  const selectedIndex = todaysWords?.findIndex(w => w.id === selectedWordId) ?? -1;
+  const selectedWord = todaysWords?.find(w => w.swedish_word === selectedWordKey);
+  const selectedIndex = todaysWords?.findIndex(w => w.swedish_word === selectedWordKey) ?? -1;
 
   const totalLearned = stats?.learnedWords || 0;
   const totalWords = stats?.totalWords || 0;
@@ -98,6 +103,79 @@ export default function Dashboard() {
                   {detailedStats?.learnedToday || 0}
                 </span>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* 🎯 B1 Goal Tracker */}
+        <div className="animate-fade-in" style={{ animationDelay: "60ms" }}>
+          {b1GoalLoading ? (
+            <Skeleton className="h-48 w-full rounded-2xl" />
+          ) : b1Goal && (
+            <div className={`word-card border-l-4 ${b1Goal.isOnTrack ? 'border-l-green-500' : 'border-l-amber-500'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-3 rounded-xl ${b1Goal.isOnTrack ? 'bg-green-500/10' : 'bg-amber-500/10'}`}>
+                    <Flag className={`h-6 w-6 ${b1Goal.isOnTrack ? 'text-green-500' : 'text-amber-500'}`} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      🎯 B1 Goal: April 1st
+                      {b1Goal.isOnTrack ? (
+                        <span className="flex items-center gap-1 text-sm font-medium text-green-500">
+                          <CheckCircle className="h-4 w-4" /> On Track
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-sm font-medium text-amber-500">
+                          <AlertTriangle className="h-4 w-4" /> Behind
+                        </span>
+                      )}
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Complete A1 + A2 + B1 across all lists
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-3xl font-bold text-foreground">
+                    {b1Goal.progressPercent.toFixed(1)}%
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    {b1Goal.learnedB1Words} / {b1Goal.totalB1Words} words
+                  </p>
+                </div>
+              </div>
+
+              <Progress value={b1Goal.progressPercent} className="h-3 mb-4" />
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-3 bg-secondary/50 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-foreground">{b1Goal.daysUntilDeadline}</p>
+                  <p className="text-xs text-muted-foreground">Days Left</p>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-foreground">{b1Goal.remainingB1Words}</p>
+                  <p className="text-xs text-muted-foreground">Words Left</p>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg text-center">
+                  <p className={`text-2xl font-bold ${b1Goal.isOnTrack ? 'text-green-500' : 'text-amber-500'}`}>
+                    {b1Goal.requiredWordsPerDay}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Need/Day</p>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-primary">{b1Goal.currentPace}</p>
+                  <p className="text-xs text-muted-foreground">Current Pace</p>
+                </div>
+              </div>
+
+              {!b1Goal.isOnTrack && b1Goal.projectedCompletionDate && (
+                <p className="text-sm text-muted-foreground mt-4 text-center">
+                  At current pace, you'll finish by <span className="font-medium text-foreground">
+                    {new Date(b1Goal.projectedCompletionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span> — {b1Goal.daysNeededAtCurrentPace && b1Goal.daysNeededAtCurrentPace - b1Goal.daysUntilDeadline} days after deadline
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -270,9 +348,9 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {todaysWords.map((word) => (
                   <div
-                    key={word.id}
+                    key={word.swedish_word}
                     className="p-4 border border-border rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors cursor-pointer"
-                    onClick={() => setSelectedWordId(word.id)}
+                    onClick={() => setSelectedWordKey(word.swedish_word)}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-lg font-semibold text-foreground">
@@ -307,7 +385,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          <Dialog open={!!selectedWord} onOpenChange={(open) => !open && setSelectedWordId(null)}>
+          <Dialog open={!!selectedWord} onOpenChange={(open) => !open && setSelectedWordKey(null)}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogTitle className="sr-only">Word Details</DialogTitle>
               {selectedWord && (
@@ -316,13 +394,13 @@ export default function Dashboard() {
                   onPrevious={() => {
                     const prevIndex = selectedIndex - 1;
                     if (prevIndex >= 0 && todaysWords) {
-                      setSelectedWordId(todaysWords[prevIndex].id);
+                      setSelectedWordKey(todaysWords[prevIndex].swedish_word);
                     }
                   }}
                   onNext={() => {
                     const nextIndex = selectedIndex + 1;
                     if (todaysWords && nextIndex < todaysWords.length) {
-                      setSelectedWordId(todaysWords[nextIndex].id);
+                      setSelectedWordKey(todaysWords[nextIndex].swedish_word);
                     }
                   }}
                   hasPrevious={selectedIndex > 0}

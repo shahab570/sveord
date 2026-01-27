@@ -609,6 +609,112 @@ export function useLearningPrediction() {
   });
 }
 
+// B1 Goal Tracker Hook - Track progress toward A1+A2+B1 completion by April 1st
+export function useB1GoalProgress() {
+  const { user } = useAuth();
+  const stats = useDetailedStats();
+
+  return useLiveQuery(async () => {
+    if (!user) return null;
+
+    // Target deadline: April 1st, 2026
+    const deadline = new Date(2026, 3, 1); // Month is 0-indexed, so 3 = April
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const timeDiff = deadline.getTime() - today.getTime();
+    const daysUntilDeadline = Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)));
+
+    // Get all learned progress
+    const learnedProgress = await db.progress.where('is_learned').equals(1).toArray();
+    const learnedSwedishWords = new Set(learnedProgress.map(p => p.word_swedish));
+
+    // Collect unique words in A1, A2, B1 across all lists
+    const targetLevels = ["A1", "A2", "B1"];
+    const b1WordsSet = new Set<string>();
+    const learnedB1WordsSet = new Set<string>();
+
+    // Kelly list - A1, A2, B1 levels
+    for (const level of targetLevels) {
+      const kellyWords = await db.words.where('kelly_level').equals(level).toArray();
+      for (const w of kellyWords) {
+        b1WordsSet.add(w.swedish_word);
+        if (learnedSwedishWords.has(w.swedish_word)) {
+          learnedB1WordsSet.add(w.swedish_word);
+        }
+      }
+    }
+
+    // Frequency list - A1 (1-1500), A2 (1501-3000), B1 (3001-5000)
+    const frequencyRanges = [
+      [1, 1500],    // A1
+      [1501, 3000], // A2
+      [3001, 5000], // B1
+    ];
+    for (const [min, max] of frequencyRanges) {
+      const freqWords = await db.words.where('frequency_rank').between(min, max, true, true).toArray();
+      for (const w of freqWords) {
+        b1WordsSet.add(w.swedish_word);
+        if (learnedSwedishWords.has(w.swedish_word)) {
+          learnedB1WordsSet.add(w.swedish_word);
+        }
+      }
+    }
+
+    // Sidor list - A1 (1-600), A2 (601-1200), B1 (1201-1800)
+    const sidorRanges = [
+      [1, 600],     // A1
+      [601, 1200],  // A2
+      [1201, 1800], // B1
+    ];
+    for (const [min, max] of sidorRanges) {
+      const sidorWords = await db.words.where('sidor_rank').between(min, max, true, true).toArray();
+      for (const w of sidorWords) {
+        b1WordsSet.add(w.swedish_word);
+        if (learnedSwedishWords.has(w.swedish_word)) {
+          learnedB1WordsSet.add(w.swedish_word);
+        }
+      }
+    }
+
+    const totalB1Words = b1WordsSet.size;
+    const learnedB1Words = learnedB1WordsSet.size;
+    const remainingB1Words = totalB1Words - learnedB1Words;
+    const progressPercent = totalB1Words > 0 ? (learnedB1Words / totalB1Words) * 100 : 0;
+
+    // Calculate required words per day
+    const requiredWordsPerDay = daysUntilDeadline > 0
+      ? Math.ceil(remainingB1Words / daysUntilDeadline)
+      : remainingB1Words;
+
+    // Current pace from detailed stats
+    const currentPace = stats?.avgPerDay || 0;
+    const isOnTrack = currentPace >= requiredWordsPerDay;
+
+    // Calculate if goal is achievable at current pace
+    const daysNeededAtCurrentPace = currentPace > 0
+      ? Math.ceil(remainingB1Words / currentPace)
+      : null;
+    const projectedCompletionDate = daysNeededAtCurrentPace
+      ? new Date(today.getTime() + daysNeededAtCurrentPace * 24 * 60 * 60 * 1000)
+      : null;
+
+    return {
+      totalB1Words,
+      learnedB1Words,
+      remainingB1Words,
+      progressPercent,
+      daysUntilDeadline,
+      deadline: deadline.toISOString().split('T')[0],
+      requiredWordsPerDay,
+      currentPace,
+      isOnTrack,
+      daysNeededAtCurrentPace,
+      projectedCompletionDate: projectedCompletionDate?.toISOString().split('T')[0] || null,
+    };
+  }, [user?.id, stats?.avgPerDay]);
+}
+
 export function useTodaysLearnedWords() {
   const { user } = useAuth();
 
