@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   profile: any | null;
   isApproved: boolean;
+  isAdmin: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -140,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       isApproved: profile?.is_approved === true, // Default to false if no profile
+      isAdmin: user?.email === 'mjsahab570@gmail.com',
       loading,
       signInWithGoogle,
       signOut

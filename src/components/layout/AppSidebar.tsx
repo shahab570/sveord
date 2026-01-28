@@ -9,6 +9,7 @@ import {
   GraduationCap,
   BookMarked,
   BrainCircuit,
+  Shield,
 } from "lucide-react";
 
 const navItems = [
@@ -23,7 +24,7 @@ const navItems = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, isAdmin } = useAuth();
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border hidden md:block safe-top">
@@ -53,6 +54,16 @@ export function AppSidebar() {
               </Link>
             );
           })}
+
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className={`nav-link ${location.pathname === "/admin" ? "nav-link-active" : ""}`}
+            >
+              <Shield className="h-5 w-5" />
+              <span>Admin</span>
+            </Link>
+          )}
         </nav>
 
         {/* Logout */}
