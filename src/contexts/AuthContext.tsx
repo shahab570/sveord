@@ -37,10 +37,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
-      if (error) {
+      if (error || !data) {
         // Silently fail or just set null, avoiding console spam for timeouts
-        if (error.message !== 'Profile fetch timeout') {
+        if (error && error.message !== 'Profile fetch timeout' && error.code !== 'PGRST116') {
           console.error('Error fetching profile:', error);
+        }
+
+        // If profile is missing (PGRST116) or just not found, but we have a user, try to create one.
+        // This handles cases where Admin deleted the profile but Auth user exists.
+        if (userId && (!data || (error && error.code === 'PGRST116'))) {
+          console.log("Profile missing, attempting to recreate...");
+          // We need current user metadata to fill names/email
+          const { data: { user } } = await supabase.auth.getUser();
+
+          if (user) {
+            const newProfile = {
+              id: userId,
+              email: user.email,
+              first_name: user.user_metadata?.first_name || '',
+              last_name: user.user_metadata?.last_name || '',
+              is_approved: user.email === 'mjsahab570@gmail.com' // Auto-approve admin
+            };
+
+            const { data: insertedProfile, error: insertError } = await supabase
+              .from('profiles')
+              .insert([newProfile])
+              .select()
+              .single();
+
+            if (!insertError && insertedProfile) {
+              console.log("Profile recreated successfully");
+              setProfile(insertedProfile);
+              return;
+            } else {
+              console.error("Failed to recreate profile:", insertError);
+            }
+          }
         }
       } else {
         setProfile(data);
