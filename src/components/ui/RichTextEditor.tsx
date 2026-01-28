@@ -1,5 +1,5 @@
 
-import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react';
+import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import { Markdown } from 'tiptap-markdown';
@@ -25,9 +25,9 @@ export function RichTextEditor({ value, onChange, editable = true }: RichTextEdi
                 openOnClick: false,
             }),
             Markdown.configure({
-                html: true,                  // Allow HTML input/output
-                transformPastedText: true,  // Allow pasting markdown
-                transformCopiedText: true,  // Copy as markdown
+                html: true,
+                transformPastedText: true,
+                transformCopiedText: true,
                 linkify: true,
             }),
         ],
@@ -39,8 +39,14 @@ export function RichTextEditor({ value, onChange, editable = true }: RichTextEdi
             },
         },
         onUpdate: ({ editor }) => {
-            const markdown = editor.storage.markdown.getMarkdown();
-            onChange(markdown);
+            try {
+                // Safety check for storage access
+                const markdown = editor.storage.markdown?.getMarkdown() ?? editor.getText();
+                onChange(markdown);
+            } catch (e) {
+                console.warn("Markdown serialization failed, falling back to text", e);
+                onChange(editor.getText());
+            }
         },
     });
 
