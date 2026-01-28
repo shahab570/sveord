@@ -1,15 +1,21 @@
+
 import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Flashcard } from "@/components/practice/Flashcard";
 import { useWords, useUserProgress, WordWithProgress } from "@/hooks/useWords";
 import { db } from "@/services/db";
 import { useLiveQuery } from "dexie-react-hooks";
-import { BookOpen, CheckCircle, Flame, BrainCircuit } from "lucide-react";
+import { BookOpen, CheckCircle, Flame, BrainCircuit, Repeat2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { QuizSession } from "@/components/quiz/QuizSession";
+import { QuestionType } from "@/utils/quizUtils";
 
 export default function Practice() {
-    const [sessionStarted, setSessionStarted] = useState(false);
+    const [mode, setMode] = useState<'menu' | 'srs' | 'quiz'>('menu');
+    const [quizType, setQuizType] = useState<QuestionType | null>(null);
+
+    // SRS State
     const [currentIndex, setCurrentIndex] = useState(0);
     const { upsertProgress } = useUserProgress();
 
@@ -24,40 +30,6 @@ export default function Practice() {
 
         const results: WordWithProgress[] = [];
         for (const p of dueProgress) {
-            const w = await db.words.where("swedish_word").equals(p.word_swedish).first();
-            if (w) {
-                results.push({
-                    ...w,
-                    id: w.id || 0,
-                    kelly_level: w.kelly_level || null,
-                    kelly_source_id: w.kelly_source_id || null,
-                    frequency_rank: w.frequency_rank || null,
-                    sidor_source_id: null,
-                    sidor_rank: w.sidor_rank || null,
-                    created_at: "",
-                    word_data: w.word_data || null,
-                    progress: {
-                        id: p.id || "",
-                        user_id: "",
-                        word_id: w.id || 0,
-                        is_learned: p.is_learned,
-                        learned_date: p.learned_date || null,
-                        user_meaning: p.user_meaning || null,
-                        custom_spelling: p.custom_spelling || null,
-                        created_at: "",
-                        updated_at: "",
-                        srs_next_review: p.srs_next_review,
-                    }
-                });
-            }
-        }
-        return results;
-    });
-
-    const allLearnedWords = useLiveQuery(async () => {
-        const progress = await db.progress.where("is_learned").equals(1).toArray();
-        const results: WordWithProgress[] = [];
-        for (const p of progress) {
             const w = await db.words.where("swedish_word").equals(p.word_swedish).first();
             if (w) {
                 results.push({
@@ -105,9 +77,19 @@ export default function Practice() {
         if (currentIndex < sessionWords.length - 1) {
             setCurrentIndex(prev => prev + 1);
         } else {
-            setSessionStarted(false);
+            setMode('menu'); // Return to menu instead of just resetting sessionStarted
             setCurrentIndex(0);
         }
+    };
+
+    const startSRS = () => {
+        setMode('srs');
+        setCurrentIndex(0);
+    };
+
+    const startQuiz = (type: QuestionType) => {
+        setQuizType(type);
+        setMode('quiz');
     };
 
     const progressPercent = sessionWords ? ((currentIndex / sessionWords.length) * 100) : 0;
@@ -122,12 +104,12 @@ export default function Practice() {
                             <BrainCircuit className="h-8 w-8 text-primary" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-bold text-foreground tracking-tight">SRS Mastery</h1>
-                            <p className="text-muted-foreground">Master your learned vocabulary through spaced repetition</p>
+                            <h1 className="text-3xl font-bold text-foreground tracking-tight">Practice Arena</h1>
+                            <p className="text-muted-foreground">Master your vocabulary through different challenges</p>
                         </div>
                     </div>
 
-                    {sessionStarted && sessionWords && (
+                    {mode === 'srs' && sessionWords && (
                         <div className="flex items-center gap-4 bg-card border border-border px-6 py-2 rounded-2xl shadow-sm">
                             <span className="text-sm font-semibold text-primary">{currentIndex + 1} / {sessionWords.length}</span>
                             <Progress value={progressPercent} className="w-32 h-2" />
@@ -135,55 +117,79 @@ export default function Practice() {
                     )}
                 </div>
 
-                {!sessionStarted ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8">
-                        {/* Due for Review Card */}
-                        <Card className="p-8 flex flex-col items-center text-center space-y-6 border-2 border-primary/20 bg-card/50 backdrop-blur shadow-lg rounded-3xl group hover:border-primary/40 transition-all">
-                            <div className="p-5 bg-primary/20 rounded-2xl group-hover:scale-110 transition-transform">
-                                <Flame className="h-10 w-10 text-primary" />
-                            </div>
-                            <div className="space-y-2">
-                                <h2 className="text-2xl font-bold text-foreground">Next Review</h2>
-                                <p className="text-muted-foreground text-sm">Words scheduled for review based on your learning history.</p>
-                            </div>
-                            <div className="text-5xl font-black text-primary">
-                                {dueWords?.length || 0}
+                {mode === 'menu' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-8">
+                        {/* 1. SRS Card */}
+                        <Card className="p-6 flex flex-col justify-between border-2 border-primary/20 bg-card/50 backdrop-blur shadow-lg hover:border-primary/40 transition-all">
+                            <div className="space-y-4">
+                                <div className="p-4 bg-orange-100 dark:bg-orange-900/20 rounded-xl w-fit">
+                                    <Flame className="h-8 w-8 text-orange-600 dark:text-orange-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-foreground mb-2">Review Due</h2>
+                                    <p className="text-muted-foreground text-sm">Spaced repetition reviews to keep words fresh.</p>
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-black text-primary">{dueWords?.length || 0}</span>
+                                    <span className="text-sm text-muted-foreground">words pending</span>
+                                </div>
                             </div>
                             <Button
                                 size="lg"
-                                className="w-full rounded-2xl h-14 text-lg font-bold shadow-md hover:shadow-primary/20"
+                                className="w-full mt-6"
                                 disabled={!dueWords || dueWords.length === 0}
-                                onClick={() => setSessionStarted(true)}
+                                onClick={startSRS}
                             >
-                                Start Review Session
+                                Start Review
                             </Button>
                         </Card>
 
-                        {/* Total Learned Stats Card */}
-                        <Card className="p-8 flex flex-col items-center text-center space-y-6 border border-border bg-secondary/20 rounded-3xl shadow-sm">
-                            <div className="p-5 bg-success/20 rounded-2xl">
-                                <CheckCircle className="h-10 w-10 text-success" />
-                            </div>
-                            <div className="space-y-2">
-                                <h2 className="text-2xl font-bold text-foreground">Library Size</h2>
-                                <p className="text-muted-foreground text-sm">Total words you have marked as 'Learned'.</p>
-                            </div>
-                            <div className="text-5xl font-black text-success">
-                                {allLearnedWords?.length || 0}
+                        {/* 2. Synonym Quiz */}
+                        <Card className="p-6 flex flex-col justify-between border border-border hover:shadow-lg transition-all">
+                            <div className="space-y-4">
+                                <div className="p-4 bg-blue-100 dark:bg-blue-900/20 rounded-xl w-fit">
+                                    <Repeat2 className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-foreground mb-2">Synonyms</h2>
+                                    <p className="text-muted-foreground text-sm">Find words with similar meanings.</p>
+                                </div>
                             </div>
                             <Button
-                                variant="outline"
                                 size="lg"
-                                className="w-full rounded-2xl h-14 text-lg font-bold border-2"
-                                onClick={() => {
-                                    // Option to practice all learned words could be added here
-                                }}
+                                variant="outline"
+                                className="w-full mt-6 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 dark:border-blue-800"
+                                onClick={() => startQuiz('synonym')}
                             >
-                                Browse Library
+                                Start Challenge
+                            </Button>
+                        </Card>
+
+                        {/* 3. Antonym Quiz */}
+                        <Card className="p-6 flex flex-col justify-between border border-border hover:shadow-lg transition-all">
+                            <div className="space-y-4">
+                                <div className="p-4 bg-purple-100 dark:bg-purple-900/20 rounded-xl w-fit">
+                                    <Sparkles className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-foreground mb-2">Antonyms</h2>
+                                    <p className="text-muted-foreground text-sm">Find words with opposite meanings.</p>
+                                </div>
+                            </div>
+                            <Button
+                                size="lg"
+                                variant="outline"
+                                className="w-full mt-6 border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 dark:border-purple-800"
+                                onClick={() => startQuiz('antonym')}
+                            >
+                                Start Challenge
                             </Button>
                         </Card>
                     </div>
-                ) : (
+                )}
+
+                {/* SRS Mode */}
+                {mode === 'srs' && (
                     <div className="py-8">
                         {sessionWords && sessionWords[currentIndex] ? (
                             <Flashcard
@@ -196,17 +202,24 @@ export default function Practice() {
                                     <CheckCircle className="h-16 w-16 text-success" />
                                 </div>
                                 <h2 className="text-3xl font-bold text-foreground">Session Complete!</h2>
-                                <p className="text-muted-foreground text-lg">You've cleared all pending reviews for now. Keep it up!</p>
                                 <Button
                                     size="lg"
-                                    onClick={() => setSessionStarted(false)}
+                                    onClick={() => setMode('menu')}
                                     className="rounded-2xl px-12"
                                 >
-                                    Return to Dashboard
+                                    Back to Menu
                                 </Button>
                             </div>
                         )}
                     </div>
+                )}
+
+                {/* Quiz Mode */}
+                {mode === 'quiz' && quizType && (
+                    <QuizSession
+                        type={quizType}
+                        onExit={() => setMode('menu')}
+                    />
                 )}
             </div>
         </AppLayout>
