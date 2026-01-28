@@ -10,8 +10,11 @@ import { PopulationProvider } from "@/contexts/PopulationContext";
 import { SyncProvider } from "@/contexts/SyncContext";
 import { BookOpen } from "lucide-react";
 
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+
 // Lazy load pages with automatic retry
 const Auth = lazyRetry(() => import("./pages/Auth"), "Auth");
+const PendingApproval = lazyRetry(() => import("./pages/PendingApproval"), "PendingApproval");
 const Dashboard = lazyRetry(() => import("./pages/Dashboard"), "Dashboard");
 const KellyList = lazyRetry(() => import("./pages/KellyList"), "KellyList");
 const FrequencyList = lazyRetry(() => import("./pages/FrequencyList"), "FrequencyList");
@@ -51,13 +54,18 @@ const App = () => (
                 <Routes>
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/auth" element={<Auth />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/kelly" element={<KellyList />} />
-                  <Route path="/frequency" element={<FrequencyList />} />
-                  <Route path="/sidor" element={<SidorList />} />
-                  <Route path="/search" element={<SearchPage />} />
-                  <Route path="/practice" element={<Practice />} />
-                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/pending-approval" element={<PendingApproval />} />
+
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/kelly" element={<KellyList />} />
+                    <Route path="/frequency" element={<FrequencyList />} />
+                    <Route path="/sidor" element={<SidorList />} />
+                    <Route path="/search" element={<SearchPage />} />
+                    <Route path="/practice" element={<Practice />} />
+                    <Route path="/settings" element={<Settings />} />
+                  </Route>
+
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

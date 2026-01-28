@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          first_name: string | null
+          id: string
+          is_approved: boolean | null
+          last_name: string | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          first_name?: string | null
+          id: string
+          is_approved?: boolean | null
+          last_name?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          first_name?: string | null
+          id?: string
+          is_approved?: boolean | null
+          last_name?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       upload_history: {
         Row: {
           file_name: string

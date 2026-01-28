@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  profile: any | null;
+  isApproved: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -15,31 +17,59 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+      } else {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error in fetchProfile:', error);
+    }
+  };
 
   useEffect(() => {
     console.log('🔐 AuthContext: Setting up auth listener');
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         console.log('🔐 Auth state changed:', event);
-        console.log('🔐 Session:', session ? 'exists' : 'null');
-        console.log('🔐 User:', session?.user?.email || 'no user');
 
         setSession(session);
         setUser(session?.user ?? null);
+
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
+
         setLoading(false);
       }
     );
 
     // THEN get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       console.log('🔐 Initial session check:', session ? 'exists' : 'null');
-      console.log('🔐 Initial user:', session?.user?.email || 'no user');
 
       setSession(session);
       setUser(session?.user ?? null);
+
+      if (session?.user) {
+        await fetchProfile(session.user.id);
+      }
+
       setLoading(false);
     });
 
@@ -91,7 +121,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{
+      user,
+      session,
+      profile,
+      isApproved: profile?.is_approved === true, // Default to false if no profile
+      loading,
+      signInWithGoogle,
+      signOut
+    }}>
       {children}
     </AuthContext.Provider>
   );
