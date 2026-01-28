@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePopulation } from "@/contexts/PopulationContext";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { cn } from "@/lib/utils";
 
 interface WordCardProps {
   word: WordWithProgress;
@@ -56,6 +59,8 @@ export function WordCard({
   const [meaning, setMeaning] = useState(word.progress?.user_meaning || "");
   const [isSaving, setIsSaving] = useState(false);
   const [showAIMeanings, setShowAIMeanings] = useState(true);
+  // Default to view mode if content exists, otherwise edit mode
+  const [isEditingNote, setIsEditingNote] = useState(!word.progress?.user_meaning);
 
   const displayWord = word.progress?.custom_spelling || word.swedish_word;
   const isLearned = word.progress?.is_learned || false;
@@ -395,17 +400,77 @@ export function WordCard({
 
       {/* Personal Notes Section */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-foreground flex items-center gap-2">
-          <BookOpen className="h-4 w-4" />
-          Personal Notes
-        </label>
-        <Textarea
-          value={meaning}
-          onChange={(e) => setMeaning(e.target.value)}
-          onBlur={handleSaveMeaning}
-          placeholder="Add your own notes, memory tricks, or additional meanings..."
-          className="min-h-[80px] resize-none"
-        />
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-foreground flex items-center gap-2">
+            <BookOpen className="h-4 w-4" />
+            Personal Notes
+          </label>
+          <div className="flex gap-2">
+            {meaning && !isEditingNote && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => setIsEditingNote(true)}
+              >
+                <Pencil className="h-3 w-3 mr-1" /> Edit
+              </Button>
+            )}
+            {isEditingNote && meaning && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-primary"
+                onClick={() => {
+                  setIsEditingNote(false);
+                  if (meaning !== word.progress?.user_meaning) {
+                    handleSaveMeaning();
+                  }
+                }}
+              >
+                Review & Save
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {isEditingNote ? (
+          <div className="relative group">
+            <Textarea
+              value={meaning}
+              onChange={(e) => setMeaning(e.target.value)}
+              onBlur={() => {
+                // Auto-save on blur is nice, but maybe we shouldn't switch view mode automatically immediately
+                // to avoid annoyance. Let's just save.
+                if (meaning !== word.progress?.user_meaning) {
+                  handleSaveMeaning();
+                }
+              }}
+              placeholder="Add your own notes, memory tricks, or additional meanings... (Supports Markdown)"
+              className="min-h-[120px] resize-y font-mono text-sm"
+            />
+            <div className="absolute bottom-2 right-2 flex gap-2">
+              {/* Optional: Add markdown helper hints here if needed */}
+            </div>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+              "prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-strong:text-foreground",
+              !meaning && "text-muted-foreground italic flex items-center justify-center cursor-pointer hover:bg-accent/50 transition-colors"
+            )}
+            onClick={() => !meaning && setIsEditingNote(true)} // Click to edit if empty
+          >
+            {meaning ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {meaning}
+              </ReactMarkdown>
+            ) : (
+              <span className="flex items-center gap-2">Click to add notes...</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Navigation & Actions */}
