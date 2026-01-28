@@ -25,12 +25,13 @@ export function RichTextEditor({ value, onChange, editable = true }: RichTextEdi
                 openOnClick: false,
             }),
             Markdown.configure({
-                html: false,                  // Allow HTML input/output
+                html: true,                  // Allow HTML input/output
                 transformPastedText: true,  // Allow pasting markdown
                 transformCopiedText: true,  // Copy as markdown
+                linkify: true,
             }),
         ],
-        content: value, // Load initial markdown
+        content: value,
         editable: editable,
         editorProps: {
             attributes: {
@@ -38,34 +39,17 @@ export function RichTextEditor({ value, onChange, editable = true }: RichTextEdi
             },
         },
         onUpdate: ({ editor }) => {
-            // Save as Markdown
             const markdown = editor.storage.markdown.getMarkdown();
             onChange(markdown);
         },
     });
 
-    // Update editor content if value changes externally (and not focused handling effectively)
-    // Note: Two-way binding with Tiptap is tricky. Usually we rely on internal state and only update on external change if significantly different.
-    // For this simple case, avoiding strict syncing loop is best. We'll trust the editor's internal state mostly.
-
+    // Handle dynamic editable prop usage
     useEffect(() => {
-        if (editor && value !== editor.storage.markdown.getMarkdown()) {
-            // Only update if mismatched to avoid cursor jumping, logic needs care
-            // For now, let's assume 'value' is source of truth mainly on mount or cancel.
-            // If we are editing, we don't want to reset.
-            // Actually, let's skip this for now to avoid loops, as we control value via onChange.
-            // But if we cancel edits, we need to reset.
+        if (editor && editor.isEditable !== editable) {
+            editor.setEditable(editable);
         }
-    }, [value, editor]);
-
-    // Actually, we do need to handle external resets (like cancel).
-    // A simple way is to use a key on the component to force remount if needed, OR explicit `useEffect` handling.
-
-    useEffect(() => {
-        if (editor && !editor.isFocused && value !== editor.storage.markdown.getMarkdown()) {
-            editor.commands.setContent(value);
-        }
-    }, [value, editor]);
+    }, [editable, editor]);
 
 
     if (!editor) {
