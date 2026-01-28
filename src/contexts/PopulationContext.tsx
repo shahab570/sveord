@@ -63,6 +63,19 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 .select('*', { count: 'exact', head: true })
                 .not('word_data', 'is', null);
 
+            // Fetch Max ID to imply range end
+            const { data: maxIdData } = await supabase
+                .from('words')
+                .select('id')
+                .order('id', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (maxIdData?.id && !isPopulating) {
+                // Only verify/update rangeEnd if not currently running to avoid weird UI jumps
+                setRangeEnd(prev => Math.max(prev, maxIdData.id));
+            }
+
             const total = totalCount || 0;
             const completed = completedCount || 0;
 
