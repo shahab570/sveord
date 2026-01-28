@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { QuizQuestion as IQuizQuestion } from '@/utils/quizUtils';
-import { CheckCircle2, XCircle, BookOpen } from 'lucide-react';
+import { CheckCircle2, XCircle, BookOpen, Info } from 'lucide-react';
 
 interface QuizQuestionProps {
     question: IQuizQuestion;
     onAnswer: (answer: string) => void;
+    onWordClick: (word: string) => void;
     selectedAnswer: string | null;
     showFeedback: boolean;
 }
@@ -16,6 +17,7 @@ interface QuizQuestionProps {
 export const QuizQuestion: React.FC<QuizQuestionProps> = ({
     question,
     onAnswer,
+    onWordClick,
     selectedAnswer,
     showFeedback,
 }) => {
@@ -27,9 +29,20 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                 </span>
 
                 <div>
-                    <CardTitle className="text-4xl font-bold text-primary mb-2">
-                        {question.targetWord}
-                    </CardTitle>
+                    <div className="flex items-center justify-center gap-2">
+                        <CardTitle className="text-4xl font-bold text-primary mb-2 cursor-pointer hover:underline decoration-primary/30 underline-offset-4 decoration-2"
+                            onClick={() => onWordClick(question.targetWord)}>
+                            {question.targetWord}
+                        </CardTitle>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary mb-2"
+                            onClick={(e) => { e.stopPropagation(); onWordClick(question.targetWord); }}
+                        >
+                            <Info className="w-5 h-5" />
+                        </Button>
+                    </div>
 
                     {/* REVEAL: Show meaning after answer */}
                     {showFeedback && question.targetMeaning && (
@@ -66,27 +79,47 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
 
                     return (
                         <div key={index} className="flex flex-col">
-                            <Button
-                                variant={variant}
-                                className={cn(
-                                    "h-auto py-4 text-lg justify-between px-6 transition-all min-h-[3.5rem]",
-                                    isGreen && "bg-green-600 hover:bg-green-700 text-white border-green-600",
-                                    !showFeedback && "hover:border-primary/50 hover:bg-accent/50"
-                                )}
-                                onClick={() => !showFeedback && onAnswer(optionText)}
-                                disabled={showFeedback}
-                            >
-                                <div className="flex flex-col items-start gap-1 text-left">
-                                    <span className="capitalize font-medium">{optionText}</span>
-                                    {/* OPTION MEANING (If available and feedback shown) */}
-                                    {showFeedback && optionObj.meaning && (
-                                        <span className="text-xs font-normal opacity-90 italic">
-                                            {optionObj.meaning}
-                                        </span>
+                            <div className="relative group">
+                                <Button
+                                    variant={variant}
+                                    className={cn(
+                                        "w-full h-auto py-4 text-lg justify-between px-6 transition-all min-h-[3.5rem]",
+                                        isGreen && "bg-green-600 hover:bg-green-700 text-white border-green-600",
+                                        !showFeedback && "hover:border-primary/50 hover:bg-accent/50"
                                     )}
+                                    // Only trigger answer if NOT showing feedback. 
+                                    // If showing feedback, clicking button does nothing (except maybe highlight, but we want to allow clicking info)
+                                    onClick={() => !showFeedback && onAnswer(optionText)}
+                                >
+                                    <div className="flex flex-col items-start gap-1 text-left w-full">
+                                        <span className="capitalize font-medium">{optionText}</span>
+                                        {/* OPTION MEANING (If available and feedback shown) */}
+                                        {showFeedback && optionObj.meaning && (
+                                            <span className="text-xs font-normal opacity-90 italic">
+                                                {optionObj.meaning}
+                                            </span>
+                                        )}
+                                    </div>
+                                </Button>
+                                {/* Floating Info Button inside the option - Stop Propagation to prevent answering when clicking info */}
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                                    {icon}
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className={cn(
+                                            "h-8 w-8 ml-2 hover:bg-background/20 rounded-full",
+                                            isGreen ? "text-white hover:text-white" : "text-muted-foreground hover:text-primary"
+                                        )}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onWordClick(optionText);
+                                        }}
+                                    >
+                                        <Info className="w-4 h-4" />
+                                    </Button>
                                 </div>
-                                {icon}
-                            </Button>
+                            </div>
                         </div>
                     );
                 })}

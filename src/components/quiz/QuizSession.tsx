@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { useWords } from '@/hooks/useWords';
+import { useWords, WordWithProgress } from '@/hooks/useWords';
 import { generateQuiz, QuizQuestion as IQuizQuestion, QuestionType } from '@/utils/quizUtils';
 import { QuizQuestion } from './QuizQuestion';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, RefreshCw, Trophy, ArrowRight, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { WordCard } from "@/components/study/WordCard";
 
 interface QuizSessionProps {
     type: QuestionType;
@@ -14,6 +16,7 @@ interface QuizSessionProps {
 }
 
 export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
+    // useWords returns the array directly (from useLiveQuery), undefined while loading
     const words = useWords();
     const wordsLoading = words === undefined;
 
@@ -25,8 +28,12 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
     const [isFinished, setIsFinished] = useState(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
 
+    // Modal State
+    const [selectedWordKey, setSelectedWordKey] = useState<string | null>(null);
+    const selectedWord = words?.find(w => w.swedish_word === selectedWordKey);
+
     useEffect(() => {
-        if (words && words.length > 0) {
+        if (words && words.length > 0 && questions.length === 0) {
             const quizQuestions = generateQuiz(words, type, 10);
             if (quizQuestions.length === 0) {
                 setGenerationError("Not enough words with " + type + "s data found. Try adding more words or generating AI meanings.");
@@ -34,7 +41,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
                 setQuestions(quizQuestions);
             }
         }
-    }, [words, type]);
+    }, [words, type, questions.length]);
 
     const handleAnswer = (answer: string) => {
         setSelectedAnswer(answer);
@@ -66,6 +73,10 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
             setShowFeedback(false);
             setIsFinished(false);
         }
+    };
+
+    const handleWordClick = (word: string) => {
+        setSelectedWordKey(word);
     };
 
     if (wordsLoading) {
@@ -122,9 +133,6 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
     }
 
     const currentQuestion = questions[currentIndex];
-    // Progress bar logic:
-    // If showing feedback (answered), we are effectively "done" with this question mentally, 
-    // but logically still on index X.
     const progress = ((currentIndex + (showFeedback ? 1 : 0)) / questions.length) * 100;
 
     return (
@@ -146,6 +154,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
             <QuizQuestion
                 question={currentQuestion}
                 onAnswer={handleAnswer}
+                onWordClick={handleWordClick}
                 selectedAnswer={selectedAnswer}
                 showFeedback={showFeedback}
             />
@@ -165,6 +174,32 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
                     </Button>
                 )}
             </div>
+
+            {/* Word Detail Modal */}
+            <Dialog open={!!selectedWordKey} onOpenChange={(open) => !open && setSelectedWordKey(null)}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogTitle className="sr-only">Word Details</DialogTitle>
+                    {selectedWord ? (
+                        <WordCard
+                            word={selectedWord}
+                            onPrevious={() => { }}
+                            onNext={() => { }}
+                            hasPrevious={false}
+                            hasNext={false}
+                            currentIndex={0}
+                            totalCount={1}
+                            learnedCount={0}
+                            isRandomMode={false}
+                            onToggleRandom={() => { }}
+                            showRandomButton={false}
+                        />
+                    ) : (
+                        <div className="p-4 text-center text-muted-foreground">
+                            Word details not found.
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
