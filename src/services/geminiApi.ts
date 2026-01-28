@@ -192,3 +192,54 @@ export async function validateGeminiApiKey(apiKey: string): Promise<{ success: b
 
     return { success: false, error: lastError };
 }
+
+/**
+ * Enhance and format user notes using Gemini
+ */
+export async function enhanceText(
+    text: string,
+    apiKey: string,
+    modelOverride?: string,
+    versionOverride?: string
+): Promise<{ text: string } | GeminiError> {
+    const model = modelOverride || 'gemini-1.5-flash'; // Default to fast model
+    const version = versionOverride || ACTIVE_VERSION;
+
+    try {
+        const prompt = `You are a professional editor. Rewrite the following personal learning notes to be well-structured, fix grammar, and use nice formatting (bullet points, bold key terms). 
+        
+        Rules:
+        1. Keep the tone personal but clear. 
+        2. Fix any spelling or grammar mistakes.
+        3. Use formatting: **Bold** for key terms, *Italics* for emphasis, and - Bullet points for lists.
+        4. Do NOT add any conversational filler like "Here is your text". Just return the formatted text.
+        5. Return ONLY markdown.
+
+        Original Text:
+        "${text}"`;
+
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.3 }
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { error: `HTTP ${response.status}`, details: errorData.error?.message || response.statusText };
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!responseText) return { error: 'Empty response' };
+
+        return { text: responseText.trim() };
+
+    } catch (error: any) {
+        return { error: 'Network connection error', details: error.message };
+    }
+}

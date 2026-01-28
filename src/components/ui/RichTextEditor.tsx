@@ -4,16 +4,18 @@ import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import { Markdown } from 'tiptap-markdown';
 import { Toggle } from '@/components/ui/toggle';
-import { Bold, Italic, List, ListOrdered, Heading1, Heading2, Quote, Undo, Redo } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, Heading1, Heading2, Quote, Undo, Redo, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
 
 interface RichTextEditorProps {
     value: string;
     onChange: (value: string) => void;
     editable?: boolean;
+    onAiEnhance?: () => void;
 }
 
-export function RichTextEditor({ value, onChange, editable = true }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, editable = true, onAiEnhance }: RichTextEditorProps) {
+    // ... (useEditor hook remains same)
     const editor = useEditor({
         extensions: [
             StarterKit.configure({
@@ -41,6 +43,7 @@ export function RichTextEditor({ value, onChange, editable = true }: RichTextEdi
         onUpdate: ({ editor }) => {
             try {
                 // Safety check for storage access
+                // @ts-ignore
                 const markdown = editor.storage.markdown?.getMarkdown() ?? editor.getText();
                 onChange(markdown);
             } catch (e) {
@@ -62,15 +65,11 @@ export function RichTextEditor({ value, onChange, editable = true }: RichTextEdi
         return null;
     }
 
-    // If not editable (View Mode equivalent), just show content
-    // But wait, the parent handles view/edit toggling.
-    // If we want a seamless "always nice" view that becomes editable, Tiptap is great for that too.
-    // But for now, we'll implement the Toolbar only when editable.
-
     return (
         <div className={`border rounded-md ${editable ? 'border-input bg-background' : 'border-transparent'}`}>
             {editable && (
                 <div className="flex flex-wrap gap-1 border-b border-border bg-muted/20 p-1">
+                    {/* ... bold/italic ... */}
                     <Toggle
                         size="sm"
                         pressed={editor.isActive('bold')}
@@ -122,6 +121,22 @@ export function RichTextEditor({ value, onChange, editable = true }: RichTextEdi
                     >
                         <Quote className="h-4 w-4" />
                     </Toggle>
+
+                    {/* AI Enhance Button */}
+                    {onAiEnhance && (
+                        <>
+                            <div className="w-px h-6 bg-border mx-1 my-auto" />
+                            <Toggle
+                                size="sm"
+                                className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                onPressedChange={onAiEnhance}
+                                title="Magic Enhance with AI"
+                            >
+                                <Sparkles className="h-4 w-4" />
+                            </Toggle>
+                        </>
+                    )}
+
                     <div className="ml-auto flex gap-1">
                         <Toggle size="sm" onPressedChange={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
                             <Undo className="h-4 w-4" />

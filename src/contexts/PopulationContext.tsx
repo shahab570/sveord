@@ -28,6 +28,7 @@ interface PopulationContextType {
     resumePopulation: () => void;
     fetchStatus: () => Promise<void>;
     regenerateSingleWord: (wordId: number, swedishWord: string) => Promise<void>;
+    enhanceUserNote: (text: string) => Promise<string>;
 }
 
 const PopulationContext = createContext<PopulationContextType | undefined>(undefined);
@@ -43,6 +44,25 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
     const [lastBatchInfo, setLastBatchInfo] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const pauseRef = useRef(false);
+
+    // Import this dynamically or assume it's imported at top
+    // create a wrapper function
+    const enhanceUserNote = async (text: string): Promise<string> => {
+        if (!apiKeys.geminiApiKey) {
+            toast.error("No API key configured");
+            throw new Error("No API key");
+        }
+        // distinct import needed if not available
+        // We need to make sure enhanceText is imported from geminiApi
+        const { enhanceText } = await import('@/services/geminiApi');
+        const result = await enhanceText(text, apiKeys.geminiApiKey);
+
+        if ('error' in result) {
+            toast.error(result.details || "Failed to enhance text");
+            throw new Error(result.error);
+        }
+        return result.text;
+    };
 
     const hasApiKey = !!apiKeys.geminiApiKey;
 
@@ -259,7 +279,8 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             status, isPopulating, isPaused, overwrite, setOverwrite,
             rangeStart, setRangeStart, rangeEnd, setRangeEnd,
             lastBatchInfo, error, startPopulation, pausePopulation,
-            resumePopulation, fetchStatus, regenerateSingleWord
+            resumePopulation, fetchStatus, regenerateSingleWord,
+            enhanceUserNote
         }}>
             {children}
         </PopulationContext.Provider>

@@ -50,7 +50,7 @@ export function WordCard({
   listType = "frequency",
 }: WordCardProps) {
   const { upsertProgress } = useUserProgress();
-  const { regenerateSingleWord } = usePopulation();
+  const { regenerateSingleWord, enhanceUserNote } = usePopulation();
   const [isEditingSpelling, setIsEditingSpelling] = useState(false);
   const [customSpelling, setCustomSpelling] = useState(
     word.progress?.custom_spelling || ""
@@ -152,6 +152,21 @@ export function WordCard({
   let listBadgeText = "UNKNOWN LIST";
   if (lists.length === 3) listBadgeText = "ALL LISTS";
   else if (lists.length > 0) listBadgeText = lists.join(" & ").toUpperCase() + (lists.length === 1 ? " ONLY" : "");
+
+  const handleEnhanceNotes = async () => {
+    try {
+      if (!meaning) return;
+      toast.info("Enhancing notes...");
+      const enhanced = await enhanceUserNote(meaning);
+      if (enhanced) {
+        setMeaning(enhanced);
+        toast.success("Notes enhanced by AI!");
+      }
+    } catch (e: any) {
+      console.error(e);
+      // Error handled in context usually, but safety net here
+    }
+  };
 
   return (
     <div className="word-card animate-fade-in relative">
@@ -438,6 +453,7 @@ export function WordCard({
             value={meaning}
             onChange={setMeaning}
             editable={isEditingNote}
+            onAiEnhance={handleEnhanceNotes}
           />
           {!meaning && !isEditingNote && (
             <div
