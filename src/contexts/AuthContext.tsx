@@ -10,6 +10,8 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -157,6 +159,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { error };
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // We want to ensure specific meta data if needed, but for now default is fine
+      }
+    });
+    return { error };
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -167,6 +188,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If user exists but profile is missing (and not admin), treat as loading to avoid flash of pending
       loading: loading || (!!user && !profile && user.email !== 'mjsahab570@gmail.com'),
       signInWithGoogle,
+      signInWithEmail,
+      signUpWithEmail,
       signOut
     }}>
       {children}
