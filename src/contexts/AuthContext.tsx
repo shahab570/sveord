@@ -21,7 +21,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    console.log('👤 Fetching profile for:', userId);
     try {
       // Create a timeout promise that rejects after 5 seconds
       const timeoutPromise = new Promise((_, reject) => {
@@ -37,15 +36,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
-      console.log('👤 Profile fetch result:', { data, error });
-
       if (error) {
-        console.error('Error fetching profile:', error);
+        // Silently fail or just set null, avoiding console spam for timeouts
+        if (error.message !== 'Profile fetch timeout') {
+          console.error('Error fetching profile:', error);
+        }
       } else {
         setProfile(data);
       }
-    } catch (error) {
-      console.error('Error in fetchProfile:', error);
+    } catch (error: any) {
+      // Ignore timeouts in console to keep it clean
+      if (error.message !== 'Profile fetch timeout') {
+        console.error('Error in fetchProfile:', error);
+      }
     }
   };
 
