@@ -1,9 +1,18 @@
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { ShieldAlert, LogOut } from "lucide-react";
 
 export default function PendingApproval() {
-    const { signOut, user } = useAuth();
+    const { signOut, user, isApproved } = useAuth();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        if (isApproved) {
+            navigate("/dashboard", { replace: true });
+        }
+    }, [isApproved, navigate]);
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-background p-4">
