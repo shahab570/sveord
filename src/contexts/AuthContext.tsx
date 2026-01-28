@@ -162,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       session,
       profile,
-      isApproved: profile?.is_approved === true, // Default to false if no profile
+      isApproved: (profile?.is_approved === true) || (user?.email === 'mjsahab570@gmail.com'),
       isAdmin: user?.email === 'mjsahab570@gmail.com',
       // If user exists but profile is missing (and not admin), treat as loading to avoid flash of pending
       loading: loading || (!!user && !profile && user.email !== 'mjsahab570@gmail.com'),
