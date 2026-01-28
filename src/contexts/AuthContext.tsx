@@ -106,19 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      console.log('🔐 Initial session check:', session ? 'exists' : 'null');
-
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      }
-
-      setLoading(false);
-    });
+    // THEN get initial session - REMOVED to avoid race condition with onAuthStateChange
+    // onAuthStateChange fires INITIAL_SESSION immediately on mount, so this was causing double-fetches
+    // and potentially premature 'loading=false' states if one promise resolved faster with missing data.
 
     return () => subscription.unsubscribe();
   }, []);
@@ -174,7 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       isApproved: profile?.is_approved === true, // Default to false if no profile
       isAdmin: user?.email === 'mjsahab570@gmail.com',
-      loading,
+      // If user exists but profile is missing (and not admin), treat as loading to avoid flash of pending
+      loading: loading || (!!user && !profile && user.email !== 'mjsahab570@gmail.com'),
       signInWithGoogle,
       signOut
     }}>
