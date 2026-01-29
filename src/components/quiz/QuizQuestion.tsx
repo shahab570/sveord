@@ -106,20 +106,22 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                                 {/* Floating Info Button inside the option - Stop Propagation to prevent answering when clicking info */}
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
                                     {icon}
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className={cn(
-                                            "h-8 w-8 ml-2 hover:bg-background/20 rounded-full",
-                                            isGreen ? "text-white hover:text-white" : "text-muted-foreground hover:text-primary"
-                                        )}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onWordClick(optionText);
-                                        }}
-                                    >
-                                        <Info className="w-4 h-4" />
-                                    </Button>
+                                    {question.type !== 'meaning' && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={cn(
+                                                "h-8 w-8 ml-2 hover:bg-background/20 rounded-full",
+                                                isGreen ? "text-white hover:text-white" : "text-muted-foreground hover:text-primary"
+                                            )}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onWordClick(optionText);
+                                            }}
+                                        >
+                                            <Info className="w-4 h-4" />
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         </div>
