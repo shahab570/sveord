@@ -184,3 +184,10 @@ export const markQuizPracticed = async (id: number) => {
     practicedAt: new Date().toISOString()
   });
 };
+
+export const getRandomPracticedQuizId = async (): Promise<{ id: number; type: QuestionType } | null> => {
+  const practiced = await db.quizzes.where('isPracticed').equals(1).toArray();
+  if (practiced.length === 0) return null;
+  const randomQuiz = practiced[Math.floor(Math.random() * practiced.length)];
+  return { id: randomQuiz.id!, type: randomQuiz.type as QuestionType };
+};
