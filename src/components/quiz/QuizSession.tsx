@@ -56,10 +56,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
             if (words && words.length > 0 && questions.length === 0 && !isGenerating) {
                 setIsGenerating(true);
                 try {
-                    // All quizzes are now batched via Gemini if key is available
-                    const settings = await db.settings.get('config'); // Wait, use user_api_keys table or local storage?
-                    // According to useApiKeys it's in Supabase, but we can assume Practice.tsx handled the generation.
-                    // If we are here and questions are empty, generate algorithmic as fallback
+                    // Fallback to algorithmic generation if no questions pre-loaded
                     const newQuizId = await generateQuiz(words, type, 10);
                     if (!newQuizId) {
                         setGenerationError("Not enough usable words found that haven't hit the review limit. Try learning more words!");
