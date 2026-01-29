@@ -41,7 +41,7 @@ export async function enhanceTextDeepSeek(
         });
 
         if (!response.ok) {
-            const err = await response.json();
+            const err = await response.json().catch(() => ({}));
             return { error: `HTTP ${response.status}`, details: err.error?.message || response.statusText };
         }
 
