@@ -1,4 +1,14 @@
+import React, { useState, useEffect } from 'react';
+import { useWords, WordWithProgress } from '@/hooks/useWords';
 import { generateQuiz, QuizQuestion as IQuizQuestion, QuestionType, markQuizPracticed } from '@/utils/quizUtils';
+import { QuizQuestion } from './QuizQuestion';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, RefreshCw, Trophy, ArrowRight, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { WordCard } from "@/components/study/WordCard";
+import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/services/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
