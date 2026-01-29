@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { WordWithProgress, useUserProgress } from "@/hooks/useWords";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +23,15 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/services/db";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { cn } from "@/lib/utils";
+import { generateForms, GrammaticalForm, WordType } from "@/services/grammar";
+import { getAudioForWord, playAudioBlob } from "@/services/forvoApi";
+import { Loader2, Volume2, Download, CheckCircle2 } from "lucide-react";
+
+interface FormWithAudio extends GrammaticalForm {
+  audioBlob?: Blob | null;
+  isLoading?: boolean;
+  hasAudio?: boolean;
+}
 
 interface WordCardProps {
   word: WordWithProgress;
@@ -53,7 +62,7 @@ export function WordCard({
   showRandomButton = true,
   listType = "frequency",
 }: WordCardProps) {
-  const { upsertProgress } = useUserProgress();
+  const { upsertProgress, refreshWordData } = useUserProgress();
   const { regenerateFieldWithInstruction, enhanceUserNote } = usePopulation();
   const [isEditingSpelling, setIsEditingSpelling] = useState(false);
   const [showBaseStory, setShowBaseStory] = useState(true);
@@ -68,10 +77,50 @@ export function WordCard({
   const [showMeaningInput, setShowMeaningInput] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [forms, setForms] = useState<FormWithAudio[]>([]);
+  const [isFetchingAudio, setIsFetchingAudio] = useState(false);
 
   // Live query to ensure deep reactivity when word_data changes (AI generation)
   const liveWord = useLiveQuery(() => db.words.get(word.swedish_word), [word.swedish_word]);
   const wordData = liveWord?.word_data || word.word_data;
+
+  const fetchAudioForms = async () => {
+    const type = (wordData?.word_type || 'noun') as WordType;
+    const generatedForms = generateForms(word.swedish_word, type);
+    const resultsWithStatus: FormWithAudio[] = generatedForms.map(f => ({ ...f, isLoading: true }));
+    setForms(resultsWithStatus);
+    setIsFetchingAudio(true);
+
+    const updatedResults = [...resultsWithStatus];
+    for (let i = 0; i < updatedResults.length; i++) {
+      const form = updatedResults[i];
+      try {
+        const blob = await getAudioForWord(form.word);
+        updatedResults[i] = {
+          ...form,
+          audioBlob: blob,
+          hasAudio: !!blob,
+          isLoading: false
+        };
+        setForms([...updatedResults]);
+      } catch (error) {
+        updatedResults[i] = { ...form, hasAudio: false, isLoading: false };
+        setForms([...updatedResults]);
+      }
+    }
+    setIsFetchingAudio(false);
+  };
+
+  // Reset and fetch forms when word changes
+  useEffect(() => {
+    setForms([]);
+    fetchAudioForms();
+
+    // Auto-heal: If story is missing locally, check Supabase for a cloud copy
+    if (!wordData?.inflectionExplanation) {
+      refreshWordData.mutate(word.swedish_word);
+    }
+  }, [word.swedish_word, wordData?.word_type, !!wordData?.inflectionExplanation]);
 
   const handleRegenerate = async (field: 'explanation' | 'meanings', instruction: string) => {
     setIsRegenerating(field);
@@ -118,6 +167,20 @@ export function WordCard({
     }
   };
 
+  const handleToggleLearned = async () => {
+    try {
+      const newStatus = !word.progress?.is_learned;
+      await upsertProgress.mutateAsync({
+        word_id: word.id,
+        swedish_word: word.swedish_word,
+        is_learned: newStatus,
+      });
+      toast.success(newStatus ? "Marked as learned!" : "Marked as unlearned");
+    } catch (error) {
+      toast.error("Failed to update learned status");
+    }
+  };
+
   const handleEnhanceNotes = async () => {
     try {
       if (!meaning) return;
@@ -130,6 +193,15 @@ export function WordCard({
     } catch (e: any) { }
   };
 
+
+  const handlePlayForm = (form: FormWithAudio) => {
+    if (form.audioBlob) {
+      playAudioBlob(form.audioBlob);
+    } else if (!form.isLoading && !form.hasAudio) {
+      toast.error('No audio available for this form');
+    }
+  };
+
   return (
     <div className="w-full animate-in fade-in zoom-in duration-300">
       <div className="bg-card rounded-[2rem] border-2 border-primary/10 shadow-xl overflow-hidden">
@@ -140,6 +212,20 @@ export function WordCard({
               {listType} List #{word.frequency_rank || word.id}
             </span>
             <div className="flex gap-2">
+              <button
+                onClick={handleToggleLearned}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all border shadow-sm",
+                  word.progress?.is_learned
+                    ? "bg-success text-white border-success"
+                    : "bg-secondary text-muted-foreground border-border/50 hover:border-primary/30"
+                )}
+              >
+                <CheckCircle2 className={cn("h-3.5 w-3.5", word.progress?.is_learned ? "text-white" : "text-muted-foreground/50")} />
+                <span className="text-[10px] font-black uppercase tracking-tight">
+                  {word.progress?.is_learned ? "Learned" : "Mark Learned"}
+                </span>
+              </button>
               {word.kelly_level && (
                 <span
                   className={cn(
@@ -189,10 +275,43 @@ export function WordCard({
               </div>
             )}
             {wordData?.word_type && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full mt-2">
-                <span className="text-xs font-bold text-primary uppercase tracking-wide">
-                  {wordData.word_type}{wordData.gender ? ` (${wordData.gender})` : ""}
-                </span>
+              <div className="flex flex-col items-center gap-3 mt-2">
+                <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full">
+                  <span className="text-xs font-bold text-primary uppercase tracking-wide">
+                    {wordData.word_type}{wordData.gender ? ` (${wordData.gender})` : ""}
+                  </span>
+                </div>
+
+                {/* HORIZONTAL GRAMMATICAL FORMS */}
+                <div className="flex flex-wrap justify-center gap-2 max-w-2xl px-4 mt-2">
+                  {forms.map((form, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handlePlayForm(form)}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/40 transition-all cursor-pointer group/form shadow-sm",
+                        form.hasAudio ? "bg-white hover:bg-primary/5 hover:border-primary/20" : "bg-secondary/10 opacity-60"
+                      )}
+                    >
+                      <div className="flex flex-col items-start leading-none">
+                        <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-tighter mb-0.5">{form.label}</span>
+                        <span className="text-sm font-bold tracking-tight">{form.word}</span>
+                      </div>
+                      {form.isLoading ? (
+                        <Loader2 className="h-3 w-3 animate-spin text-primary/40" />
+                      ) : form.hasAudio ? (
+                        <Volume2 className="h-3.5 w-3.5 text-primary/50 group-hover/form:text-primary transition-colors" />
+                      ) : null}
+                    </div>
+                  ))}
+
+                  {isFetchingAudio && forms.length === 0 && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Generating forms...
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
