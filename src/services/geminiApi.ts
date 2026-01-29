@@ -60,6 +60,17 @@ export interface WordMeaningResult {
     inflectionExplanation?: string;
 }
 
+export interface AIQuizQuestion {
+    type: string;
+    targetWord?: string;
+    targetMeaning?: string;
+    sentence?: string; // For 'context' type, e.g. "Jag bor i en [[blank]]."
+    dialogue?: Array<{ speaker: string; text: string }>; // For 'dialogue' type
+    blanks?: Array<{ index: number; answer: string; options: string[] }>;
+    correctAnswer?: string; // For MCQ types
+    options?: Array<{ word: string; meaning?: string }>; // For MCQ types
+}
+
 export interface GeminiError {
     error: string;
     details?: string;
@@ -379,5 +390,72 @@ export async function enhanceText(
 
     } catch (error: any) {
         return { error: 'Network connection error', details: error.message };
+    }
+}
+
+/**
+ * Generate high-quality quiz questions using Gemini
+ */
+export async function generateAIQuizData(
+    words: { swedish_word: string; word_data: any }[],
+    type: string,
+    apiKey: string
+): Promise<AIQuizQuestion[]> {
+    const model = ACTIVE_MODEL;
+    const version = ACTIVE_VERSION;
+    const wordList = words.map(w => w.swedish_word);
+
+    let typeInstruction = "";
+    if (type === 'meaning') {
+        typeInstruction = "For each word, provide its English meaning as the correctAnswer. Provide 3 other PLAUSIBLE but incorrect English meanings as options. Options should be similar in part-of-speech to avoid giveaways.";
+    } else if (type === 'synonym') {
+        typeInstruction = "For each word, provide a Swedish synonym as the correctAnswer. Provide 3 other common Swedish words as options. Options should be semantically related or often confused with the target word.";
+    } else if (type === 'antonym') {
+        typeInstruction = "For each word, provide a Swedish antonym as the correctAnswer. Provide 3 other common Swedish words as options.";
+    } else if (type === 'context') {
+        typeInstruction = "For each word, create a natural Swedish sentence with a blank marked as '[[blank]]' where the word fits perfectly. Provide the target word as the answer and 3 other grammatically correct but contextually wrong Swedish words as options.";
+    } else if (type === 'dialogue') {
+        typeInstruction = "Create a short 4-6 turn conversation between two speakers. Include 3-5 blanks marked as [[0]], [[1]], etc. Each blank MUST correspond to one of the target words provided. For each blank, provide the correct answer and 3 smart Swedish distractor words.";
+    }
+
+    const prompt = `You are a Swedish language educator. Create a high-quality quiz for these words: ${JSON.stringify(wordList)}.
+    Type: ${type}
+    
+    Instructions:
+    ${typeInstruction}
+    
+    Format the response as a JSON array of objects.
+    Structure for 'meaning', 'synonym', 'antonym':
+    { "type": "${type}", "targetWord": "word", "correctAnswer": "answer", "options": [{ "word": "text", "meaning": "optional english hint" }] }
+    
+    Structure for 'context':
+    { "type": "context", "targetWord": "word", "sentence": "Jag bor i en [[blank]].", "blanks": [{ "index": 0, "answer": "hus", "options": ["bil", "skog", "stad"] }] }
+    
+    Structure for 'dialogue':
+    { "type": "dialogue", "dialogue": [{ "speaker": "A", "text": "Hej, hur [[0]] det?" }], "blanks": [{ "index": 0, "answer": "mår", "options": ["går", "är", "står"] }] }
+    
+    CRITICAL: Ensure the JSON is valid and strictly follows the schema. Return ONLY the JSON array.`;
+
+    try {
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.4,
+                    responseMimeType: "application/json"
+                }
+            }),
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        return parseGeminiResponse(responseText);
+    } catch (e) {
+        console.error("AI Quiz generation failed:", e);
+        return [];
     }
 }

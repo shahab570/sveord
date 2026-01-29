@@ -1,20 +1,29 @@
 import { WordData } from '../types/word';
 import { db } from '../services/db';
 
-export type QuestionType = 'synonym' | 'antonym' | 'meaning';
+export type QuestionType = 'synonym' | 'antonym' | 'meaning' | 'context' | 'dialogue';
 
 export interface QuizOption {
   word: string;
   meaning?: string;
 }
 
+export interface QuizBlank {
+  index: number;
+  answer: string;
+  options: string[];
+}
+
 export interface QuizQuestion {
   id: string;
   type: QuestionType;
-  targetWord: string;
-  targetMeaning?: string; // English definition of the target word
-  correctAnswer: string;
-  options: QuizOption[]; // Options are now objects with potential meanings
+  targetWord?: string;
+  targetMeaning?: string;
+  sentence?: string; // For 'context' type
+  dialogue?: Array<{ speaker: string; text: string }>; // For 'dialogue' type
+  blanks?: QuizBlank[]; // For context and dialogue types
+  correctAnswer?: string; // For MCQ types
+  options?: QuizOption[]; // For MCQ types
 }
 
 // Helper to shuffle an array
@@ -185,9 +194,63 @@ export const markQuizPracticed = async (id: number) => {
   });
 };
 
-export const getRandomPracticedQuizId = async (): Promise<{ id: number; type: QuestionType } | null> => {
-  const practiced = await db.quizzes.where('isPracticed').equals(1).toArray();
-  if (practiced.length === 0) return null;
-  const randomQuiz = practiced[Math.floor(Math.random() * practiced.length)];
-  return { id: randomQuiz.id!, type: randomQuiz.type as QuestionType };
+
+import { generateAIQuizData } from '../services/geminiApi';
+
+export const generateAIQuiz = async (
+  words: { swedish_word: string; word_data: any }[],
+  type: QuestionType,
+  apiKey: string,
+  count: number = 10
+): Promise<number | null> => {
+  // 1. Filter words for quality
+  const isInvalidMeaning = (m?: string) => {
+    if (!m) return true;
+    const lower = m.toLowerCase();
+    return lower.includes("failed") || lower.includes("analyzing") || m.length < 3;
+  };
+
+  const swedishWords = words.map(w => w.swedish_word);
+  const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
+  const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
+
+  const targetPool = words.filter(w =>
+    (usageMap.get(w.swedish_word)?.targetCount || 0) < 3 &&
+    !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)
+  );
+
+  if (targetPool.length === 0) return null;
+
+  // 2. Select words and generate via BATCH API call
+  const selectedWords = shuffle(targetPool).slice(0, count);
+  // Single AI call for the entire set of words to minimize API usage
+  const aiQuestions = await generateAIQuizData(selectedWords, type, apiKey);
+
+  if (!aiQuestions || aiQuestions.length === 0) return null;
+
+  // 3. Map to internal schema and save
+  const questions: QuizQuestion[] = aiQuestions.map((q, i) => ({
+    ...q,
+    id: `${Date.now()}-${i}`,
+    type: q.type as QuestionType
+  }));
+
+  // Track usage
+  for (const word of selectedWords) {
+    const existing = await db.wordUsage.get(word.swedish_word);
+    await db.wordUsage.put({
+      wordSwedish: word.swedish_word,
+      targetCount: (existing?.targetCount || 0) + 1,
+      optionCount: (existing?.optionCount || 0) + 3,
+    });
+  }
+
+  const quizId = await db.quizzes.add({
+    type,
+    questions,
+    isPracticed: 0,
+    createdAt: new Date().toISOString(),
+  });
+
+  return quizId;
 };

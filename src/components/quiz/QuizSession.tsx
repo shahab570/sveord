@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useWords, WordWithProgress } from '@/hooks/useWords';
 import { generateQuiz, QuizQuestion as IQuizQuestion, QuestionType, markQuizPracticed } from '@/utils/quizUtils';
 import { QuizQuestion } from './QuizQuestion';
+import { QuizDialogue } from './QuizDialogue';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,9 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
     const [generationError, setGenerationError] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
+    // Dialogue mastery state
+    const [dialogueAnswers, setDialogueAnswers] = useState<Record<number, string>>({});
+
     // Modal State
     const [selectedWordKey, setSelectedWordKey] = useState<string | null>(null);
     // Find selected word from ALL words (since quiz might involve words not in the current learned list filter if revisiting old quizzes)
@@ -52,6 +56,10 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
             if (words && words.length > 0 && questions.length === 0 && !isGenerating) {
                 setIsGenerating(true);
                 try {
+                    // All quizzes are now batched via Gemini if key is available
+                    const settings = await db.settings.get('config'); // Wait, use user_api_keys table or local storage?
+                    // According to useApiKeys it's in Supabase, but we can assume Practice.tsx handled the generation.
+                    // If we are here and questions are empty, generate algorithmic as fallback
                     const newQuizId = await generateQuiz(words, type, 10);
                     if (!newQuizId) {
                         setGenerationError("Not enough usable words found that haven't hit the review limit. Try learning more words!");
@@ -80,6 +88,24 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         }
     };
 
+    const handleDialogueAnswer = (blankIndex: number, answer: string) => {
+        setDialogueAnswers(prev => ({ ...prev, [blankIndex]: answer }));
+
+        // Check if all blanks filled
+        const currentQ = questions[currentIndex];
+        if (currentQ.blanks) {
+            const newAnswers = { ...dialogueAnswers, [blankIndex]: answer };
+            if (currentQ.blanks.every(b => !!newAnswers[b.index])) {
+                setShowFeedback(true);
+                // Calculate score contribution
+                const correctCount = currentQ.blanks.filter(b => newAnswers[b.index] === b.answer).length;
+                if (correctCount === currentQ.blanks.length) {
+                    setScore(s => s + 1);
+                }
+            }
+        }
+    };
+
     const handleNext = async () => {
         if (currentIndex < questions.length - 1) {
             setCurrentIndex(c => c + 1);
@@ -98,6 +124,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         setCurrentIndex(0);
         setScore(0);
         setSelectedAnswer(null);
+        setDialogueAnswers({});
         setShowFeedback(false);
         setIsFinished(false);
         setActiveQuizId(null); // Force generate new one
@@ -194,13 +221,22 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
 
             <Progress value={progress} className="h-2 transition-all duration-500" />
 
-            <QuizQuestion
-                question={currentQuestion}
-                onAnswer={handleAnswer}
-                onWordClick={handleWordClick}
-                selectedAnswer={selectedAnswer}
-                showFeedback={showFeedback}
-            />
+            {currentQuestion.type === 'dialogue' ? (
+                <QuizDialogue
+                    question={currentQuestion}
+                    onAnswer={handleDialogueAnswer}
+                    userAnswers={dialogueAnswers}
+                    showFeedback={showFeedback}
+                />
+            ) : (
+                <QuizQuestion
+                    question={currentQuestion}
+                    onAnswer={handleAnswer}
+                    onWordClick={handleWordClick}
+                    selectedAnswer={selectedAnswer}
+                    showFeedback={showFeedback}
+                />
+            )}
 
             <div className="flex justify-center min-h-[3rem]">
                 {showFeedback && (

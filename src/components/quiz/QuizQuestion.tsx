@@ -27,24 +27,31 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                 <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider block">
                     {question.type === 'synonym' ? 'Find the Synonym' :
                         question.type === 'antonym' ? 'Find the Antonym' :
-                            'Select the Correct Meaning'}
+                            question.type === 'context' ? 'Context Mastery' :
+                                'Select the Correct Meaning'}
                 </span>
 
                 <div>
-                    <div className="flex items-center justify-center gap-2">
-                        <CardTitle className="text-4xl font-bold text-primary mb-2 cursor-pointer hover:underline decoration-primary/30 underline-offset-4 decoration-2"
-                            onClick={() => onWordClick(question.targetWord)}>
-                            {question.targetWord}
-                        </CardTitle>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-primary mb-2"
-                            onClick={(e) => { e.stopPropagation(); onWordClick(question.targetWord); }}
-                        >
-                            <Info className="w-5 h-5" />
-                        </Button>
-                    </div>
+                    {question.type === 'context' && question.sentence ? (
+                        <div className="text-2xl md:text-3xl font-medium leading-relaxed mb-6 px-4">
+                            {renderSentenceWithBlank(question.sentence, question.correctAnswer || "", selectedAnswer, showFeedback)}
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-center gap-2">
+                            <CardTitle className="text-4xl font-bold text-primary mb-2 cursor-pointer hover:underline decoration-primary/30 underline-offset-4 decoration-2"
+                                onClick={() => onWordClick(question.targetWord || "")}>
+                                {question.targetWord}
+                            </CardTitle>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary mb-2"
+                                onClick={(e) => { e.stopPropagation(); onWordClick(question.targetWord || ""); }}
+                            >
+                                <Info className="w-5 h-5" />
+                            </Button>
+                        </div>
+                    )}
 
                     {/* REVEAL: Show meaning after answer - Hide if it's the meaning quiz and identical to answer */}
                     {showFeedback && question.targetMeaning && question.type !== 'meaning' && (
@@ -131,3 +138,29 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
         </Card>
     );
 };
+
+function renderSentenceWithBlank(sentence: string, correctAnswer: string, selectedAnswer: string | null, showFeedback: boolean) {
+    const parts = sentence.split('[[blank]]');
+    const isCorrect = selectedAnswer === correctAnswer;
+
+    return (
+        <span>
+            {parts[0]}
+            <span className={cn(
+                "inline-block min-w-[120px] px-2 border-b-2 mx-1 text-center transition-all",
+                !selectedAnswer && "border-primary/30 text-transparent",
+                selectedAnswer && !showFeedback && "border-primary text-primary",
+                showFeedback && isCorrect && "border-green-500 text-green-600 bg-green-50 rounded-t-md",
+                showFeedback && !isCorrect && "border-destructive text-destructive bg-destructive/5 rounded-t-md"
+            )}>
+                {selectedAnswer || "__________"}
+                {showFeedback && !isCorrect && (
+                    <span className="block text-[10px] text-green-600 font-bold uppercase mt-1 leading-none">
+                        Correct: {correctAnswer}
+                    </span>
+                )}
+            </span>
+            {parts[1]}
+        </span>
+    );
+}
