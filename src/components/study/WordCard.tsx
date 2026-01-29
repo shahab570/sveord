@@ -14,9 +14,13 @@ import {
   Languages,
   Sparkles,
   RefreshCw,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePopulation } from "@/contexts/PopulationContext";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db } from "@/services/db";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { cn } from "@/lib/utils";
 
@@ -50,45 +54,43 @@ export function WordCard({
   listType = "frequency",
 }: WordCardProps) {
   const { upsertProgress } = useUserProgress();
-  const { regenerateSingleWord, enhanceUserNote } = usePopulation();
+  const { regenerateFieldWithInstruction, enhanceUserNote } = usePopulation();
   const [isEditingSpelling, setIsEditingSpelling] = useState(false);
+  const [showBaseStory, setShowBaseStory] = useState(true);
   const [customSpelling, setCustomSpelling] = useState(
     word.progress?.custom_spelling || ""
   );
   const [meaning, setMeaning] = useState(word.progress?.user_meaning || "");
-  const [isSaving, setIsSaving] = useState(false);
-  const [showAIMeanings, setShowAIMeanings] = useState(true);
-  // Default to view mode if content exists, otherwise edit mode
-  const [isEditingNote, setIsEditingNote] = useState(!word.progress?.user_meaning);
+  const [isRegenerating, setIsRegenerating] = useState<string | null>(null);
+  const [customInstrExplanation, setCustomInstrExplanation] = useState("");
+  const [showExplanationInput, setShowExplanationInput] = useState(false);
+  const [customInstrMeaning, setCustomInstrMeaning] = useState("");
+  const [showMeaningInput, setShowMeaningInput] = useState(false);
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
 
-  const displayWord = word.progress?.custom_spelling || word.swedish_word;
-  const isLearned = word.progress?.is_learned || false;
-  const wordData = word.word_data;
+  // Live query to ensure deep reactivity when word_data changes (AI generation)
+  const liveWord = useLiveQuery(() => db.words.get(word.swedish_word), [word.swedish_word]);
+  const wordData = liveWord?.word_data || word.word_data;
 
-  // Calculate progress percentage
-  const progressPercent = totalCount > 0 ? ((learnedCount / totalCount) * 100).toFixed(1) : "0.0";
-
-  const getLevelBadgeClass = (level: string | null) => {
-    switch (level) {
-      case "A1":
-        return "level-badge-a1";
-      case "A2":
-        return "level-badge-a2";
-      case "B1":
-        return "level-badge-b1";
-      case "B2":
-        return "level-badge-b2";
-      case "C1":
-        return "level-badge-c1";
-      case "C2":
-        return "level-badge-c2";
-      default:
-        return "level-badge bg-gray-100 text-gray-700";
+  const handleRegenerate = async (field: 'explanation' | 'meanings', instruction: string) => {
+    setIsRegenerating(field);
+    try {
+      await regenerateFieldWithInstruction(word.id, field, instruction, word.swedish_word);
+      if (field === 'explanation') {
+        setShowExplanationInput(false);
+        setCustomInstrExplanation("");
+        setShowBaseStory(true);
+      } else {
+        setShowMeaningInput(false);
+        setCustomInstrMeaning("");
+      }
+    } finally {
+      setIsRegenerating(null);
     }
   };
 
   const handleSaveMeaning = async () => {
-    setIsSaving(true);
     try {
       await upsertProgress.mutateAsync({
         word_id: word.id,
@@ -96,410 +98,365 @@ export function WordCard({
         user_meaning: meaning,
       });
       toast.success("Notes saved!");
+      setIsEditingNote(false);
     } catch (error) {
       toast.error("Failed to save notes");
-    } finally {
-      setIsSaving(false);
     }
   };
 
   const handleSaveSpelling = async () => {
-    setIsSaving(true);
     try {
       await upsertProgress.mutateAsync({
         word_id: word.id,
         swedish_word: word.swedish_word,
-        custom_spelling: customSpelling || null,
+        custom_spelling: customSpelling,
       });
-      setIsEditingSpelling(false);
       toast.success("Spelling updated!");
+      setIsEditingSpelling(false);
     } catch (error) {
       toast.error("Failed to update spelling");
-    } finally {
-      setIsSaving(false);
     }
   };
-
-  const handleToggleLearned = async () => {
-    setIsSaving(true);
-    try {
-      await upsertProgress.mutateAsync({
-        word_id: word.id,
-        swedish_word: word.swedish_word,
-        is_learned: !isLearned,
-        user_meaning: meaning,
-      });
-      toast.success(isLearned ? "Marked as unlearned" : "Marked as learned!");
-      if (!isLearned && hasNext) {
-        onNext();
-      }
-    } catch (error: any) {
-      console.error("Update failed:", error);
-      toast.error(`Failed to update: ${error.message || 'Unknown error'}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  /* New Logic for Header */
-  const [showDetails, setShowDetails] = useState(false);
-
-  const lists = [];
-  if (word.kelly_source_id) lists.push("Kelly");
-  if (word.frequency_rank) lists.push("Frequency");
-  if (word.sidor_rank) lists.push("Sidor");
-
-  let listBadgeText = "UNKNOWN LIST";
-  if (lists.length === 3) listBadgeText = "ALL LISTS";
-  else if (lists.length > 0) listBadgeText = lists.join(" & ").toUpperCase() + (lists.length === 1 ? " ONLY" : "");
 
   const handleEnhanceNotes = async () => {
     try {
       if (!meaning) return;
-      toast.info("Enhancing notes...");
+      toast.info("Fine-tuning notes...");
       const enhanced = await enhanceUserNote(meaning);
       if (enhanced) {
         setMeaning(enhanced);
-        toast.success("Notes enhanced by AI!");
+        toast.success("Notes refined!");
       }
-    } catch (e: any) {
-      console.error(e);
-      // Error handled in context usually, but safety net here
-    }
+    } catch (e: any) { }
   };
 
   return (
-    <div className="word-card animate-fade-in relative">
-      {/* Absolute Positioned Info Button */}
-      <button
-        onClick={() => setShowDetails(!showDetails)}
-        className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-primary transition-colors"
-        title="Show Details"
-      >
-        <div className="flex flex-col items-center">
-          {/* Using a simple 'i' or icon if available, but for now simple text/icon mix */}
-          <span className="text-xs font-bold border border-current rounded-full w-5 h-5 flex items-center justify-center">i</span>
-        </div>
-      </button>
-
-      {/* Header */}
-      <div className="flex flex-col gap-2 mb-8">
-        <div className="flex items-center gap-3">
-          <div className={`px-3 py-1 pb-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${lists.length === 3 ? "bg-gradient-to-r from-emerald-100 via-blue-100 to-purple-100 text-slate-700 border border-slate-200" :
-            listType === 'kelly' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-              listType === 'frequency' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
-                'bg-purple-100 text-purple-700 border border-purple-200'
-            }`}>
-            {listBadgeText}
-          </div>
-        </div>
-
-        {/* Collapsible Details Section */}
-        {showDetails && (
-          <div className="animate-in slide-in-from-top-2 fade-in duration-200 bg-secondary/30 p-4 rounded-xl mt-2 grid grid-cols-2 gap-x-8 gap-y-2 text-sm border border-border/50">
-            {word.kelly_source_id && (
-              <div className="flex justify-between border-b border-border/50 pb-1">
-                <span className="text-muted-foreground">Kelly ID</span>
-                <span className="font-mono font-medium">#{word.kelly_source_id}</span>
-              </div>
-            )}
-            {word.kelly_level && (
-              <div className="flex justify-between border-b border-border/50 pb-1">
-                <span className="text-muted-foreground">Level</span>
-                <span className={getLevelBadgeClass(word.kelly_level)}>{word.kelly_level}</span>
-              </div>
-            )}
-            {word.frequency_rank && (
-              <div className="flex justify-between border-b border-border/50 pb-1">
-                <span className="text-muted-foreground">Frequency Rank</span>
-                <span className="font-mono font-medium text-blue-600">#{word.frequency_rank}</span>
-              </div>
-            )}
-            {word.sidor_rank && (
-              <div className="flex justify-between border-b border-border/50 pb-1">
-                <span className="text-muted-foreground">Sidor Rank</span>
-                <span className="font-mono font-medium text-purple-600">#{word.sidor_rank}</span>
-              </div>
-            )}
-            {wordData?.word_type && wordData.word_type !== "NULL WORD" && (
-              <div className="flex justify-between border-b border-border/50 pb-1">
-                <span className="text-muted-foreground">Type</span>
-                <span>{wordData.word_type}</span>
-              </div>
-            )}
-            {wordData?.gender && wordData.gender !== "NULL" && (
-              <div className="flex justify-between border-b border-border/50 pb-1">
-                <span className="text-muted-foreground">Gender</span>
-                <span className="uppercase font-bold text-xs">{wordData.gender}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-      </div>
-      {/* Word Display */}
-      <div className="text-center py-8">
-        {
-          isEditingSpelling ? (
-            <div className="space-y-4 max-w-md mx-auto" >
-              <Input
-                value={customSpelling}
-                onChange={(e) => setCustomSpelling(e.target.value)}
-                placeholder={word.swedish_word}
-                className="text-center text-2xl h-14"
-                autoFocus
-              />
-              <div className="flex justify-center gap-2">
-                <Button onClick={handleSaveSpelling} disabled={isSaving}>
-                  <Check className="h-4 w-4 mr-2" />
-                  Save
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsEditingSpelling(false);
-                    setCustomSpelling(word.progress?.custom_spelling || "");
-                  }}
+    <div className="w-full animate-in fade-in zoom-in duration-300">
+      <div className="bg-card rounded-[2rem] border-2 border-primary/10 shadow-xl overflow-hidden">
+        {/* Header Section */}
+        <div className="p-8 pb-4 text-center space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] font-black text-primary/40 uppercase tracking-[0.2em]">
+              {listType} List #{word.frequency_rank || word.id}
+            </span>
+            <div className="flex gap-2">
+              {word.kelly_level && (
+                <span
+                  className={cn(
+                    "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
+                    `level-badge-${word.kelly_level.toLowerCase()}`
+                  )}
                 >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <h2 className="text-5xl font-bold text-foreground tracking-tight">
-                {displayWord}
-              </h2>
-              {word.progress?.custom_spelling && (
-                <p className="text-sm text-muted-foreground">
-                  Original: {word.swedish_word}
-                </p>
+                  {word.kelly_level}
+                </span>
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsEditingSpelling(true)}
-                className="mt-2"
-              >
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit spelling
-              </Button>
             </div>
-          )
-        }
-      </div>
+          </div>
 
-      {/* AI-Generated Meanings Section */}
-      {
-        wordData && wordData.meanings && wordData.meanings.length > 0 && (
-          <div className="space-y-3 mb-6">
-            <div
-              className="flex items-center gap-2 text-sm font-medium text-foreground w-full hover:bg-secondary/50 p-2 rounded-lg transition-colors cursor-pointer select-none"
-              onClick={() => setShowAIMeanings(!showAIMeanings)}
-            >
-              <Sparkles className="h-4 w-4 text-amber-500" />
-              <Languages className="h-4 w-4" />
-              <span>AI Meanings</span>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto h-7 gap-1 text-[10px] text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  regenerateSingleWord(word.id, word.swedish_word);
-                }}
-              >
-                <RefreshCw className="h-3 w-3" />
-                Regenerate
-              </Button>
-
-              <span className="text-xs text-muted-foreground ml-2">
-                {showAIMeanings ? "Hide" : "Show"}
-              </span>
-            </div>
-
-            {showAIMeanings && (
-              <div className="space-y-4 p-4 rounded-lg bg-secondary/30 border border-border">
-                {/* Meanings */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meanings</p>
-                  <div className="space-y-1">
-                    {wordData.meanings.map((m, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <span className="text-xs text-muted-foreground mt-1">{i + 1}.</span>
-                        <div>
-                          <span className="font-medium text-foreground">{m.english}</span>
-                          {m.context && (
-                            <span className="text-sm text-muted-foreground ml-1">
-                              — {m.context}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Examples */}
-                {wordData.examples && wordData.examples.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Examples</p>
-                    <div className="space-y-2">
-                      {wordData.examples.map((ex, i) => (
-                        <div key={i} className="text-sm space-y-0.5 bg-background/50 p-2 rounded">
-                          <p className="font-medium text-foreground italic">"{ex.swedish}"</p>
-                          <p className="text-muted-foreground">"{ex.english}"</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Synonyms & Antonyms */}
-                <div className="flex flex-wrap gap-4">
-                  {wordData.synonyms && wordData.synonyms.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Synonyms</p>
-                      <div className="flex flex-wrap gap-1">
-                        {wordData.synonyms.map((s, i) => (
-                          <span key={i} className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {wordData.antonyms && wordData.antonyms.length > 0 && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Antonyms</p>
-                      <div className="flex flex-wrap gap-1">
-                        {wordData.antonyms.map((a, i) => (
-                          <span key={i} className="text-xs px-2 py-1 rounded-full bg-destructive/10 text-destructive">
-                            {a}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+          <div className="flex flex-col items-center gap-1 group">
+            {isEditingSpelling ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={customSpelling}
+                  onChange={(e) => setCustomSpelling(e.target.value)}
+                  className="text-3xl font-bold text-center h-12 w-48 bg-secondary/20 border-primary/20"
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveSpelling}
+                  className="p-2 bg-primary text-primary-foreground rounded-full"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setIsEditingSpelling(false)}
+                  className="p-2 bg-secondary text-secondary-foreground rounded-full"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative group/title">
+                <h2 className="text-5xl md:text-6xl font-black text-foreground tracking-tighter">
+                  {customSpelling || word.swedish_word}
+                </h2>
+                <button
+                  onClick={() => setIsEditingSpelling(true)}
+                  className="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground opacity-0 group-hover/title:opacity-100 transition-opacity"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
               </div>
             )}
-          </div>
-        )
-      }
-
-      {/* Generate Button - Shows when no AI meanings exist */}
-      {
-        (!wordData || !wordData.meanings || wordData.meanings.length === 0) && (
-          <div className="mb-6 p-4 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-amber-500" />
-              <span className="text-sm text-amber-800">No AI meanings yet</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-amber-600 border-amber-300 hover:bg-amber-100"
-              onClick={() => regenerateSingleWord(word.id, word.swedish_word)}
-            >
-              <Sparkles className="h-4 w-4" />
-              Generate Meaning
-            </Button>
-          </div>
-        )
-      }
-
-
-      {/* Personal Notes Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-foreground flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
-            Personal Notes
-          </label>
-          <div className="flex gap-2">
-            {meaning && !isEditingNote && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => setIsEditingNote(true)}
-              >
-                <Pencil className="h-3 w-3 mr-1" /> Edit
-              </Button>
-            )}
-            {isEditingNote && meaning && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs text-primary"
-                onClick={() => {
-                  setIsEditingNote(false);
-                  if (meaning !== word.progress?.user_meaning) {
-                    handleSaveMeaning();
-                  }
-                }}
-              >
-                Review & Save
-              </Button>
+            {wordData?.word_type && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full mt-2">
+                <span className="text-xs font-bold text-primary uppercase tracking-wide">
+                  {wordData.word_type}{wordData.gender ? ` (${wordData.gender})` : ""}
+                </span>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="min-h-[120px]">
-          <RichTextEditor
-            value={meaning}
-            onChange={setMeaning}
-            editable={isEditingNote}
-            onAiEnhance={handleEnhanceNotes}
-          />
-          {!meaning && !isEditingNote && (
-            <div
-              className="absolute inset-0 flex items-center justify-center text-muted-foreground italic cursor-pointer bg-transparent"
-              onClick={() => setIsEditingNote(true)}
-            >
-              <span className="flex items-center gap-2">Click edit to add notes...</span>
+        <div className="p-8 pt-4 space-y-6">
+          {/* BASE WORD STORY BOX - Top Priority */}
+          <div className="w-full">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Base Word Story</span>
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleRegenerate('explanation', '')}
+                  className="p-1 px-2 bg-purple-50 border border-purple-100 rounded-lg text-purple-600 hover:bg-purple-100 flex items-center gap-1.5 transition-colors"
+                  title="Immediate regeneration"
+                >
+                  <RefreshCw className={`h-3 w-3 ${isRegenerating === 'explanation' ? 'animate-spin' : ''}`} />
+                  <span className="text-[10px] font-bold">REGENERATE</span>
+                </button>
+                <button
+                  onClick={() => setShowExplanationInput(!showExplanationInput)}
+                  className="p-1 px-2 bg-purple-600 border border-purple-700 rounded-lg text-white hover:bg-purple-700 flex items-center gap-1.5 transition-all shadow-sm"
+                  title="Regenerate with custom instructions"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  <span className="text-[10px] font-bold tracking-tighter">R-AI</span>
+                </button>
+                <button
+                  onClick={() => setShowBaseStory(!showBaseStory)}
+                  className="p-1 text-purple-400 hover:text-purple-600"
+                >
+                  {showBaseStory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {showBaseStory && (
+              <div className="w-full p-4 bg-purple-50/80 border border-purple-100 rounded-2xl relative group overflow-hidden text-left animate-in fade-in slide-in-from-top-1">
+                {showExplanationInput ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={customInstrExplanation}
+                      onChange={(e) => setCustomInstrExplanation(e.target.value)}
+                      placeholder="Custom instruction (e.g., simpler words)..."
+                      className="text-xs h-8 bg-white border-purple-200"
+                      onKeyDown={(e) => e.key === 'Enter' && handleRegenerate('explanation', customInstrExplanation)}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => handleRegenerate('explanation', customInstrExplanation)} disabled={isRegenerating === 'explanation'} className="h-7 text-[10px] bg-purple-600">
+                        Go
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowExplanationInput(false)} className="h-7 text-[10px] text-purple-600">Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[15px] font-semibold text-purple-900 leading-snug min-h-[1.2rem]">
+                    {wordData?.inflectionExplanation ? wordData.inflectionExplanation.replace(/\*\*/g, '') : <span className="text-purple-300 font-normal italic">Click generate to see the story...</span>}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Languages className="h-4 w-4 text-primary/60" />
+                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                  Definitions
+                </h3>
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleRegenerate('meanings', '')}
+                  className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg flex items-center gap-1.5 transition-colors"
+                  title="Immediate regeneration"
+                >
+                  <RefreshCw className={`h-3 w-3 ${isRegenerating === 'meanings' ? 'animate-spin' : ''}`} />
+                  <span className="text-[10px] font-bold">REGENERATE</span>
+                </button>
+                <button
+                  onClick={() => setShowMeaningInput(!showMeaningInput)}
+                  className="p-1 px-2 bg-blue-600 border border-blue-700 rounded-lg text-white hover:bg-blue-700 flex items-center gap-1.5 transition-all shadow-sm h-[26px]"
+                  title="Regenerate with custom instructions"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  <span className="text-[10px] font-bold tracking-tighter">R-AI</span>
+                </button>
+              </div>
+            </div>
+
+            {showMeaningInput && (
+              <div className="mb-4 space-y-2 p-3 bg-blue-50/50 rounded-xl border border-blue-100 animate-in fade-in">
+                <Input
+                  value={customInstrMeaning}
+                  onChange={(e) => setCustomInstrMeaning(e.target.value)}
+                  placeholder="Custom instruction for meanings..."
+                  className="text-xs h-8 bg-white"
+                  onKeyDown={(e) => e.key === 'Enter' && handleRegenerate('meanings', customInstrMeaning)}
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => handleRegenerate('meanings', customInstrMeaning)} disabled={isRegenerating === 'meanings'} className="h-7 text-[10px] bg-blue-600">
+                    Apply
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowMeaningInput(false)} className="h-7 text-[10px] text-blue-600">Cancel</Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              {wordData?.meanings.map((meaning, idx) => (
+                <div
+                  key={idx}
+                  className="px-4 py-2 bg-secondary/30 rounded-xl border border-border/50 text-foreground font-medium shadow-sm"
+                >
+                  {meaning.english}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {wordData?.examples && wordData.examples.length > 0 && (
+            <div className="space-y-3 bg-secondary/10 p-4 rounded-2xl border border-border/50">
+              {wordData.examples.slice(0, 2).map((example, idx) => (
+                <div key={idx} className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground leading-relaxed italic">
+                    "{example.swedish}"
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    "{example.english}"
+                  </p>
+                </div>
+              ))}
             </div>
           )}
+
+          {/* Personal Notes Section */}
+          <div className="space-y-2 border-t border-border/50 pt-4">
+            <button
+              onClick={() => setShowNotes(!showNotes)}
+              className="flex items-center justify-between w-full py-1 group"
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                  Personal Notes
+                </h3>
+              </div>
+              {showNotes ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+
+            {showNotes && (
+              <div className="mt-2 pb-6 animate-in fade-in slide-in-from-top-2">
+                {isEditingNote ? (
+                  <div className="space-y-4">
+                    <RichTextEditor
+                      value={meaning}
+                      onChange={setMeaning}
+                    />
+                    <div className="flex justify-between items-center bg-secondary/5 p-2 rounded-xl">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleEnhanceNotes}
+                        className="text-[10px] font-black h-8 hover:bg-white"
+                      >
+                        ✨ AI FIX
+                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setIsEditingNote(false)}
+                          className="h-8 text-[10px] font-bold"
+                        >
+                          EXIT
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setIsEditingNote(false);
+                            handleSaveMeaning();
+                          }}
+                          className="h-8 text-[10px] font-bold shadow-lg shadow-primary/20"
+                        >
+                          SAVE NOTE
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => setIsEditingNote(true)}
+                    className="p-4 bg-white/50 rounded-2xl border-2 border-dashed border-border hover:border-primary/30 transition-all cursor-pointer group/note"
+                  >
+                    {meaning ? (
+                      <div
+                        className="prose prose-sm max-w-none text-slate-600 leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: meaning }}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-4 text-muted-foreground/40 group-hover/note:text-primary/40">
+                        <Pencil className="h-6 w-6 mb-2" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                          Click to add mnemonics or notes
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation Section */}
+        <div className="grid grid-cols-2">
+          <button
+            onClick={onPrevious}
+            disabled={!hasPrevious}
+            className="flex items-center justify-center gap-2 p-6 border-t border-r border-border hover:bg-secondary/30 disabled:opacity-30 transition-colors uppercase text-[10px] font-black tracking-widest"
+          >
+            <ChevronLeft className="h-4 w-4" /> Previous
+          </button>
+          <button
+            onClick={onNext}
+            disabled={!hasNext}
+            className="flex items-center justify-center gap-2 p-6 border-t border-border hover:bg-secondary/30 disabled:opacity-30 transition-colors uppercase text-[10px] font-black tracking-widest text-primary"
+          >
+            Next <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      {/* Navigation & Actions */}
-      <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
-        <Button
-          variant="outline"
-          onClick={onPrevious}
-          disabled={!hasPrevious}
-          className="gap-2"
-        >
-          <ChevronLeft className="h-5 w-5" />
-          Previous
-        </Button>
-
-        <Button
-          onClick={handleToggleLearned}
-          disabled={isSaving}
-          className={`gap-2 px-8 ${isLearned
-            ? "bg-success hover:bg-success/90 text-success-foreground"
-            : ""
-            }`}
-        >
-          <Check className="h-5 w-5" />
-          {isLearned ? "Learned ✓" : "Mark Learned"}
-        </Button>
-
-        <Button
-          variant="outline"
-          onClick={onNext}
-          disabled={!hasNext}
-          className="gap-2"
-        >
-          Next
-          <ChevronRight className="h-5 w-5" />
-        </Button>
+      <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-4 px-4 text-[10px] font-black text-muted-foreground/60 uppercase tracking-widest">
+        <div className="flex items-center gap-4">
+          <span>PROGRESS {learnedCount}/{totalCount}</span>
+          <div className="w-24 h-1 bg-border rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary"
+              style={{ width: `${(learnedCount / totalCount) * 100}%` }}
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          {showRandomButton && (
+            <button
+              onClick={onToggleRandom}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors",
+                isRandomMode
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                  : "bg-secondary text-muted-foreground"
+              )}
+            >
+              <Shuffle className="h-3 w-3" />
+              {isRandomMode ? "SHUFFLE ON" : "SHUFFLE OFF"}
+            </button>
+          )}
+          <span>CARD {currentIndex + 1} OF {totalCount}</span>
+        </div>
       </div>
-    </div >
+    </div>
   );
 }

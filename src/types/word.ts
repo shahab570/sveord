@@ -16,5 +16,6 @@ export interface WordData {
   examples: WordExample[];
   synonyms: string[];
   antonyms: string[];
+  inflectionExplanation?: string;
   populated_at: string;
 }

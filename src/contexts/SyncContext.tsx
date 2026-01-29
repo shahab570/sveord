@@ -111,29 +111,35 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                 // Use !inner to ensure we only get progress where the word still exists
                 const { data: progress, error: progressError } = await supabase
                     .from('user_progress')
-                    .select('*, words!inner(swedish_word)')
+                    .select('*, words(swedish_word)') // Remove !inner which was hiding the property
                     .eq('user_id', user.id)
                     .range(from, from + PAGE_SIZE - 1);
 
                 if (progressError) throw progressError;
 
                 if (progress && progress.length > 0) {
-                    const progressRecords = progress.map(p => ({
-                        word_swedish: (p.words as any)?.swedish_word,
-                        is_learned: p.is_learned ? 1 : 0,
-                        user_meaning: p.user_meaning || undefined,
-                        custom_spelling: p.custom_spelling || undefined,
-                        learned_date: p.learned_date || undefined,
-                        last_synced_at: new Date().toISOString()
-                    })).filter(p => p.word_swedish); // Filter out any undefined words
+                    const progressRecords = progress
+                        .map(p => {
+                            // Handle both object and array response (Supabase flexibility)
+                            const wordData = Array.isArray(p.words) ? p.words[0] : p.words;
+                            return {
+                                word_swedish: wordData?.swedish_word,
+                                is_learned: p.is_learned ? 1 : 0,
+                                user_meaning: p.user_meaning || undefined,
+                                custom_spelling: p.custom_spelling || undefined,
+                                learned_date: p.learned_date || undefined,
+                                last_synced_at: new Date().toISOString()
+                            };
+                        })
+                        .filter(p => !!p.word_swedish); // Filter out any orphans
 
                     if (progressRecords.length > 0) {
                         await db.progress.bulkPut(progressRecords as any);
-                        console.log(`Synced ${progressRecords.length} progress items in this batch`); // Debug log
                     }
 
                     if (progress.length < PAGE_SIZE) {
                         hasMore = false;
+                        toast.success(`Successfully synced ${from + progress.length} progress records.`);
                     } else {
                         from += PAGE_SIZE;
                     }
@@ -155,13 +161,23 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     // Initial sync on mount if DB is empty
     useEffect(() => {
         const checkAndSync = async () => {
-            const count = await db.words.count();
-            if (count === 0 && user) {
+            if (!user) return;
+
+            const wordCount = await db.words.count();
+            if (wordCount === 0) {
+                console.log('Words missing, triggering full sync...');
                 await syncAll();
+            } else {
+                // Words are there, but check for progress
+                const progressCount = await db.progress.count();
+                if (progressCount === 0) {
+                    console.log('Progress missing, triggering progress sync...');
+                    await syncProgress();
+                }
             }
         };
         checkAndSync();
-    }, [user, syncAll]);
+    }, [user, syncAll, syncProgress]);
 
     return (
         <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress, forceRefresh }}>

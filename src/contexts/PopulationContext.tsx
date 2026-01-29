@@ -9,6 +9,7 @@ interface PopulationStatus {
     completed: number;
     total: number;
     remaining: number;
+    explanationCount: number;
 }
 
 interface PopulationContextType {
@@ -23,11 +24,14 @@ interface PopulationContextType {
     setRangeEnd: (val: number) => void;
     lastBatchInfo: string | null;
     error: string | null;
-    startPopulation: () => Promise<void>;
+    processedCount: number;
+    sessionTotal: number;
+    startPopulation: (mode: 'missing_data' | 'missing_stories' | 'overwrite') => Promise<void>;
     pausePopulation: () => void;
     resumePopulation: () => void;
     fetchStatus: () => Promise<void>;
     regenerateSingleWord: (wordId: number, swedishWord: string) => Promise<void>;
+    regenerateFieldWithInstruction: (wordId: number, field: 'explanation' | 'meanings', instruction: string, swedishWordFallback?: string) => Promise<void>;
     enhanceUserNote: (text: string) => Promise<string>;
 }
 
@@ -38,32 +42,27 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
     const [status, setStatus] = useState<PopulationStatus | null>(null);
     const [isPopulating, setIsPopulating] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
-    const [overwrite, setOverwrite] = useState(false);
+    const [currentMode, setCurrentMode] = useState<'missing_data' | 'missing_stories' | 'overwrite'>('missing_data');
     const [rangeStart, setRangeStart] = useState<number>(1);
     const [rangeEnd, setRangeEnd] = useState<number>(15000);
     const [lastBatchInfo, setLastBatchInfo] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [processedCount, setProcessedCount] = useState(0);
+    const [sessionTotal, setSessionTotal] = useState(0);
     const pauseRef = useRef(false);
 
-    // Import this dynamically or assume it's imported at top
-    // create a wrapper function
     const enhanceUserNote = async (text: string): Promise<string> => {
-        // Fix: Don't fail if Gemini key is missing but DeepSeek key exists
         if (!apiKeys.geminiApiKey && !apiKeys.deepseekApiKey) {
             toast.error("No API key configured");
             throw new Error("No API key");
         }
 
-        // Try DeepSeek first if available
         if (apiKeys.deepseekApiKey) {
             try {
                 const { enhanceTextDeepSeek } = await import('@/services/deepseekApi');
                 const result = await enhanceTextDeepSeek(text, apiKeys.deepseekApiKey);
 
-                if ('error' in result) {
-                    console.warn("DeepSeek failed, falling back to Gemini:", result.error);
-                    // Fall through to Gemini if available
-                } else {
+                if (!('error' in result)) {
                     return result.text;
                 }
             } catch (e) {
@@ -71,7 +70,6 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             }
         }
 
-        // Fallback to Gemini
         if (!apiKeys.geminiApiKey) {
             toast.error("DeepSeek failed and no Gemini key available");
             throw new Error("No meaningful fallback");
@@ -106,7 +104,12 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 .select('*', { count: 'exact', head: true })
                 .not('word_data', 'is', null);
 
-            // Fetch Max ID to imply range end
+            const { count: explanationCount } = await supabase
+                .from('words')
+                .select('*', { count: 'exact', head: true })
+                .not('word_data->>inflectionExplanation', 'is', null)
+                .not('word_data->>inflectionExplanation', 'eq', '');
+
             const { data: maxIdData } = await supabase
                 .from('words')
                 .select('id')
@@ -115,17 +118,14 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 .single();
 
             if (maxIdData?.id && !isPopulating) {
-                // Only verify/update rangeEnd if not currently running to avoid weird UI jumps
                 setRangeEnd(prev => Math.max(prev, maxIdData.id));
             }
 
-            const total = totalCount || 0;
-            const completed = completedCount || 0;
-
             setStatus({
-                total,
-                completed,
-                remaining: total - completed,
+                total: totalCount || 0,
+                completed: completedCount || 0,
+                remaining: (totalCount || 0) - (completedCount || 0),
+                explanationCount: explanationCount || 0,
             });
             setError(null);
         } catch (err: any) {
@@ -133,21 +133,24 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
-    const runBatch = async (batchSize: number = 50, startFromId: number): Promise<{ lastId: number, count: number }> => {
+    const runBatch = async (startFromId: number): Promise<{ lastId: number, count: number }> => {
         if (!hasApiKey || !apiKeys.geminiApiKey) {
             setError('No API key configured');
             return { lastId: startFromId, count: 0 };
         }
 
+        const batchSize = currentMode === 'missing_stories' ? 100 : 50;
         try {
-            let query = supabase.from('words').select('id, swedish_word');
-
-            // Range filtering starting from the cursor
+            let query = supabase.from('words').select('id, swedish_word, word_data');
             query = query.gte('id', startFromId).lte('id', rangeEnd);
 
-            if (!overwrite) {
+            if (currentMode === 'missing_data') {
                 query = query.is('word_data', null);
+            } else if (currentMode === 'missing_stories') {
+                // Find words that have data but NO inflectionExplanation (null, missing, or empty)
+                query = query.or('word_data.is.null,word_data->>inflectionExplanation.is.null,word_data->>inflectionExplanation.eq.""');
             }
+            // else overwrite mode doesn't need extra filter
 
             const { data: words, error: fetchError } = await query
                 .order('id', { ascending: true })
@@ -158,11 +161,16 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
 
             setLastBatchInfo(`Generating batch: ${words[0].swedish_word} ... ${words[words.length - 1].swedish_word} (${words.length} words)`);
 
-            // Extract words for API
             const swedishWords = words.map(w => w.swedish_word);
+            const onlyExplanations = currentMode === 'missing_stories';
+            const resultsMap = await generateMeaningsTrueBatch(swedishWords, apiKeys.geminiApiKey, undefined, undefined, undefined, onlyExplanations);
 
-            // ONE API Call for all words
-            const resultsMap = await generateMeaningsTrueBatch(swedishWords, apiKeys.geminiApiKey);
+            if (!resultsMap || resultsMap.size === 0) {
+                console.warn("Batch generated no results, skipping ahead to avoid getting stuck.");
+                setProcessedCount(prev => prev + words.length);
+                const lastProcessedId = words[words.length - 1].id;
+                return { lastId: lastProcessedId + 1, count: words.length };
+            }
 
             const updatePromises: any[] = [];
             let successCount = 0;
@@ -171,48 +179,31 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 const result = resultsMap.get(word.swedish_word) || resultsMap.get(word.swedish_word.toLowerCase());
 
                 if (result) {
+                    const existingData = word.word_data as any;
                     const wordData = {
-                        word_type: result.partOfSpeech || '',
-                        gender: result.gender || '',
-                        meanings: result.meanings || [],
-                        examples: result.examples || [],
-                        synonyms: result.synonyms || [],
-                        antonyms: result.antonyms || [],
+                        word_type: result.partOfSpeech || (existingData?.word_type || ''),
+                        gender: result.gender || (existingData?.gender || ''),
+                        inflectionExplanation: result.inflectionExplanation || null,
+                        meanings: (existingData && existingData.meanings && existingData.meanings.length > 0) ? existingData.meanings : (result.meanings || []),
+                        examples: (existingData && existingData.examples && existingData.examples.length > 0) ? existingData.examples : (result.examples || []),
+                        synonyms: (existingData && existingData.synonyms && existingData.synonyms.length > 0) ? existingData.synonyms : (result.synonyms || []),
+                        antonyms: (existingData && existingData.antonyms && existingData.antonyms.length > 0) ? existingData.antonyms : (result.antonyms || []),
                         populated_at: new Date().toISOString(),
                     };
 
-                    // Queue updates
-                    updatePromises.push(
-                        supabase.from('words').update({ word_data: wordData }).eq('id', word.id)
-                    );
-                    updatePromises.push(
-                        db.words.update(word.swedish_word, { word_data: wordData })
-                    );
+                    updatePromises.push(supabase.from('words').update({ word_data: wordData }).eq('id', word.id));
+                    updatePromises.push(db.words.update(word.swedish_word, { word_data: wordData }));
                     successCount++;
-                } else {
-                    console.warn(`Batch generation missed word: ${word.swedish_word}`);
                 }
             }
 
-            // Fire-and-forget DB updates (don't await)
-            Promise.all(updatePromises).then(() => {
-                if (!overwrite) {
-                    // Update status counts loosely (might be slightly out of sync with real-time but much faster)
-                    setStatus(prev => prev ? {
-                        ...prev,
-                        completed: Math.min(prev.completed + successCount, prev.total),
-                        remaining: Math.max(prev.remaining - successCount, 0)
-                    } : null);
-                }
-            }).catch(e => console.error("Background DB save failed:", e));
-
-            // Return immediately to start next batch
+            await Promise.all(updatePromises);
+            setProcessedCount(prev => prev + words.length);
             const lastProcessedId = words.length > 0 ? words[words.length - 1].id : startFromId;
             return { lastId: lastProcessedId + 1, count: words.length };
 
         } catch (err: any) {
             setError(err.message || 'Failed to process batch');
-            // If it fails, we return the same ID so it *might* retry or user can restart
             return { lastId: startFromId, count: 0 };
         }
     };
@@ -225,68 +216,64 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
 
         try {
             toast.info(`Regenerating "${swedishWord}"...`);
+            const { data: currentWord } = await supabase.from('words').select('word_data').eq('id', wordId).single();
             const result = await generateWordMeaning(swedishWord, apiKeys.geminiApiKey);
 
             if ('meanings' in result) {
+                const existingData = currentWord?.word_data as any;
                 const wordData = {
-                    word_type: result.partOfSpeech || '',
-                    gender: result.gender || '',
-                    meanings: result.meanings || [],
-                    examples: result.examples || [],
-                    synonyms: result.synonyms || [],
-                    antonyms: result.antonyms || [],
+                    word_type: result.partOfSpeech || (existingData?.word_type || ''),
+                    gender: result.gender || (existingData?.gender || ''),
+                    inflectionExplanation: result.inflectionExplanation || null,
+                    meanings: (existingData && existingData.meanings && existingData.meanings.length > 0) ? existingData.meanings : (result.meanings || []),
+                    examples: (existingData && existingData.examples && existingData.examples.length > 0) ? existingData.examples : (result.examples || []),
+                    synonyms: (existingData && existingData.synonyms && existingData.synonyms.length > 0) ? existingData.synonyms : (result.synonyms || []),
+                    antonyms: (existingData && existingData.antonyms && existingData.antonyms.length > 0) ? existingData.antonyms : (result.antonyms || []),
                     populated_at: new Date().toISOString(),
                 };
 
-                const { error: updateError } = await supabase
-                    .from('words')
-                    .update({
-                        word_data: wordData,
-                    })
-                    .eq('id', wordId);
-
-                if (updateError) throw updateError;
-
-                // Update local DB for instant feedback
+                await supabase.from('words').update({ word_data: wordData }).eq('id', wordId);
                 await db.words.update(swedishWord, { word_data: wordData });
-
                 toast.success(`Updated "${swedishWord}"`);
                 await fetchStatus();
             } else {
-                toast.error(`Failed: ${result.error}`);
+                toast.error(`Failed: ${result.error}${result.details ? ` (${result.details})` : ''}`);
             }
         } catch (err: any) {
             toast.error(err.message || 'Regeneration failed');
         }
     };
 
-    const startPopulation = async () => {
+    const startPopulation = async (mode: 'missing_data' | 'missing_stories' | 'overwrite' = 'missing_data') => {
+        if (isPopulating) return;
+        setCurrentMode(mode);
         setIsPopulating(true);
         setIsPaused(false);
         pauseRef.current = false;
         setError(null);
-        toast.success(`Starting generation for IDs ${rangeStart} to ${rangeEnd}...`);
+        setProcessedCount(0);
+        setSessionTotal(rangeEnd - rangeStart + 1);
 
         let currentCursor = rangeStart;
-
         const runNextBatch = async () => {
             if (pauseRef.current) {
                 setIsPopulating(false);
                 return;
             }
 
-            const BATCH_SIZE = 20;
-            const { lastId, count } = await runBatch(BATCH_SIZE, currentCursor);
+            const { lastId, count } = await runBatch(currentCursor);
             currentCursor = lastId;
 
-            const hasMore = count === BATCH_SIZE && currentCursor <= rangeEnd;
-
-            if (hasMore && !pauseRef.current) {
-                setTimeout(runNextBatch, 200);
-            } else if (!pauseRef.current) {
-                setIsPopulating(false);
+            if (count > 0 && currentCursor <= rangeEnd && !pauseRef.current) {
+                // Refresh status every batch to show progress in real-time
                 await fetchStatus();
-                toast.success(`🎉 Segment ${rangeStart}-${rangeEnd} complete!`);
+                setTimeout(runNextBatch, 500); // Slightly longer delay to allow DB counts to settle
+            } else {
+                setIsPopulating(false);
+                if (count === 0 && !pauseRef.current) {
+                    await fetchStatus();
+                    toast.success("All words in range processed!");
+                }
             }
         };
 
@@ -297,24 +284,86 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         pauseRef.current = true;
         setIsPaused(true);
         setIsPopulating(false);
-        toast.info('Generation paused');
     };
 
     const resumePopulation = () => {
-        // Resume should probably keep the cursor, but since we don't store it in state,
-        // it resets to rangeStart. However, if overwrite is false, it naturally skips.
-        // If overwrite is true, the user might want it to continue from where it stopped.
-        // For now, we'll let it start from rangeStart or the user can manually update rangeStart.
         setIsPaused(false);
-        startPopulation();
+        startPopulation(currentMode);
+    };
+
+    const regenerateFieldWithInstruction = async (wordId: number, field: 'explanation' | 'meanings', instruction: string, swedishWordFallback?: string) => {
+        if (!hasApiKey || !apiKeys.geminiApiKey) {
+            toast.error("No API key configured");
+            return;
+        }
+
+        console.log(`[PopulationContext] Regenerating ${field} for wordId: ${wordId}, fallback: ${swedishWordFallback}`);
+
+        try {
+            let currentWord = await db.words.where("id").equals(wordId).first();
+
+            if (!currentWord && swedishWordFallback) {
+                console.log(`[PopulationContext] Word not found by ID ${wordId}, trying swedish_word fallback: ${swedishWordFallback}`);
+                currentWord = await db.words.get(swedishWordFallback);
+            }
+
+            if (!currentWord) {
+                // Try fetching from supabase if not in local DB
+                const query = supabase.from('words').select('*');
+                if (wordId > 0) query.eq('id', wordId);
+                else if (swedishWordFallback) query.eq('swedish_word', swedishWordFallback);
+
+                const { data } = await query.maybeSingle();
+                if (data) {
+                    await db.words.put(data as any);
+                    currentWord = data as any;
+                }
+            }
+
+            if (!currentWord) {
+                toast.error("Word not found in database");
+                return;
+            }
+
+            const result = await generateWordMeaning(currentWord.swedish_word, apiKeys.geminiApiKey, undefined, undefined, instruction);
+
+            if ('error' in result) {
+                console.error(`[PopulationContext] AI Generation Error for "${currentWord.swedish_word}":`, result);
+                toast.error(`${result.error}${result.details ? `: ${result.details}` : ''}`);
+                return;
+            }
+
+            console.log(`[PopulationContext] AI result for "${currentWord.swedish_word}":`, result);
+
+            const updatedData = { ...currentWord.word_data };
+            if (field === 'explanation') {
+                updatedData.inflectionExplanation = result.inflectionExplanation || null;
+            } else {
+                updatedData.meanings = result.meanings;
+                updatedData.examples = result.examples || updatedData.examples;
+                updatedData.word_type = result.partOfSpeech || updatedData.word_type;
+                updatedData.gender = result.gender || updatedData.gender;
+                updatedData.synonyms = result.synonyms || updatedData.synonyms;
+                updatedData.antonyms = result.antonyms || updatedData.antonyms;
+            }
+            updatedData.populated_at = new Date().toISOString();
+
+            await supabase.from('words').update({ word_data: updatedData as any }).eq('id', wordId);
+            await db.words.update(currentWord.swedish_word, { word_data: updatedData as any });
+            toast.success("AI Content updated!");
+            await fetchStatus();
+        } catch (err: any) {
+            toast.error(err.message || "Update failed");
+        }
     };
 
     return (
         <PopulationContext.Provider value={{
-            status, isPopulating, isPaused, overwrite, setOverwrite,
+            status, isPopulating, isPaused, overwrite: currentMode === 'overwrite', setOverwrite: (val) => setCurrentMode(val ? 'overwrite' : 'missing_data'),
             rangeStart, setRangeStart, rangeEnd, setRangeEnd,
-            lastBatchInfo, error, startPopulation, pausePopulation,
-            resumePopulation, fetchStatus, regenerateSingleWord,
+            lastBatchInfo, error, processedCount, sessionTotal,
+            startPopulation, pausePopulation, resumePopulation,
+            fetchStatus, regenerateSingleWord, regenerateFieldWithInstruction,
             enhanceUserNote
         }}>
             {children}

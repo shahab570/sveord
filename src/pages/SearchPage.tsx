@@ -32,8 +32,14 @@ export default function SearchPage() {
     if (selectedWord && words) {
       // Use swedish_word for finding the word, as IDs might be unreliable (e.g. 0)
       const updatedWord = words.find(w => w.swedish_word === selectedWord.swedish_word);
-      if (updatedWord && JSON.stringify(updatedWord.progress) !== JSON.stringify(selectedWord.progress)) {
-        setSelectedWord(updatedWord);
+      if (updatedWord) {
+        // Deeply check if anything meaningful changed (progress or word_data)
+        const hasProgressChanged = JSON.stringify(updatedWord.progress) !== JSON.stringify(selectedWord.progress);
+        const hasDataChanged = JSON.stringify(updatedWord.word_data) !== JSON.stringify(selectedWord.word_data);
+
+        if (hasProgressChanged || hasDataChanged) {
+          setSelectedWord(updatedWord);
+        }
       }
     }
   }, [words, selectedWord]);
@@ -84,8 +90,8 @@ export default function SearchPage() {
         <div className="flex items-center gap-3">
           <div
             className={`w-3 h-3 rounded-full flex-shrink-0 ${isLearned
-                ? "bg-success ring-2 ring-white shadow-sm scale-110"
-                : "bg-muted-foreground/30"
+              ? "bg-success ring-2 ring-white shadow-sm scale-110"
+              : "bg-muted-foreground/30"
               }`}
           />
           <div className="flex flex-col">

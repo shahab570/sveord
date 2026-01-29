@@ -1,164 +1,152 @@
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Sparkles, Play, Pause, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
-import { usePopulation } from '@/contexts/PopulationContext';
+import { useState } from "react";
+import { usePopulation } from "@/contexts/PopulationContext";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+    Wand2,
+    RefreshCw,
+    AlertCircle,
+    BookOpen,
+    Info,
+    Pause,
+    Play
+} from "lucide-react";
 
 export function PopulateMeaningsSection() {
-  const {
-    status, isPopulating, isPaused, overwrite, setOverwrite,
-    rangeStart, setRangeStart, rangeEnd, setRangeEnd,
-    lastBatchInfo, error, startPopulation, pausePopulation,
-    resumePopulation, fetchStatus
-  } = usePopulation();
+    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused } = usePopulation();
+    const [overwrite, setOverwrite] = useState(false);
 
-  const handleRefresh = async () => {
-    await fetchStatus();
-  };
+    if (!status || status.total === 0) return null;
 
-  const progressPercent = status
-    ? status.total > 0
-      ? Math.round((status.completed / status.total) * 100)
-      : 0
-    : 0;
+    return (
+        <section className="word-card space-y-6">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                        <BookOpen className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-semibold text-foreground">
+                            Base Word Generation
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            Generate origins and base forms for inflected words
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Button
+                        onClick={() => startPopulation('missing_data')}
+                        disabled={isPopulating}
+                        variant="outline"
+                        className="gap-2"
+                    >
+                        {isPopulating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+                        Fill Meanings
+                    </Button>
+                    <Button
+                        onClick={() => startPopulation('missing_stories')}
+                        disabled={isPopulating}
+                        className="gap-2 bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-200"
+                    >
+                        {isPopulating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                        Fill Stories
+                    </Button>
+                    <Button
+                        onClick={() => startPopulation('overwrite')}
+                        disabled={isPopulating}
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-muted-foreground hover:text-destructive"
+                    >
+                        <RefreshCw className={`h-3 w-3 ${isPopulating ? 'animate-spin' : ''}`} />
+                        Refine All
+                    </Button>
+                </div>
+            </div>
 
-  const isComplete = status && status.remaining === 0;
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-secondary/30 rounded-xl border border-border/50">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data Coverage</span>
+                            <span className="text-xs font-bold text-primary">
+                                {Math.round((status.completed / status.total) * 100)}%
+                            </span>
+                        </div>
+                        <p className="text-2xl font-bold text-foreground">
+                            {status.completed} <span className="text-sm font-normal text-muted-foreground">/ {status.total}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">Total defined words</p>
+                    </div>
 
-  return (
-    <section className="word-card space-y-4 border-l-4 border-l-purple-500">
-      <div className="flex items-center gap-3">
-        <Sparkles className="h-5 w-5 text-purple-600" />
-        <h2 className="text-lg font-semibold text-foreground">
-          AI-Generated Word Meanings
-        </h2>
-      </div>
+                    <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Base Word Stories</span>
+                            <span className="text-xs font-bold text-purple-600">
+                                {Math.round((status.explanationCount / status.total) * 100)}%
+                            </span>
+                        </div>
+                        <p className="text-2xl font-bold text-purple-700">
+                            {status.explanationCount} <span className="text-sm font-normal text-purple-400">/ {status.total}</span>
+                        </p>
+                        <p className="text-xs text-purple-600/80 mt-1">Total base-form stories generated</p>
+                    </div>
+                </div>
 
-      <p className="text-sm text-muted-foreground">
-        Automatically generate detailed Swedish word meanings using Google Gemini AI.
-        Get definitions, usage examples, synonyms, and antonyms for each word.
-      </p>
+                {isPopulating && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex justify-between text-xs font-medium">
+                            <span className="text-primary tracking-tight">System is generating base-word stories...</span>
+                            <div className="flex items-center gap-4">
+                                <span className="text-muted-foreground font-mono">
+                                    {Math.round((processedCount / sessionTotal) * 100)}%
+                                </span>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={isPaused ? resumePopulation : pausePopulation}
+                                    className="h-6 px-2 text-[10px] gap-1"
+                                >
+                                    {isPaused ? (
+                                        <>
+                                            <Play className="h-3 w-3" /> Resume
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Pause className="h-3 w-3" /> Pause
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                        <Progress value={(processedCount / sessionTotal) * 100} className="h-1.5" />
+                        <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest pt-1">
+                            {isPaused ? "Generation Paused" : "Batch size 50 • Optimized for speed"}
+                        </p>
+                    </div>
+                )}
 
-      {/* Status display */}
-      {status && (
-        <div className="space-y-3 p-4 rounded-lg bg-purple-50 border border-purple-200">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-foreground">Progress</span>
-            <span className="text-sm text-muted-foreground">
-              {status.completed.toLocaleString()} / {status.total.toLocaleString()} words
-            </span>
-          </div>
-          <Progress value={progressPercent} className="h-3" />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{progressPercent}% complete</span>
-            <span>{status.remaining.toLocaleString()} remaining</span>
-          </div>
-        </div>
-      )}
-
-      {/* Last batch info */}
-      {lastBatchInfo && isPopulating && (
-        <p className="text-xs text-muted-foreground flex items-center gap-2">
-          <RefreshCw className="h-3 w-3 animate-spin" />
-          {lastBatchInfo}
-        </p>
-      )}
-
-      {/* Error display */}
-      {error && (
-        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4" />
-          {error}
-        </div>
-      )}
-
-      {/* Completion message */}
-      {isComplete && !overwrite && (
-        <div className="p-3 rounded-lg bg-success/10 border border-success/20 text-sm text-success flex items-center gap-2">
-          <CheckCircle className="h-4 w-4" />
-          All words have been populated with AI-generated meanings!
-        </div>
-      )}
-
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-2 items-center">
-        {!isPopulating && (
-          <Button
-            onClick={isPaused ? resumePopulation : startPopulation}
-            className="gap-2 bg-purple-600 hover:bg-purple-700"
-            disabled={isComplete && !overwrite}
-          >
-            <Play className="h-4 w-4" />
-            {isPaused ? 'Resume' : 'Start Generation'}
-          </Button>
-        )}
-
-        {isPopulating && (
-          <Button
-            onClick={pausePopulation}
-            variant="outline"
-            className="gap-2 border-purple-300 hover:bg-purple-50"
-          >
-            <Pause className="h-4 w-4" />
-            Pause
-          </Button>
-        )}
-
-        <Button
-          onClick={handleRefresh}
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          disabled={isPopulating}
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh Status
-        </Button>
+                <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                    <Info className="h-5 w-5 text-blue-600 shrink-0" />
+                    <div className="space-y-1">
+                        <p className="text-sm font-bold text-blue-900">What is this?</p>
+                        <p className="text-xs text-blue-700 leading-relaxed">
+                            This tool uses AI to detect if a word is an inflected form (like <b>flickan</b>) and generates a short 2-sentence explanation of its base form (<b>flicka</b>) and meaning.
+                        </p>
+                    </div>
+                </div>
 
 
-        <div className="flex items-center gap-2 ml-auto">
-          <div className="flex flex-col">
-            <label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Start ID</label>
-            <input
-              type="number"
-              value={rangeStart}
-              onChange={(e) => setRangeStart(parseInt(e.target.value) || 1)}
-              disabled={isPopulating}
-              className="w-20 rounded border-purple-300 text-sm p-1"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-[10px] text-muted-foreground uppercase font-bold px-1">End ID</label>
-            <input
-              type="number"
-              value={rangeEnd}
-              onChange={(e) => setRangeEnd(parseInt(e.target.value) || 15000)}
-              disabled={isPopulating}
-              className="w-24 rounded border-purple-300 text-sm p-1"
-            />
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2 ml-2">
-          <input
-            type="checkbox"
-            id="overwrite"
-            checked={overwrite}
-            onChange={(e) => setOverwrite(e.target.checked)}
-            disabled={isPopulating}
-            className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
-          />
-          <label htmlFor="overwrite" className="text-xs font-medium text-foreground cursor-pointer">
-            Overwrite existing (New format: Part of Speech, Gender, 3 Meanings, 2 Examples)
-          </label>
-        </div>
-      </div>
-
-      {/* Info note */}
-      <p className="text-xs text-muted-foreground mt-2">
-        ⚡ High-speed generation enabled (Paid Tier). Estimated time: ~{Math.ceil((status?.remaining || 0) / 20 / 60)} minutes for remaining words.
-      </p>
-      <p className="text-xs text-muted-foreground">
-        💡 You can pause and resume anytime. Your progress is saved automatically.
-      </p>
-    </section>
-  );
+                {error && (
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-2 text-destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <p className="text-xs font-medium">{error}</p>
+                    </div>
+                )}
+            </div>
+        </section >
+    );
 }
