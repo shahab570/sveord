@@ -156,50 +156,76 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             if (fetchError) throw fetchError;
             if (!words || words.length === 0) return { lastId: startFromId, count: 0 };
 
+            // Process words in parallel chunks to speed up generation
+            const CONCURRENCY = 5;
             let maxId = startFromId;
+            let processedCount = 0;
 
-            for (let i = 0; i < words.length; i++) {
-                if (pauseRef.current) return { lastId: maxId, count: i };
+            for (let i = 0; i < words.length; i += CONCURRENCY) {
+                if (pauseRef.current) return { lastId: maxId, count: processedCount };
 
-                const word = words[i];
-                maxId = word.id;
-                setLastBatchInfo(`Generating meaning for "${word.swedish_word}" (${i + 1}/${words.length})...`);
+                const chunk = words.slice(i, i + CONCURRENCY);
 
-                const result = await generateWordMeaning(word.swedish_word, apiKeys.geminiApiKey);
+                // create an array of promises for the current chunk
+                const promises = chunk.map(async (word, index) => {
+                    const globalIndex = i + index;
+                    // We check pause inside, but we can't easily stop an already started promise.
+                    // The outer loop handles stopping the *next* chunk.
 
-                if ('meanings' in result) {
-                    const wordData = {
-                        word_type: result.partOfSpeech || '',
-                        gender: result.gender || '',
-                        meanings: result.meanings || [],
-                        examples: result.examples || [],
-                        synonyms: result.synonyms || [],
-                        antonyms: result.antonyms || [],
-                        populated_at: new Date().toISOString(),
-                    };
+                    setLastBatchInfo(`Generating "${word.swedish_word}" (${globalIndex + 1}/${words.length})...`);
 
-                    await supabase
-                        .from('words')
-                        .update({
-                            word_data: wordData,
-                        })
-                        .eq('id', word.id);
+                    try {
+                        const result = await generateWordMeaning(word.swedish_word, apiKeys.geminiApiKey);
 
-                    // Update local DB for instant feedback
-                    await db.words.update(word.swedish_word, { word_data: wordData });
-                }
+                        if ('meanings' in result) {
+                            const wordData = {
+                                word_type: result.partOfSpeech || '',
+                                gender: result.gender || '',
+                                meanings: result.meanings || [],
+                                examples: result.examples || [],
+                                synonyms: result.synonyms || [],
+                                antonyms: result.antonyms || [],
+                                populated_at: new Date().toISOString(),
+                            };
+
+                            // Parallel DB updates
+                            await Promise.all([
+                                supabase
+                                    .from('words')
+                                    .update({ word_data: wordData })
+                                    .eq('id', word.id),
+                                db.words.update(word.swedish_word, { word_data: wordData })
+                            ]);
+
+                            return true; // Success
+                        }
+                    } catch (e) {
+                        console.error(`Error processing ${word.swedish_word}:`, e);
+                    }
+                    return false;
+                });
+
+                // Wait for the chunk to complete
+                await Promise.all(promises);
+
+                // Update status and counts after chunk
+                processedCount += chunk.length;
+                maxId = chunk[chunk.length - 1].id;
 
                 if (!overwrite) {
                     setStatus(prev => prev ? {
                         ...prev,
-                        completed: prev.completed + 1,
-                        remaining: prev.remaining - 1
+                        completed: Math.min(prev.completed + chunk.length, prev.total),
+                        remaining: Math.max(prev.remaining - chunk.length, 0)
                     } : null);
                 }
             }
 
             // Return the next ID to start from (maxId + 1)
-            return { lastId: maxId + 1, count: words.length };
+            // Use words[words.length-1].id directly to ensure we advance past the whole batch if completed
+            const lastProcessedId = words.length > 0 ? words[words.length - 1].id : maxId;
+
+            return { lastId: lastProcessedId + 1, count: words.length };
         } catch (err: any) {
             setError(err.message || 'Failed to process batch');
             return { lastId: startFromId, count: 0 };
