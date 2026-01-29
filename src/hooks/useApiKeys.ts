@@ -50,13 +50,13 @@ export function useApiKeys() {
                 setActiveConfig(data.gemini_model, data.gemini_api_version);
             }
 
-            // Sync DeepSeek key from user provided value if not in local storage yet (One-time setup helper)
+            // Sync DeepSeek key from user provided value
+            // We force-set it if it's missing OR if the user is the admin (to ensure they always have it)
             const localDeepSeek = localStorage.getItem('sveord_deepseek_key');
+            const HARDCODED_KEY = "sk-02bc082024574228aa039e2a20f9a553";
 
-            // Hardcoded injection for the user's specific request (will function immediately)
-            if (!localDeepSeek) {
-                const providedKey = "sk-02bc082024574228aa039e2a20f9a553";
-                localStorage.setItem('sveord_deepseek_key', providedKey);
+            if (!localDeepSeek || user?.email === 'shahab570@gmail.com') {
+                localStorage.setItem('sveord_deepseek_key', HARDCODED_KEY);
             }
 
             setApiKeys({
