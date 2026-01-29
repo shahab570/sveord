@@ -97,6 +97,9 @@
   .m-safe-bottom {
     margin-bottom: var(--sab);
   }
+  .pb-safe-bottom {
+    padding-bottom: var(--sab);
+  }
 
   .dark {
     --background: 200 20% 10%;

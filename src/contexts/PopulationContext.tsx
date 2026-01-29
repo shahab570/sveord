@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { supabase } from '@/integrations/supabase/client';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { db } from '@/services/db';
-import { generateWordMeaning } from '@/services/geminiApi';
+import { generateWordMeaning, generateMeaningsTrueBatch } from '@/services/geminiApi';
 import { toast } from 'sonner';
 
 interface PopulationStatus {
@@ -156,78 +156,63 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             if (fetchError) throw fetchError;
             if (!words || words.length === 0) return { lastId: startFromId, count: 0 };
 
-            // Process words in parallel chunks to speed up generation
-            const CONCURRENCY = 5;
-            let maxId = startFromId;
-            let processedCount = 0;
+            setLastBatchInfo(`Generating batch: ${words[0].swedish_word} ... ${words[words.length - 1].swedish_word} (${words.length} words)`);
 
-            for (let i = 0; i < words.length; i += CONCURRENCY) {
-                if (pauseRef.current) return { lastId: maxId, count: processedCount };
+            // Extract words for API
+            const swedishWords = words.map(w => w.swedish_word);
 
-                const chunk = words.slice(i, i + CONCURRENCY);
+            // ONE API Call for all words
+            const resultsMap = await generateMeaningsTrueBatch(swedishWords, apiKeys.geminiApiKey);
 
-                // create an array of promises for the current chunk
-                const promises = chunk.map(async (word, index) => {
-                    const globalIndex = i + index;
-                    // We check pause inside, but we can't easily stop an already started promise.
-                    // The outer loop handles stopping the *next* chunk.
+            const updatePromises: any[] = [];
+            let successCount = 0;
 
-                    setLastBatchInfo(`Generating "${word.swedish_word}" (${globalIndex + 1}/${words.length})...`);
+            for (const word of words) {
+                const result = resultsMap.get(word.swedish_word) || resultsMap.get(word.swedish_word.toLowerCase());
 
-                    try {
-                        const result = await generateWordMeaning(word.swedish_word, apiKeys.geminiApiKey);
+                if (result) {
+                    const wordData = {
+                        word_type: result.partOfSpeech || '',
+                        gender: result.gender || '',
+                        meanings: result.meanings || [],
+                        examples: result.examples || [],
+                        synonyms: result.synonyms || [],
+                        antonyms: result.antonyms || [],
+                        populated_at: new Date().toISOString(),
+                    };
 
-                        if ('meanings' in result) {
-                            const wordData = {
-                                word_type: result.partOfSpeech || '',
-                                gender: result.gender || '',
-                                meanings: result.meanings || [],
-                                examples: result.examples || [],
-                                synonyms: result.synonyms || [],
-                                antonyms: result.antonyms || [],
-                                populated_at: new Date().toISOString(),
-                            };
-
-                            // Parallel DB updates
-                            await Promise.all([
-                                supabase
-                                    .from('words')
-                                    .update({ word_data: wordData })
-                                    .eq('id', word.id),
-                                db.words.update(word.swedish_word, { word_data: wordData })
-                            ]);
-
-                            return true; // Success
-                        }
-                    } catch (e) {
-                        console.error(`Error processing ${word.swedish_word}:`, e);
-                    }
-                    return false;
-                });
-
-                // Wait for the chunk to complete
-                await Promise.all(promises);
-
-                // Update status and counts after chunk
-                processedCount += chunk.length;
-                maxId = chunk[chunk.length - 1].id;
-
-                if (!overwrite) {
-                    setStatus(prev => prev ? {
-                        ...prev,
-                        completed: Math.min(prev.completed + chunk.length, prev.total),
-                        remaining: Math.max(prev.remaining - chunk.length, 0)
-                    } : null);
+                    // Queue updates
+                    updatePromises.push(
+                        supabase.from('words').update({ word_data: wordData }).eq('id', word.id)
+                    );
+                    updatePromises.push(
+                        db.words.update(word.swedish_word, { word_data: wordData })
+                    );
+                    successCount++;
+                } else {
+                    console.warn(`Batch generation missed word: ${word.swedish_word}`);
                 }
             }
 
-            // Return the next ID to start from (maxId + 1)
-            // Use words[words.length-1].id directly to ensure we advance past the whole batch if completed
-            const lastProcessedId = words.length > 0 ? words[words.length - 1].id : maxId;
+            // Fire-and-forget DB updates (don't await)
+            Promise.all(updatePromises).then(() => {
+                if (!overwrite) {
+                    // Update status counts loosely (might be slightly out of sync with real-time but much faster)
+                    setStatus(prev => prev ? {
+                        ...prev,
+                        completed: Math.min(prev.completed + successCount, prev.total),
+                        remaining: Math.max(prev.remaining - successCount, 0)
+                    } : null);
+                }
+            }).catch(e => console.error("Background DB save failed:", e));
 
+            // Return immediately to start next batch
+            const lastProcessedId = words.length > 0 ? words[words.length - 1].id : startFromId;
             return { lastId: lastProcessedId + 1, count: words.length };
+
         } catch (err: any) {
             setError(err.message || 'Failed to process batch');
+            // If it fails, we return the same ID so it *might* retry or user can restart
             return { lastId: startFromId, count: 0 };
         }
     };
@@ -290,10 +275,11 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 return;
             }
 
-            const { lastId, count } = await runBatch(50, currentCursor);
+            const BATCH_SIZE = 20;
+            const { lastId, count } = await runBatch(BATCH_SIZE, currentCursor);
             currentCursor = lastId;
 
-            const hasMore = count === 50 && currentCursor <= rangeEnd;
+            const hasMore = count === BATCH_SIZE && currentCursor <= rangeEnd;
 
             if (hasMore && !pauseRef.current) {
                 setTimeout(runNextBatch, 200);

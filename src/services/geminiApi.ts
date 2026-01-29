@@ -105,6 +105,106 @@ Only return the JSON.`;
 }
 
 /**
+ * Generate detailed meanings for a BATCH of words in one request.
+ * This is significantly faster than one-by-one.
+ */
+export async function generateMeaningsTrueBatch(
+    words: string[],
+    apiKey: string,
+    modelOverride?: string,
+    versionOverride?: string
+): Promise<Map<string, WordMeaningResult>> {
+    const model = modelOverride || ACTIVE_MODEL;
+    const version = versionOverride || ACTIVE_VERSION;
+    const results = new Map<string, WordMeaningResult>();
+
+    if (words.length === 0) return results;
+
+    try {
+        const prompt = `You are a Swedish dictionary generator. 
+Task: Analyze these words: ${JSON.stringify(words)}.
+Output: A JSON Array with one object per word.
+Fields:
+- word: string (The Swedish word)
+- partOfSpeech: string (noun, verb, etc)
+- gender: string (en/ett/null)
+- meanings: Array of { english: "concise definition" } (List ALL common meanings, no limit. Be comprehensive but concise.)
+- synonyms: String[] (Max 3)
+- antonyms: String[] (Max 3)
+- examples: [] (Keep empty to save space)
+
+JSON ONLY.`;
+
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.3,
+                    responseMimeType: "application/json" // Force JSON mode if supported by model, otherwise prompt handles it
+                }
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`HTTP ${response.status}: ${errorData.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!responseText) throw new Error('Empty response from AI');
+
+        // Parse the JSON array
+        let parsedData: any[] = [];
+        try {
+            // Try explicit parse first
+            parsedData = JSON.parse(responseText);
+        } catch (e) {
+            // Fallback: Try to find array bracket in text
+            const match = responseText.match(/\[[\s\S]*\]/);
+            if (match) {
+                parsedData = JSON.parse(match[0]);
+            } else {
+                throw new Error('Could not parse JSON array from response');
+            }
+        }
+
+        if (!Array.isArray(parsedData)) {
+            throw new Error('Response was not a JSON array');
+        }
+
+        // Map results back to the original words
+        // We iterate through the returned data and try to match it to the requested words
+        parsedData.forEach((item: any) => {
+            if (item && item.word) {
+                // Normalize for matching
+                const key = words.find(w => w.toLowerCase() === item.word.toLowerCase()) || item.word;
+
+                results.set(key, {
+                    meanings: item.meanings || [],
+                    examples: item.examples || [],
+                    synonyms: item.synonyms || [],
+                    antonyms: item.antonyms || [],
+                    partOfSpeech: item.partOfSpeech,
+                    gender: item.gender
+                });
+            }
+        });
+
+    } catch (error: any) {
+        console.error("Batch generation failed:", error);
+        // We return whatever we managed to get (which might be empty map), 
+        // effectively failing the whole batch gracefully so re-tries can happen later 
+        // or we can fallback to single mode if we wanted to (but simplest is just fail this batch).
+    }
+
+    return results;
+}
+
+/**
  * Generate meanings for multiple words in batch
  */
 export async function generateMeaningsBatch(

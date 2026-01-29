@@ -29,7 +29,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       <AppSidebar />
-      <main className="flex-1 md:ml-64 min-h-screen p-4 md:p-8 safe-top mb-16 md:mb-0">
+      <main className="flex-1 md:ml-64 min-h-screen p-4 md:p-8 safe-top mb-16 md:mb-0 pb-safe-bottom">
         {children}
       </main>
       <MobileBottomNav />
