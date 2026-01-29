@@ -1,25 +1,19 @@
-
-import React, { useState, useEffect } from 'react';
-import { useWords, WordWithProgress } from '@/hooks/useWords';
-import { generateQuiz, QuizQuestion as IQuizQuestion, QuestionType } from '@/utils/quizUtils';
-import { QuizQuestion } from './QuizQuestion';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, RefreshCw, Trophy, ArrowRight, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { WordCard } from "@/components/study/WordCard";
+import { generateQuiz, QuizQuestion as IQuizQuestion, QuestionType, markQuizPracticed } from '@/utils/quizUtils';
+import { db } from '@/services/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 interface QuizSessionProps {
     type: QuestionType;
     onExit: () => void;
+    quizId?: number | null; // Optional: load existing quiz
 }
 
-export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
-    // useWords returns the array directly (from useLiveQuery), undefined while loading
+export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: initialQuizId }) => {
+    const { user } = useAuth();
     const words = useWords({ learnedOnly: true });
     const wordsLoading = words === undefined;
 
+    const [activeQuizId, setActiveQuizId] = useState<number | null>(initialQuizId || null);
     const [questions, setQuestions] = useState<IQuizQuestion[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [score, setScore] = useState(0);
@@ -27,21 +21,45 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
     const [showFeedback, setShowFeedback] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     // Modal State
     const [selectedWordKey, setSelectedWordKey] = useState<string | null>(null);
-    const selectedWord = words?.find(w => w.swedish_word === selectedWordKey);
+    // Find selected word from ALL words (since quiz might involve words not in the current learned list filter if revisiting old quizzes)
+    const allWords = useLiveQuery(() => db.words.toArray());
+    const selectedWord = allWords?.find(w => w.swedish_word === selectedWordKey) as WordWithProgress | undefined;
 
     useEffect(() => {
-        if (words && words.length > 0 && questions.length === 0) {
-            const quizQuestions = generateQuiz(words, type, 10);
-            if (quizQuestions.length === 0) {
-                setGenerationError("Not enough words with " + type + "s data found. Try adding more words or generating AI meanings.");
-            } else {
-                setQuestions(quizQuestions);
+        const loadQuiz = async () => {
+            if (activeQuizId) {
+                const savedQuiz = await db.quizzes.get(activeQuizId);
+                if (savedQuiz) {
+                    setQuestions(savedQuiz.questions);
+                    return;
+                }
             }
-        }
-    }, [words, type, questions.length]);
+
+            if (words && words.length > 0 && questions.length === 0 && !isGenerating) {
+                setIsGenerating(true);
+                try {
+                    const newQuizId = await generateQuiz(words, type, 10);
+                    if (!newQuizId) {
+                        setGenerationError("Not enough usable words found that haven't hit the review limit. Try learning more words!");
+                    } else {
+                        const savedQuiz = await db.quizzes.get(newQuizId);
+                        if (savedQuiz) {
+                            setQuestions(savedQuiz.questions);
+                            setActiveQuizId(newQuizId);
+                        }
+                    }
+                } finally {
+                    setIsGenerating(false);
+                }
+            }
+        };
+
+        loadQuiz();
+    }, [words, type, activeQuizId]);
 
     const handleAnswer = (answer: string) => {
         setSelectedAnswer(answer);
@@ -50,29 +68,29 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
         if (answer === questions[currentIndex].correctAnswer) {
             setScore(s => s + 1);
         }
-        // No auto-advance
     };
 
-    const handleNext = () => {
+    const handleNext = async () => {
         if (currentIndex < questions.length - 1) {
             setCurrentIndex(c => c + 1);
             setSelectedAnswer(null);
             setShowFeedback(false);
         } else {
             setIsFinished(true);
+            if (activeQuizId) {
+                await markQuizPracticed(activeQuizId);
+            }
         }
     };
 
-    const handleRestart = () => {
-        if (words) {
-            const quizQuestions = generateQuiz(words, type, 10);
-            setQuestions(quizQuestions);
-            setCurrentIndex(0);
-            setScore(0);
-            setSelectedAnswer(null);
-            setShowFeedback(false);
-            setIsFinished(false);
-        }
+    const handleRestart = async () => {
+        setQuestions([]);
+        setCurrentIndex(0);
+        setScore(0);
+        setSelectedAnswer(null);
+        setShowFeedback(false);
+        setIsFinished(false);
+        setActiveQuizId(null); // Force generate new one
     };
 
     const handleWordClick = (word: string) => {

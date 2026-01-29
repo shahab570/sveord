@@ -1,5 +1,5 @@
-
 import { WordData } from '../types/word';
+import { db } from '../services/db';
 
 export type QuestionType = 'synonym' | 'antonym' | 'meaning';
 
@@ -27,14 +27,27 @@ const shuffle = <T>(array: T[]): T[] => {
   return newArray;
 };
 
-export const generateQuiz = (
+export const generateQuiz = async (
   words: { id: number; swedish_word: string; word_data: any }[],
   type: QuestionType,
   count: number = 10
-): QuizQuestion[] => {
-  const questions: QuizQuestion[] = [];
+): Promise<number | null> => {
+  // 1. Fetch usage data
+  const swedishWords = words.map(w => w.swedish_word);
+  const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
+  const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
 
-  // Create a quick lookup map for meanings of ALL words (for options)
+  // 2. Filter words by strategic limits
+  // Target limit: 3 times. Option limit: 4 times.
+  const targetPool = words.filter(w => (usageMap.get(w.swedish_word)?.targetCount || 0) < 3);
+  const optionPool = words.filter(w => (usageMap.get(w.swedish_word)?.optionCount || 0) < 4);
+
+  if (targetPool.length === 0) {
+    console.warn('No more words available for target questions (hit 3x limit)');
+    return null;
+  }
+
+  const questions: QuizQuestion[] = [];
   const meaningMap = new Map<string, string>();
   words.forEach(w => {
     if (w.word_data?.meanings?.[0]?.english) {
@@ -42,87 +55,106 @@ export const generateQuiz = (
     }
   });
 
-  // 1. Filter usable words
-  const validWords = words.filter(word => {
+  // 3. Filter usable target words based on metadata availability
+  const validTargets = targetPool.filter(word => {
     if (!word.word_data) return false;
     const data = word.word_data as WordData;
-    if (type === 'synonym') {
-      return data.synonyms && data.synonyms.length > 0;
-    } else if (type === 'antonym') {
-      return data.antonyms && data.antonyms.length > 0;
-    } else if (type === 'meaning') {
-      return data.meanings && data.meanings.length > 0;
-    }
+    if (type === 'synonym') return data.synonyms && data.synonyms.length > 0;
+    if (type === 'antonym') return data.antonyms && data.antonyms.length > 0;
+    if (type === 'meaning') return data.meanings && data.meanings.length > 0;
     return false;
   });
 
-  if (validWords.length < 4) {
-    console.warn('Not enough words with metadata to generate a quiz');
-    return [];
+  if (validTargets.length === 0) {
+    console.warn('Not enough valid target words with metadata to generate a quiz');
+    return null;
   }
 
-  // 2. Select random target words
-  const shuffledWords = shuffle(validWords);
-  const selectedTargets = shuffledWords.slice(0, count);
+  const shuffledTargets = shuffle(validTargets).slice(0, count);
+  const updatedUsages = new Map<string, { target: number; option: number }>();
 
-  selectedTargets.forEach(target => {
+  shuffledTargets.forEach(target => {
     const data = target.word_data as WordData;
 
-    if (type === 'meaning') {
-      // Correct answer is the first meaning
-      const correctAnswerText = data.meanings[0].english;
+    // Track target usage
+    const targetUsage = updatedUsages.get(target.swedish_word) || { target: 0, option: 0 };
+    targetUsage.target += 1;
+    updatedUsages.set(target.swedish_word, targetUsage);
 
-      // Distractors are meanings from other words
-      const otherWordsWithMeanings = validWords.filter(w =>
-        w.id !== target.id &&
+    if (type === 'meaning') {
+      const correctAnswerText = data.meanings[0].english;
+      const otherWordsWithMeanings = optionPool.filter(w =>
+        w.swedish_word !== target.swedish_word &&
         w.word_data?.meanings?.[0]?.english &&
         w.word_data.meanings[0].english !== correctAnswerText
       );
 
-      const distractors = shuffle(otherWordsWithMeanings)
-        .slice(0, 3)
-        .map(w => w.word_data.meanings[0].english);
+      const selectedDistractorWords = shuffle(otherWordsWithMeanings).slice(0, 3);
+      selectedDistractorWords.forEach(w => {
+        const u = updatedUsages.get(w.swedish_word) || { target: 0, option: 0 };
+        u.option += 1;
+        updatedUsages.set(w.swedish_word, u);
+      });
 
-      const rawOptions = shuffle([correctAnswerText, ...distractors]);
-      const options: QuizOption[] = rawOptions.map(optText => ({
-        word: optText,
-      }));
-
+      const rawOptions = shuffle([correctAnswerText, ...selectedDistractorWords.map(w => w.word_data.meanings[0].english)]);
       questions.push({
         id: `${target.id}-${Date.now()}`,
         type,
         targetWord: target.swedish_word,
-        // For meaning quiz, targetMeaning is the same as correctAnswer, so we might hide it in UI feedback
         targetMeaning: correctAnswerText,
         correctAnswer: correctAnswerText,
-        options
+        options: rawOptions.map(optText => ({ word: optText }))
       });
     } else {
-      // Synonym or Antonym logic
       const sourceList = type === 'synonym' ? data.synonyms : data.antonyms;
       const correctAnswerText = sourceList[Math.floor(Math.random() * sourceList.length)];
 
-      const otherWords = validWords.filter(w => w.id !== target.id);
-      const distractors = shuffle(otherWords)
-        .slice(0, 3)
-        .map(w => w.swedish_word);
+      const otherWords = optionPool.filter(w => w.swedish_word !== target.swedish_word);
+      const selectedDistractorWords = shuffle(otherWords).slice(0, 3);
+      selectedDistractorWords.forEach(w => {
+        const u = updatedUsages.get(w.swedish_word) || { target: 0, option: 0 };
+        u.option += 1;
+        updatedUsages.set(w.swedish_word, u);
+      });
 
-      const rawOptions = shuffle([correctAnswerText, ...distractors]);
-      const options: QuizOption[] = rawOptions.map(optText => ({
-        word: optText,
-        meaning: meaningMap.get(optText)
-      }));
-
+      const rawOptions = shuffle([correctAnswerText, ...selectedDistractorWords.map(w => w.swedish_word)]);
       questions.push({
         id: `${target.id}-${Date.now()}`,
         type,
         targetWord: target.swedish_word,
         targetMeaning: data.meanings?.[0]?.english,
         correctAnswer: correctAnswerText,
-        options
+        options: rawOptions.map(optText => ({
+          word: optText,
+          meaning: meaningMap.get(optText)
+        }))
       });
     }
   });
 
-  return questions;
+  // 4. Save Usage and Quiz
+  for (const [word, counts] of updatedUsages.entries()) {
+    const existing = await db.wordUsage.get(word);
+    await db.wordUsage.put({
+      wordSwedish: word,
+      targetCount: (existing?.targetCount || 0) + counts.target,
+      optionCount: (existing?.optionCount || 0) + counts.option,
+    });
+  }
+
+  const quizId = await db.quizzes.add({
+    type,
+    questions,
+    isPracticed: 0,
+    createdAt: new Date().toISOString(),
+  });
+
+  return quizId;
+};
+
+export const markQuizPracticed = async (id: number) => {
+  await db.quizzes.update(id, {
+    isPracticed: 1,
+    practicedAt: new Date().toISOString()
+  });
 };

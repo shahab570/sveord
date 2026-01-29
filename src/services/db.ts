@@ -25,9 +25,27 @@ export interface LocalUserProgress {
     srs_ease?: number;
 }
 
+export interface SavedQuiz {
+    id?: number;
+    type: string;
+    questions: any[];
+    isPracticed: number;
+    createdAt: string;
+    practicedAt?: string;
+}
+
+export interface WordUsage {
+    wordSwedish: string;
+    targetCount: number;
+    optionCount: number;
+}
+
 export class SveordDB extends Dexie {
     words!: Table<LocalWord>;
     progress!: Table<LocalUserProgress>;
+    audio_cache!: Table<AudioCache>;
+    quizzes!: Table<SavedQuiz>;
+    wordUsage!: Table<WordUsage>;
 
     constructor() {
         super('Sveord_v2');
@@ -36,6 +54,11 @@ export class SveordDB extends Dexie {
             progress: 'word_swedish, is_learned, srs_next_review',
             audio_cache: 'word'
         });
+
+        this.version(4).stores({
+            quizzes: '++id, type, isPracticed, createdAt',
+            wordUsage: 'wordSwedish'
+        });
     }
 }
 
@@ -43,12 +66,6 @@ export interface AudioCache {
     word: string;
     blob: Blob;
     created_at: string;
-}
-
-export interface SveordDB extends Dexie {
-    words: Table<LocalWord>;
-    progress: Table<LocalUserProgress>;
-    audio_cache: Table<AudioCache>;
 }
 
 export const db = new SveordDB();
