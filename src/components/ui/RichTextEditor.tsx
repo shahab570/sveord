@@ -23,9 +23,7 @@ export function RichTextEditor({ value, onChange, editable = true, onAiEnhance }
                     levels: [1, 2, 3],
                 }
             }),
-            Link.configure({
-                openOnClick: false,
-            }),
+            // Link is auto-included or added by Markdown, removing explicit duplicate
             Markdown.configure({
                 html: true,
                 transformPastedText: true,
@@ -59,6 +57,16 @@ export function RichTextEditor({ value, onChange, editable = true, onAiEnhance }
             editor.setEditable(editable);
         }
     }, [editable, editor]);
+
+    // Handle external value changes (e.g. from AI enhancement)
+    useEffect(() => {
+        if (editor && value !== editor.storage.markdown?.getMarkdown()) {
+            // Only update if content is actually different to avoid cursor jumps
+            if (value !== editor.getText()) { // rough check, markdown storage check is better but this prevents loops
+                editor.commands.setContent(value);
+            }
+        }
+    }, [value, editor]);
 
 
     if (!editor) {

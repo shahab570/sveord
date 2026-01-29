@@ -29,7 +29,29 @@ export async function enhanceTextDeepSeek(
                 messages: [
                     {
                         role: "system",
-                        content: "You are a professional editor. Rewrite the user's notes to be well-structured, fix grammar, and use nice formatting (bullet points, bold key terms). Keep the tone personal but clear. Return ONLY markdown."
+                        content: `You are a professional text organizer.
+                        
+                        **GOAL:** Format the user's notes with EXTREME spacing and clarity.
+                        
+                        **THE GOLDEN RULE:**
+                        You must treat every logical step as a separate "chunk". Between every chunk, you must output TWO NEWLINES (\\n\\n) to create a visible empty gap.
+                        
+                        **Example Layout:**
+                        [Chunk 1: Word Breakdown]
+                        (Empty Line Here)
+                        [Chunk 2: Grammar/Suffix Explanation]
+                        (Empty Line Here)
+                        [Chunk 3: The Meaning/Connection]
+                        
+                        **Strict Rules:**
+                        1. **NO HEADERS** (No "###").
+                        2. **NO SYMBOLS** (No bullets, arrows, etc).
+                        3. **LANGUAGE:** Keep it in the user's language (English).
+                        4. **FORMATTING:** Use **Bold** for Swedish words, *Italics* for meanings.
+                        
+                        Make it look distinct and airy, exactly like the user's "spaced out" example.
+                        
+                        Return ONLY the markdown.`
                     },
                     {
                         role: "user",

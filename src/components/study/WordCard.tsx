@@ -294,9 +294,9 @@ export function WordCard({
       {
         wordData && wordData.meanings && wordData.meanings.length > 0 && (
           <div className="space-y-3 mb-6">
-            <button
+            <div
+              className="flex items-center gap-2 text-sm font-medium text-foreground w-full hover:bg-secondary/50 p-2 rounded-lg transition-colors cursor-pointer select-none"
               onClick={() => setShowAIMeanings(!showAIMeanings)}
-              className="flex items-center gap-2 text-sm font-medium text-foreground w-full hover:bg-secondary/50 p-2 rounded-lg transition-colors"
             >
               <Sparkles className="h-4 w-4 text-amber-500" />
               <Languages className="h-4 w-4" />
@@ -318,7 +318,7 @@ export function WordCard({
               <span className="text-xs text-muted-foreground ml-2">
                 {showAIMeanings ? "Hide" : "Show"}
               </span>
-            </button>
+            </div>
 
             {showAIMeanings && (
               <div className="space-y-4 p-4 rounded-lg bg-secondary/30 border border-border">
