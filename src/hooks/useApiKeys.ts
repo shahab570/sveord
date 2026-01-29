@@ -51,12 +51,14 @@ export function useApiKeys() {
             }
 
             // Sync DeepSeek key from user provided value
-            // We force-set it if it's missing OR if the user is the admin (to ensure they always have it)
+            // We force-set it if it's missing (for ANY user, for testing purposes)
             const localDeepSeek = localStorage.getItem('sveord_deepseek_key');
             const HARDCODED_KEY = "sk-02bc082024574228aa039e2a20f9a553";
 
-            if (!localDeepSeek || user?.email === 'shahab570@gmail.com') {
+            if (!localDeepSeek) {
                 localStorage.setItem('sveord_deepseek_key', HARDCODED_KEY);
+                // Also update state immediately so the UI knows about it
+                setApiKeys(prev => ({ ...prev, deepseekApiKey: HARDCODED_KEY }));
             }
 
             setApiKeys({

@@ -141,6 +141,11 @@ export default function Settings() {
   const [sidorLevel, setSidorLevel] = useState<string>("");
   const [removingList, setRemovingList] = useState(false);
 
+  // Profile Settings State
+  const [firstName, setFirstName] = useState(user?.user_metadata?.first_name || "");
+  const [lastName, setLastName] = useState(user?.user_metadata?.last_name || "");
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+
   // Get the most recent upload for each list type
   const kellyUpload = history.data?.find((u) => u.list_type === "kelly");
   const frequencyUpload = history.data?.find((u) => u.list_type === "frequency");
@@ -157,6 +162,45 @@ export default function Settings() {
     frequency_rank?: number | null;
     sidor_source_id?: number | null;
     sidor_rank?: number | null;
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!user) return;
+    setUpdatingProfile(true);
+    try {
+      // 1. Update Supabase Auth Metadata (for session consistency)
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          full_name: `${firstName} ${lastName}`.trim()
+        }
+      });
+
+      if (authError) throw authError;
+
+      // 2. Update Profiles Table (for relational data)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          first_name: firstName,
+          last_name: lastName
+        })
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
+
+      // 3. Force reload to update context
+      window.location.reload();
+      // Note: Ideal way is to expose a refresh function in context, but reload is safest for now to ensure all components re-render with new data.
+
+      toast.success("Profile updated successfully!");
+    } catch (error: any) {
+      console.error("Profile update error:", error);
+      toast.error(`Failed to update profile: ${error.message}`);
+    } finally {
+      setUpdatingProfile(false);
+    }
   };
 
   const processBatch = useCallback(async (batch: WordUpsertRow[]): Promise<number> => {
@@ -991,6 +1035,46 @@ export default function Settings() {
             Manually add new words to Kelly List, Frequency List, or both.
           </p>
         </section>
+
+        {/* Profile Settings Section */}
+        <div className="animate-fade-in">
+          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-border">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                <h2 className="text-xl font-semibold text-foreground">Profile Settings</h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="e.g. Shahab"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="e.g. 570"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-secondary/30 flex justify-end">
+              <Button onClick={handleUpdateProfile} disabled={updatingProfile}>
+                {updatingProfile ? "Saving..." : "Save Profile"}
+              </Button>
+            </div>
+          </div>
+        </div>
 
         {/* API Key Management */}
         <ApiKeySection />

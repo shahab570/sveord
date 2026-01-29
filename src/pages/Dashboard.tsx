@@ -34,9 +34,12 @@ import { WordCard } from "@/components/study/WordCard";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const stats = useStats();
   const statsLoading = stats === undefined;
+
+  // Use profile name if available, otherwise fallback to metadata or default
+  const displyName = profile?.first_name || user?.user_metadata?.first_name || 'Shahab';
 
   const detailedStats = useDetailedStats();
   const detailedLoading = detailedStats === undefined;
@@ -73,7 +76,7 @@ export default function Dashboard() {
 
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground lg:leading-[1.1]">
                 Välkommen tillbaka, <br />
-                <span className="text-primary">{user?.user_metadata?.first_name || 'Shahab'}!</span>
+                <span className="text-primary">{displyName}!</span>
               </h1>
 
               <p className="text-lg text-muted-foreground max-w-md leading-relaxed">
