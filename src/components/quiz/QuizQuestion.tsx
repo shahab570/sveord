@@ -25,7 +25,9 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
         <Card className="w-full max-w-2xl mx-auto shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
             <CardHeader className="text-center pb-2 space-y-4">
                 <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider block">
-                    {question.type === 'synonym' ? 'Find the Synonym' : 'Find the Antonym'}
+                    {question.type === 'synonym' ? 'Find the Synonym' :
+                        question.type === 'antonym' ? 'Find the Antonym' :
+                            'Select the Correct Meaning'}
                 </span>
 
                 <div>
@@ -44,8 +46,8 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                         </Button>
                     </div>
 
-                    {/* REVEAL: Show meaning after answer */}
-                    {showFeedback && question.targetMeaning && (
+                    {/* REVEAL: Show meaning after answer - Hide if it's the meaning quiz and identical to answer */}
+                    {showFeedback && question.targetMeaning && question.type !== 'meaning' && (
                         <div className="animate-in fade-in slide-in-from-top-2 duration-500 bg-muted/50 p-3 rounded-lg mx-auto max-w-md mt-4">
                             <div className="flex items-center justify-center gap-2 text-muted-foreground mb-1">
                                 <BookOpen className="w-4 h-4" />

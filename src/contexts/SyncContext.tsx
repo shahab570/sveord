@@ -9,6 +9,7 @@ interface SyncContextType {
     lastSyncTime: Date | null;
     syncAll: () => Promise<void>;
     syncProgress: () => Promise<void>;
+    syncMissingStories: () => Promise<void>;
     forceRefresh: () => Promise<void>;
 }
 
@@ -158,6 +159,61 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user]);
 
+    const syncMissingStories = useCallback(async () => {
+        if (!user || isSyncing) return;
+        setIsSyncing(true);
+        try {
+            const localWordsMissingStories = await db.words
+                .filter(w => !w.word_data?.inflectionExplanation)
+                .toArray();
+
+            if (localWordsMissingStories.length === 0) {
+                toast.info("All local words already have stories.");
+                return;
+            }
+
+            const CHUNK_SIZE = 500;
+            let updatedCount = 0;
+
+            for (let i = 0; i < localWordsMissingStories.length; i += CHUNK_SIZE) {
+                const chunk = localWordsMissingStories.slice(i, i + CHUNK_SIZE);
+                const swedishWords = chunk.map(w => w.swedish_word);
+
+                const { data: cloudWords, error } = await supabase
+                    .from('words')
+                    .select('id, swedish_word, word_data')
+                    .in('swedish_word', swedishWords)
+                    .not('word_data->>inflectionExplanation', 'is', null)
+                    .not('word_data->>inflectionExplanation', 'eq', '');
+
+                if (error) throw error;
+
+                if (cloudWords && cloudWords.length > 0) {
+                    const updates = cloudWords.map(cw => {
+                        const local = chunk.find(lw => lw.swedish_word === cw.swedish_word);
+                        return {
+                            ...local,
+                            id: cw.id,
+                            word_data: cw.word_data as any,
+                            last_synced_at: new Date().toISOString()
+                        } as LocalWord;
+                    });
+
+                    await db.words.bulkPut(updates);
+                    updatedCount += cloudWords.length;
+                }
+            }
+
+            toast.success(`Updated ${updatedCount} words with stories from cloud.`);
+            setLastSyncTime(new Date());
+        } catch (error: any) {
+            console.error('Story sync failed:', error);
+            toast.error(`Failed to sync stories: ${error.message}`);
+        } finally {
+            setIsSyncing(false);
+        }
+    }, [user, isSyncing]);
+
     // Initial sync on mount if DB is empty
     useEffect(() => {
         const checkAndSync = async () => {
@@ -180,7 +236,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }, [user, syncAll, syncProgress]);
 
     return (
-        <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress, forceRefresh }}>
+        <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress, syncMissingStories, forceRefresh }}>
             {children}
         </SyncContext.Provider>
     );

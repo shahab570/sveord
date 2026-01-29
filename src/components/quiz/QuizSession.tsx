@@ -17,7 +17,7 @@ interface QuizSessionProps {
 
 export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit }) => {
     // useWords returns the array directly (from useLiveQuery), undefined while loading
-    const words = useWords();
+    const words = useWords({ learnedOnly: true });
     const wordsLoading = words === undefined;
 
     const [questions, setQuestions] = useState<IQuizQuestion[]>([]);

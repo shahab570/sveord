@@ -49,7 +49,7 @@ export default function Settings() {
   const { user } = useAuth();
   const { resetProgress } = useUserProgress();
   const { history } = useUploadHistory();
-  const { isSyncing, lastSyncTime, syncAll, forceRefresh } = useSync();
+  const { isSyncing, lastSyncTime, syncAll, syncMissingStories, forceRefresh } = useSync();
   const addWord = useAddWord();
 
   const [importProgress, setImportProgress] = useState(0);
@@ -274,12 +274,22 @@ export default function Settings() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => syncMissingStories()}
+                disabled={isSyncing}
+                className="gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+                Sync Cloud Stories
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => syncAll()}
                 disabled={isSyncing}
                 className="gap-2"
               >
                 <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-                Sync Now
+                Sync Progress
               </Button>
             </div>
           </div>

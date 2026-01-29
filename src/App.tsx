@@ -66,7 +66,6 @@ const App = () => (
                     <Route path="/sidor" element={<SidorList />} />
                     <Route path="/search" element={<SearchPage />} />
                     <Route path="/practice" element={<Practice />} />
-                    <Route path="/practice" element={<Practice />} />
                     <Route path="/settings" element={<Settings />} />
                   </Route>
 

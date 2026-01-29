@@ -414,7 +414,36 @@ export function useUserProgress() {
     },
   });
 
-  return { upsertProgress, resetProgress };
+  const refreshWordData = useMutation({
+    mutationFn: async (swedishWord: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: remoteWord, error } = await supabase
+        .from('words')
+        .select('*')
+        .eq('swedish_word', swedishWord)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!remoteWord) return;
+
+      const word: LocalWord = {
+        id: remoteWord.id,
+        swedish_word: remoteWord.swedish_word,
+        kelly_level: remoteWord.kelly_level || undefined,
+        kelly_source_id: remoteWord.kelly_source_id || undefined,
+        frequency_rank: remoteWord.frequency_rank || undefined,
+        sidor_rank: remoteWord.sidor_rank || undefined,
+        word_data: remoteWord.word_data as any,
+        last_synced_at: new Date().toISOString()
+      };
+
+      await db.words.put(word);
+      return word;
+    }
+  });
+
+  return { upsertProgress, resetProgress, refreshWordData };
 }
 
 export function useStats() {

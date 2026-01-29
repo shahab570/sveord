@@ -144,26 +144,27 @@ export default function Practice() {
                             </Button>
                         </Card>
 
-                        {/* 2. Synonym Quiz */}
-                        <Card className="p-6 flex flex-col justify-between border border-border hover:shadow-lg transition-all">
+                        {/* 2. Meaning Quiz */}
+                        <Card className="p-6 flex flex-col justify-between border-2 border-primary/20 bg-card/50 backdrop-blur shadow-lg hover:border-primary/40 transition-all">
                             <div className="space-y-4">
-                                <div className="p-4 bg-blue-100 dark:bg-blue-900/20 rounded-xl w-fit">
-                                    <Repeat2 className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                                <div className="p-4 bg-emerald-100 dark:bg-emerald-900/20 rounded-xl w-fit">
+                                    <BookOpen className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-bold text-foreground mb-2">Synonyms</h2>
-                                    <p className="text-muted-foreground text-sm">Find words with similar meanings.</p>
+                                    <h2 className="text-2xl font-bold text-foreground mb-2">Word Meanings</h2>
+                                    <p className="text-muted-foreground text-sm">Test your knowledge of learned word definitions.</p>
                                 </div>
                             </div>
                             <Button
                                 size="lg"
-                                variant="outline"
-                                className="w-full mt-6 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 dark:border-blue-800"
-                                onClick={() => startQuiz('synonym')}
+                                className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700"
+                                onClick={() => startQuiz('meaning')}
                             >
-                                Start Challenge
+                                Start Quiz
                             </Button>
                         </Card>
+
+                        {/* 3. Synonym Quiz */}
 
                         {/* 3. Antonym Quiz */}
                         <Card className="p-6 flex flex-col justify-between border border-border hover:shadow-lg transition-all">

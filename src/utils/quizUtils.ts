@@ -1,7 +1,7 @@
 
 import { WordData } from '../types/word';
 
-export type QuestionType = 'synonym' | 'antonym';
+export type QuestionType = 'synonym' | 'antonym' | 'meaning';
 
 export interface QuizOption {
   word: string;
@@ -48,9 +48,12 @@ export const generateQuiz = (
     const data = word.word_data as WordData;
     if (type === 'synonym') {
       return data.synonyms && data.synonyms.length > 0;
-    } else {
+    } else if (type === 'antonym') {
       return data.antonyms && data.antonyms.length > 0;
+    } else if (type === 'meaning') {
+      return data.meanings && data.meanings.length > 0;
     }
+    return false;
   });
 
   if (validWords.length < 4) {
@@ -65,34 +68,60 @@ export const generateQuiz = (
   selectedTargets.forEach(target => {
     const data = target.word_data as WordData;
 
-    // 3. Determine correct answer
-    // For now, take the first one or a random one from the list
-    const sourceList = type === 'synonym' ? data.synonyms : data.antonyms;
-    const correctAnswerText = sourceList[Math.floor(Math.random() * sourceList.length)];
+    if (type === 'meaning') {
+      // Correct answer is the first meaning
+      const correctAnswerText = data.meanings[0].english;
 
-    // 4. Generate distractors
-    const otherWords = validWords.filter(w => w.id !== target.id);
-    const distractors = shuffle(otherWords)
-      .slice(0, 3)
-      .map(w => w.swedish_word);
+      // Distractors are meanings from other words
+      const otherWordsWithMeanings = validWords.filter(w =>
+        w.id !== target.id &&
+        w.word_data?.meanings?.[0]?.english &&
+        w.word_data.meanings[0].english !== correctAnswerText
+      );
 
-    // 5. Build Options with Meanings
-    // We try to find meanings for the correct answer and distractors if they exist in our DB
-    const rawOptions = shuffle([correctAnswerText, ...distractors]);
+      const distractors = shuffle(otherWordsWithMeanings)
+        .slice(0, 3)
+        .map(w => w.word_data.meanings[0].english);
 
-    const options: QuizOption[] = rawOptions.map(optText => ({
-      word: optText,
-      meaning: meaningMap.get(optText) // Try to look up meaning if this word exists in our DB
-    }));
+      const rawOptions = shuffle([correctAnswerText, ...distractors]);
+      const options: QuizOption[] = rawOptions.map(optText => ({
+        word: optText,
+      }));
 
-    questions.push({
-      id: `${target.id}-${Date.now()}`,
-      type,
-      targetWord: target.swedish_word,
-      targetMeaning: data.meanings?.[0]?.english,
-      correctAnswer: correctAnswerText,
-      options
-    });
+      questions.push({
+        id: `${target.id}-${Date.now()}`,
+        type,
+        targetWord: target.swedish_word,
+        // For meaning quiz, targetMeaning is the same as correctAnswer, so we might hide it in UI feedback
+        targetMeaning: correctAnswerText,
+        correctAnswer: correctAnswerText,
+        options
+      });
+    } else {
+      // Synonym or Antonym logic
+      const sourceList = type === 'synonym' ? data.synonyms : data.antonyms;
+      const correctAnswerText = sourceList[Math.floor(Math.random() * sourceList.length)];
+
+      const otherWords = validWords.filter(w => w.id !== target.id);
+      const distractors = shuffle(otherWords)
+        .slice(0, 3)
+        .map(w => w.swedish_word);
+
+      const rawOptions = shuffle([correctAnswerText, ...distractors]);
+      const options: QuizOption[] = rawOptions.map(optText => ({
+        word: optText,
+        meaning: meaningMap.get(optText)
+      }));
+
+      questions.push({
+        id: `${target.id}-${Date.now()}`,
+        type,
+        targetWord: target.swedish_word,
+        targetMeaning: data.meanings?.[0]?.english,
+        correctAnswer: correctAnswerText,
+        options
+      });
+    }
   });
 
   return questions;

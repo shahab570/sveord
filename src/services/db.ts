@@ -31,11 +31,24 @@ export class SveordDB extends Dexie {
 
     constructor() {
         super('Sveord_v2');
-        this.version(2).stores({
+        this.version(3).stores({
             words: 'swedish_word, id, kelly_level, frequency_rank, sidor_rank',
-            progress: 'word_swedish, is_learned, srs_next_review'
+            progress: 'word_swedish, is_learned, srs_next_review',
+            audio_cache: 'word'
         });
     }
+}
+
+export interface AudioCache {
+    word: string;
+    blob: Blob;
+    created_at: string;
+}
+
+export interface SveordDB extends Dexie {
+    words: Table<LocalWord>;
+    progress: Table<LocalUserProgress>;
+    audio_cache: Table<AudioCache>;
 }
 
 export const db = new SveordDB();
