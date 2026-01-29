@@ -5,7 +5,7 @@ import { QuizQuestion } from './QuizQuestion';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, RefreshCw, Trophy, ArrowRight, X } from 'lucide-react';
+import { Loader2, RefreshCw, Trophy, ArrowRight, X, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { WordCard } from "@/components/study/WordCard";
 import { useAuth } from '@/contexts/AuthContext';
@@ -165,8 +165,23 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
 
     return (
         <div className="max-w-3xl mx-auto space-y-6 py-8 relative">
-            {/* Exit button top right */}
-            <div className="absolute top-0 right-0">
+            {/* Header controls: Delete and Exit */}
+            <div className="absolute top-0 right-0 flex items-center gap-2">
+                {activeQuizId && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                            if (confirm("Delete this quiz permanently from your library?")) {
+                                await db.quizzes.delete(activeQuizId);
+                                onExit();
+                            }
+                        }}
+                        className="gap-1 text-muted-foreground hover:text-destructive"
+                    >
+                        <Trash2 className="w-4 h-4" /> Delete
+                    </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={onExit} className="gap-1 text-muted-foreground">
                     <X className="w-4 h-4" /> Exit
                 </Button>
