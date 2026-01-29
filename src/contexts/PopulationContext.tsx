@@ -48,12 +48,35 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
     // Import this dynamically or assume it's imported at top
     // create a wrapper function
     const enhanceUserNote = async (text: string): Promise<string> => {
-        if (!apiKeys.geminiApiKey) {
+        // Fix: Don't fail if Gemini key is missing but DeepSeek key exists
+        if (!apiKeys.geminiApiKey && !apiKeys.deepseekApiKey) {
             toast.error("No API key configured");
             throw new Error("No API key");
         }
-        // distinct import needed if not available
-        // We need to make sure enhanceText is imported from geminiApi
+
+        // Try DeepSeek first if available
+        if (apiKeys.deepseekApiKey) {
+            try {
+                const { enhanceTextDeepSeek } = await import('@/services/deepseekApi');
+                const result = await enhanceTextDeepSeek(text, apiKeys.deepseekApiKey);
+
+                if ('error' in result) {
+                    console.warn("DeepSeek failed, falling back to Gemini:", result.error);
+                    // Fall through to Gemini if available
+                } else {
+                    return result.text;
+                }
+            } catch (e) {
+                console.warn("DeepSeek error, falling back to Gemini");
+            }
+        }
+
+        // Fallback to Gemini
+        if (!apiKeys.geminiApiKey) {
+            toast.error("DeepSeek failed and no Gemini key available");
+            throw new Error("No meaningful fallback");
+        }
+
         const { enhanceText } = await import('@/services/geminiApi');
         const result = await enhanceText(text, apiKeys.geminiApiKey);
 
