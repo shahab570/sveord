@@ -32,18 +32,37 @@ export const generateQuiz = async (
   type: QuestionType,
   count: number = 10
 ): Promise<number | null> => {
+  // 0. Validation helper
+  const isInvalidMeaning = (m?: string) => {
+    if (!m) return true;
+    const lower = m.toLowerCase();
+    return (
+      lower.includes("generation failed") ||
+      lower.includes("analyzing") ||
+      lower.includes("failed to generate") ||
+      m.length < 3
+    );
+  };
+
   // 1. Fetch usage data
   const swedishWords = words.map(w => w.swedish_word);
   const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
   const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
 
-  // 2. Filter words by strategic limits
+  // 2. Filter words by strategic limits AND data quality
   // Target limit: 3 times. Option limit: 4 times.
-  const targetPool = words.filter(w => (usageMap.get(w.swedish_word)?.targetCount || 0) < 3);
-  const optionPool = words.filter(w => (usageMap.get(w.swedish_word)?.optionCount || 0) < 4);
+  const targetPool = words.filter(w =>
+    (usageMap.get(w.swedish_word)?.targetCount || 0) < 3 &&
+    !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)
+  );
+
+  const optionPool = words.filter(w =>
+    (usageMap.get(w.swedish_word)?.optionCount || 0) < 4 &&
+    !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)
+  );
 
   if (targetPool.length === 0) {
-    console.warn('No more words available for target questions (hit 3x limit)');
+    console.warn('No more words available for target questions (hit limits or invalid data)');
     return null;
   }
 
