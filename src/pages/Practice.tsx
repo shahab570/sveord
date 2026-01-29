@@ -223,10 +223,26 @@ export default function Practice() {
 
                         {/* REVIEW ARCHIVE */}
                         <div className="space-y-6">
-                            <div className="flex items-center gap-3 border-b border-border pb-4">
-                                <History className="h-6 w-6 text-muted-foreground" />
-                                <h2 className="text-2xl font-bold text-foreground tracking-tight">Review Archive</h2>
-                                <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">{practicedQuizzes?.length || 0} Saved</span>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
+                                <div className="flex items-center gap-3">
+                                    <History className="h-6 w-6 text-muted-foreground" />
+                                    <h2 className="text-2xl font-bold text-foreground tracking-tight">Review Archive</h2>
+                                    <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">{practicedQuizzes?.length || 0} Saved</span>
+                                </div>
+                                {practicedQuizzes && practicedQuizzes.length > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        onClick={async () => {
+                                            if (confirm("This will permanently delete ALL saved quizzes and reset your word mastery counts. Are you sure?")) {
+                                                await db.clearAllQuizzes();
+                                            }
+                                        }}
+                                    >
+                                        Reset Quiz Progress
+                                    </Button>
+                                )}
                             </div>
 
                             {practicedQuizzes && practicedQuizzes.length > 0 ? (

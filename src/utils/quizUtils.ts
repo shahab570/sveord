@@ -95,6 +95,13 @@ export const generateQuiz = async (
   shuffledTargets.forEach(target => {
     const data = target.word_data as WordData;
 
+    // Auto-repair: If we somehow picked a word that has "Generation Failed" in the DB (even though we filtered), 
+    // clear it out to allow re-generation.
+    if (isInvalidMeaning(data.meanings?.[0]?.english)) {
+      db.words.update(target.swedish_word, { word_data: undefined });
+      return;
+    }
+
     // Track target usage
     const targetUsage = updatedUsages.get(target.swedish_word) || { target: 0, option: 0 };
     targetUsage.target += 1;

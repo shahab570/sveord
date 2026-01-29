@@ -60,6 +60,11 @@ export class SveordDB extends Dexie {
             wordUsage: 'wordSwedish'
         });
     }
+
+    async clearAllQuizzes() {
+        await this.quizzes.clear();
+        await this.wordUsage.clear();
+    }
 }
 
 export interface AudioCache {
