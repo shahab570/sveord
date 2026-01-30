@@ -44,6 +44,8 @@ export function setActiveConfig(model: string, version: string) {
     console.log(`Gemini API configured: ${model} (${version})`);
 }
 
+export type GeminiVersion = 'v1' | 'v1beta';
+
 export interface WordMeaningResult {
     meanings: Array<{
         english: string;
@@ -463,6 +465,56 @@ export async function generateAIQuizData(
     } catch (e) {
         console.error("AI Quiz generation failed:", e);
         return [];
+    }
+}
+
+/**
+ * Generates a detailed explanation for a quiz question.
+ */
+export async function getQuizExplanation(
+    question: any,
+    selectedAnswer: string | null,
+    version: GeminiVersion = 'v1beta',
+    model: string = 'gemini-1.5-flash'
+): Promise<string> {
+    const apiKey = localStorage.getItem('GEMINI_API_KEY');
+    if (!apiKey) throw new Error("Gemini API key not found. Please add it in Settings.");
+
+    const questionJson = JSON.stringify(question, null, 2);
+    const prompt = `Explain the following Swedish language quiz question.
+    
+    Question data:
+    ${questionJson}
+    
+    User selected: "${selectedAnswer}"
+    Correct answer: "${question.correctAnswer}"
+    
+    Provide a clear, pedagogical explanation in English. 
+    1. Explain why the correct answer is "${question.correctAnswer}".
+    2. Briefly explain why the other options were incorrect or how they differ.
+    3. If the type is 'antonym' or 'synonym', explain the relationship between the words.
+    4. Keep it concise but helpful for a language learner.
+    Do NOT use complex jargon. Use bold for Swedish words.`;
+
+    try {
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 500,
+                }
+            })
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch explanation from Gemini");
+        const data = await response.json();
+        return data.candidates[0].content.parts[0].text;
+    } catch (error) {
+        console.error("Error getting quiz explanation:", error);
+        return "Sorry, I couldn't generate an explanation right now. Please try again.";
     }
 }
 

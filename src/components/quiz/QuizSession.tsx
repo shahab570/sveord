@@ -13,6 +13,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/services/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useCaptureWord } from '@/hooks/useCaptureWord';
+import { getQuizExplanation } from '@/services/geminiApi';
+import { Sparkles } from 'lucide-react';
 
 interface QuizSessionProps {
     type: QuestionType;
@@ -33,9 +35,11 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
     const [generationError, setGenerationError] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // Persisted session answers
+    // Persisted session answers and explanations
     const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
     const [multiDialogueAnswers, setMultiDialogueAnswers] = useState<Record<number, Record<number, string>>>({});
+    const [explanations, setExplanations] = useState<Record<number, string>>({});
+    const [isExplaining, setIsExplaining] = useState(false);
 
     // Modal State
     const [selectedWordKey, setSelectedWordKey] = useState<string | null>(null);
@@ -154,6 +158,18 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         setActiveQuizId(null); // Force generate new one
     };
 
+    const handleGetExplanation = async () => {
+        if (explanations[currentIndex] || isExplaining) return;
+
+        setIsExplaining(true);
+        try {
+            const explanation = await getQuizExplanation(questions[currentIndex], userAnswers[currentIndex] || null);
+            setExplanations(prev => ({ ...prev, [currentIndex]: explanation }));
+        } finally {
+            setIsExplaining(false);
+        }
+    };
+
     const handleWordClick = (word: string) => {
         setSelectedWordKey(word);
     };
@@ -259,6 +275,9 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
                     onWordClick={handleWordClick}
                     selectedAnswer={selectedAnswer}
                     showFeedback={showFeedback}
+                    explanation={explanations[currentIndex]}
+                    isExplaining={isExplaining}
+                    onGetExplanation={handleGetExplanation}
                 />
             )}
 

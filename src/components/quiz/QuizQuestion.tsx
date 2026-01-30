@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { QuizQuestion as IQuizQuestion } from '@/utils/quizUtils';
-import { CheckCircle2, XCircle, BookOpen, Info, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, BookOpen, Info, RefreshCw, Sparkles, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface QuizQuestionProps {
     question: IQuizQuestion;
@@ -12,6 +13,9 @@ interface QuizQuestionProps {
     onWordClick: (word: string) => void;
     selectedAnswer: string | null;
     showFeedback: boolean;
+    explanation?: string;
+    isExplaining?: boolean;
+    onGetExplanation?: () => void;
 }
 
 export const QuizQuestion: React.FC<QuizQuestionProps> = ({
@@ -20,6 +24,9 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
     onWordClick,
     selectedAnswer,
     showFeedback,
+    explanation,
+    isExplaining,
+    onGetExplanation
 }) => {
     return (
         <Card className="w-full max-w-2xl mx-auto shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -168,6 +175,46 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                     })
                 )}
             </CardContent>
+
+            {showFeedback && (
+                <div className="border-t p-6 space-y-4 bg-muted/20 rounded-b-xl animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-primary font-medium">
+                            <Sparkles className="w-5 h-5" />
+                            <span>AI Insights</span>
+                        </div>
+                        {!explanation && onGetExplanation && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={onGetExplanation}
+                                disabled={isExplaining}
+                                className="gap-2 bg-background shadow-sm hover:bg-primary/5 border-primary/20"
+                            >
+                                {isExplaining ? (
+                                    <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</>
+                                ) : (
+                                    <><Sparkles className="w-4 h-4" /> Explain with AI</>
+                                )}
+                            </Button>
+                        )}
+                    </div>
+
+                    {explanation && (
+                        <div className="bg-background rounded-xl p-6 text-base leading-relaxed border border-primary/10 shadow-sm transition-all duration-300">
+                            <div className="prose prose-sm max-w-none dark:prose-invert">
+                                <ReactMarkdown
+                                    components={{
+                                        strong: ({ node, ...props }) => <strong className="text-primary font-bold" {...props} />
+                                    }}
+                                >
+                                    {explanation}
+                                </ReactMarkdown>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </Card>
     );
 };
