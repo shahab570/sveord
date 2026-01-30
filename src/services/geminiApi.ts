@@ -3,9 +3,9 @@ let ACTIVE_MODEL = 'gemini-1.5-flash';
 let ACTIVE_VERSION = 'v1';
 
 const getApiUrl = (version: string, model: string) => {
-    const v = (version || 'v1beta').trim();
-    // Strip "models/" prefix if it accidentally exists to prevent double-prefix 404s
-    const m = (model || 'gemini-1.5-flash').trim().replace(/^models\//, '');
+    const v = (version || 'v1').trim().replace(/\s+/g, '');
+    // Strip "models/" prefix and ALL WHITESPACE to prevent URL errors
+    const m = (model || 'gemini-1.5-flash').trim().replace(/^models\//, '').replace(/\s+/g, '');
     return `https://generativelanguage.googleapis.com/${v}/models/${m}:generateContent`;
 };
 
@@ -43,15 +43,17 @@ function parseGeminiResponse(responseText: string | undefined): any {
  * Configure the active model and version (used to persist selection)
  */
 export function setActiveConfig(model: string, version: string) {
-    // Sanitize accidental experimental or dirty model names
-    let sanitizedModel = model.trim().replace(/^models\//, '');
+    // Sanitize accidental experimental or dirty model names. Strip all whitespace!
+    let sanitizedModel = model.trim().replace(/^models\//, '').replace(/\s+/g, '');
+    let sanitizedVersion = version.trim().replace(/\s+/g, '');
+
     if (sanitizedModel.includes('2.5') || sanitizedModel.includes('2.0')) {
         sanitizedModel = 'gemini-1.5-flash';
     }
 
     ACTIVE_MODEL = sanitizedModel;
-    ACTIVE_VERSION = version;
-    console.log(`[GeminiConfig] Applied: ${sanitizedModel} (${version})`);
+    ACTIVE_VERSION = sanitizedVersion;
+    console.log(`[GeminiConfig] Applied: ${sanitizedModel} (${sanitizedVersion})`);
 }
 
 export type GeminiVersion = 'v1' | 'v1beta';
@@ -537,6 +539,17 @@ export async function getQuizExplanation(
             if (response.status === 404 && v === 'v1beta') {
                 console.log('[GeminiExplanation] 404 on v1beta, retrying with v1...');
                 return getQuizExplanation(question, selectedAnswer, apiKey, 'v1', m);
+            }
+
+            // Extreme fallback: list models and try to find a valid Flash model
+            if (response.status === 404) {
+                console.warn('[GeminiExplanation] Total 404. Fetching available model list as fallback...');
+                const available = await listModels(apiKey);
+                const betterModel = available.find(mod => mod.includes('1.5-flash')) || available.find(mod => mod.includes('flash'));
+                if (betterModel && betterModel !== m) {
+                    console.log(`[GeminiExplanation] Found replacement model: ${betterModel}. Retrying...`);
+                    return getQuizExplanation(question, selectedAnswer, apiKey, v as GeminiVersion, betterModel);
+                }
             }
 
             throw new Error(`Failed to fetch explanation: ${response.status}`);
