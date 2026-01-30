@@ -2,7 +2,7 @@ import { WordData } from '../types/word';
 import { db } from '../services/db';
 import { generateAIQuizData } from '../services/geminiApi';
 
-export type QuestionType = 'synonym' | 'antonym' | 'meaning' | 'context' | 'dialogue';
+export type QuestionType = 'synonym' | 'antonym' | 'meaning' | 'context' | 'dialogue' | 'translation' | 'recall';
 
 export interface QuizOption {
   word: string;
@@ -59,20 +59,22 @@ export const generateQuiz = async (
   const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
   const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
 
-  // 2. Filter words by strategic limits AND data quality
-  // Target limit: 3 times. Option limit: 4 times.
-  const targetPool = words.filter(w =>
-    (usageMap.get(w.swedish_word)?.targetCount || 0) < 3 &&
-    !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)
-  );
+  // 2. Rank words by usage frequency to prioritize "fresh" ones
+  // We filter invalid meanings but KEEP words that have hit limits, just deprioritizing them
+  const validWords = words.filter(w => !isInvalidMeaning(w.word_data?.meanings?.[0]?.english));
 
-  const optionPool = words.filter(w =>
-    (usageMap.get(w.swedish_word)?.optionCount || 0) < 4 &&
-    !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)
-  );
+  const rankedPool = validWords.sort((a, b) => {
+    const aUsage = usageMap.get(a.swedish_word)?.targetCount || 0;
+    const bUsage = usageMap.get(b.swedish_word)?.targetCount || 0;
+    return aUsage - bUsage;
+  });
+
+  // Take the target candidates from the least-used words
+  const targetPool = rankedPool.slice(0, Math.max(count * 2, 20));
+  const optionPool = validWords; // Use all valid words for options, prioritized by usage in logic if needed but simple filter works for now
 
   if (targetPool.length === 0) {
-    console.warn('No more words available for target questions (hit limits or invalid data)');
+    console.warn('No words available for quiz generation');
     return null;
   }
 
@@ -90,7 +92,7 @@ export const generateQuiz = async (
     const data = word.word_data as WordData;
     if (type === 'synonym') return data.synonyms && data.synonyms.length > 0;
     if (type === 'antonym') return data.antonyms && data.antonyms.length > 0;
-    if (type === 'meaning') return data.meanings && data.meanings.length > 0;
+    if (type === 'meaning' || type === 'translation' || type === 'recall') return data.meanings && data.meanings.length > 0;
     return false;
   });
 
@@ -140,6 +142,46 @@ export const generateQuiz = async (
         targetMeaning: correctAnswerText,
         correctAnswer: correctAnswerText,
         options: rawOptions.map(optText => ({ word: optText }))
+      });
+    } else if (type === 'translation') {
+      const correctAnswerText = target.swedish_word;
+      const targetMeaningText = data.meanings[0].english;
+
+      const otherWords = optionPool.filter(w =>
+        w.swedish_word !== target.swedish_word &&
+        !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)
+      );
+
+      const selectedDistractorWords = shuffle(otherWords).slice(0, 3);
+      selectedDistractorWords.forEach(w => {
+        const u = updatedUsages.get(w.swedish_word) || { target: 0, option: 0 };
+        u.option += 1;
+        updatedUsages.set(w.swedish_word, u);
+      });
+
+      const rawOptions = shuffle([correctAnswerText, ...selectedDistractorWords.map(w => w.swedish_word)]);
+      questions.push({
+        id: `${target.id}-${Date.now()}`,
+        type,
+        targetWord: targetMeaningText, // English word is the prompt
+        targetMeaning: correctAnswerText, // Swedish word is the answer
+        correctAnswer: correctAnswerText,
+        options: rawOptions.map(optText => ({
+          word: optText,
+          meaning: meaningMap.get(optText)
+        }))
+      });
+    } else if (type === 'recall') {
+      const correctAnswerText = target.swedish_word;
+      const targetMeaningText = data.meanings[0].english;
+
+      questions.push({
+        id: `${target.id}-${Date.now()}`,
+        type,
+        targetWord: targetMeaningText, // English prompt
+        targetMeaning: correctAnswerText, // Swedish answer
+        correctAnswer: correctAnswerText,
+        options: [] // No options for recall mode
       });
     } else {
       const sourceList = type === 'synonym' ? data.synonyms : data.antonyms;
@@ -215,10 +257,15 @@ export const generateAIQuiz = async (
   const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
   const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
 
-  const targetPool = words.filter(w =>
-    (usageMap.get(w.swedish_word)?.targetCount || 0) < 3 &&
-    !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)
-  );
+  const validWords = words.filter(w => !isInvalidMeaning(w.word_data?.meanings?.[0]?.english));
+
+  const rankedPool = validWords.sort((a, b) => {
+    const aUsage = usageMap.get(a.swedish_word)?.targetCount || 0;
+    const bUsage = usageMap.get(b.swedish_word)?.targetCount || 0;
+    return aUsage - bUsage;
+  });
+
+  const targetPool = rankedPool.slice(0, Math.max(count * 2, 20));
 
   if (targetPool.length === 0) return null;
 

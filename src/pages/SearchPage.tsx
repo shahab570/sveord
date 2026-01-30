@@ -3,8 +3,13 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { WordCard } from "@/components/study/WordCard";
 import { useWords, WordWithProgress } from "@/hooks/useWords";
 import { Input } from "@/components/ui/input";
-import { Search, BookOpen, GraduationCap, Hash, BookMarked } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, BookOpen, GraduationCap, Hash, BookMarked, Sparkles, Plus, Loader2 } from "lucide-react";
 import { VirtualList } from "@/components/common/VirtualList";
+import { generateFTWordContent } from "@/services/geminiApi";
+import { useApiKeys } from "@/hooks/useApiKeys";
+import { db } from "@/services/db";
+import { toast } from "sonner";
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -12,6 +17,8 @@ export default function SearchPage() {
   const [selectedWord, setSelectedWord] = useState<WordWithProgress | null>(
     null
   );
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { apiKeys } = useApiKeys();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -44,13 +51,18 @@ export default function SearchPage() {
     }
   }, [words, selectedWord]);
 
-  // Split words into Kelly, Frequency, and Sidor lists
-  const { kellyWords, frequencyWords, sidorWords } = useMemo(() => {
-    if (!words) return { kellyWords: [], frequencyWords: [], sidorWords: [] };
+  // Split words into Kelly, Frequency, Sidor, and FT lists, filtering out learned ones
+  const { kellyWords, frequencyWords, sidorWords, ftWords } = useMemo(() => {
+    if (!words) return { kellyWords: [], frequencyWords: [], sidorWords: [], ftWords: [] };
+
+    // Filtering learned words out of the search columns as requested
+    const unlearned = words.filter(w => !w.progress?.is_learned);
+
     return {
-      kellyWords: words.filter((w) => w.kelly_level !== null),
-      frequencyWords: words.filter((w) => w.frequency_rank !== null),
-      sidorWords: words.filter((w) => w.sidor_rank !== null),
+      kellyWords: unlearned.filter((w) => w.kelly_level !== null),
+      frequencyWords: unlearned.filter((w) => w.frequency_rank !== null),
+      sidorWords: unlearned.filter((w) => w.sidor_rank !== null),
+      ftWords: unlearned.filter((w) => w.is_ft === 1),
     };
   }, [words]);
 
@@ -66,20 +78,68 @@ export default function SearchPage() {
     }
   };
 
-  const renderWordItem = (word: WordWithProgress, listType: "kelly" | "frequency" | "sidor") => {
+  const handleAddWordToFT = async () => {
+    if (!debouncedSearch.trim()) return;
+    if (!apiKeys.geminiApiKey) {
+      toast.error("Please add a Gemini API Key in Settings to use the FT List.");
+      return;
+    }
+
+    const wordToGenerate = debouncedSearch.trim().toLowerCase();
+    setIsGenerating(true);
+
+    try {
+      const result = await generateFTWordContent(wordToGenerate, apiKeys.geminiApiKey);
+
+      if ('error' in result) {
+        toast.error(`Generation failed: ${result.error}`);
+        return;
+      }
+
+      await db.words.put({
+        swedish_word: wordToGenerate,
+        word_data: {
+          word_type: result.partOfSpeech || 'noun',
+          gender: result.gender,
+          meanings: result.meanings || [],
+          examples: result.examples || [],
+          synonyms: result.synonyms || [],
+          antonyms: result.antonyms || [],
+          inflectionExplanation: result.inflectionExplanation,
+          populated_at: new Date().toISOString()
+        },
+        is_ft: 1,
+        last_synced_at: new Date().toISOString()
+      });
+
+      toast.success(`Successfully added "${wordToGenerate}" to FT List!`);
+      // Since words list in SearchPage is live, it will refresh automatically
+    } catch (error) {
+      console.error(error);
+      toast.error("An unexpected error occurred during generation.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const renderWordItem = (word: WordWithProgress, listType: "kelly" | "frequency" | "sidor" | "ft") => {
     const isLearned = word.progress?.is_learned;
 
     const learnedClasses = listType === "kelly"
       ? "bg-emerald-100 border-l-4 border-l-emerald-600 border-y border-r border-emerald-200 shadow-md"
       : listType === "frequency"
         ? "bg-blue-100 border-l-4 border-l-blue-600 border-y border-r border-blue-200 shadow-md"
-        : "bg-purple-100 border-l-4 border-l-purple-600 border-y border-r border-purple-200 shadow-md";
+        : listType === "sidor"
+          ? "bg-purple-100 border-l-4 border-l-purple-600 border-y border-r border-purple-200 shadow-md"
+          : "bg-indigo-100 border-l-4 border-l-indigo-600 border-y border-r border-indigo-200 shadow-md";
 
     const unlearnedBg = listType === "kelly"
       ? "bg-emerald-50/30 border border-emerald-100 hover:border-emerald-300"
       : listType === "frequency"
         ? "bg-blue-50/30 border border-blue-100 hover:border-blue-300"
-        : "bg-purple-50/30 border border-purple-100 hover:border-purple-300";
+        : listType === "sidor"
+          ? "bg-purple-50/30 border border-purple-100 hover:border-purple-300"
+          : "bg-indigo-50/30 border border-indigo-100 hover:border-indigo-300";
 
     return (
       <button
@@ -189,9 +249,9 @@ export default function SearchPage() {
                 ))}
               </div>
             ) : words && words.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Kelly */}
-                <div className="border border-emerald-500/20 rounded-2xl p-5 bg-emerald-50/10 flex flex-col h-[600px] shadow-sm">
+                <div className="border border-emerald-500/20 rounded-2xl p-4 bg-emerald-50/10 flex flex-col h-[600px] shadow-sm">
                   <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-500/10">
                     <GraduationCap className="h-5 w-5 text-emerald-600" />
                     <h3 className="text-lg font-bold text-emerald-800">Kelly List</h3>
@@ -207,7 +267,7 @@ export default function SearchPage() {
                 </div>
 
                 {/* Frequency */}
-                <div className="border border-blue-500/20 rounded-2xl p-5 bg-blue-50/10 flex flex-col h-[600px] shadow-sm">
+                <div className="border border-blue-500/20 rounded-2xl p-4 bg-blue-50/10 flex flex-col h-[600px] shadow-sm">
                   <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/10">
                     <Hash className="h-5 w-5 text-blue-600" />
                     <h3 className="text-lg font-bold text-blue-800">Frequency List</h3>
@@ -223,7 +283,7 @@ export default function SearchPage() {
                 </div>
 
                 {/* Sidor */}
-                <div className="border border-purple-500/20 rounded-2xl p-5 bg-purple-50/10 flex flex-col h-[600px] shadow-sm">
+                <div className="border border-purple-500/20 rounded-2xl p-4 bg-purple-50/10 flex flex-col h-[600px] shadow-sm">
                   <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-500/10">
                     <BookMarked className="h-5 w-5 text-purple-600" />
                     <h3 className="text-lg font-bold text-purple-800">Sidor List</h3>
@@ -237,10 +297,46 @@ export default function SearchPage() {
                     renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "sidor")}</div>}
                   />
                 </div>
+
+                {/* FT List */}
+                <div className="border border-indigo-500/20 rounded-2xl p-4 bg-indigo-50/10 flex flex-col h-[600px] shadow-sm">
+                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-indigo-500/10">
+                    <Sparkles className="h-5 w-5 text-indigo-600" />
+                    <h3 className="text-lg font-bold text-indigo-800">FT List</h3>
+                    <span className="ml-auto bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-bold">{ftWords.length}</span>
+                  </div>
+                  <VirtualList
+                    items={ftWords}
+                    height="100%"
+                    itemHeight={64}
+                    getItemKey={(index) => ftWords[index].swedish_word}
+                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "ft")}</div>}
+                  />
+                </div>
               </div>
             ) : (
-              <div className="text-center py-20 bg-card border border-dashed border-border rounded-3xl">
-                <p className="text-muted-foreground text-lg">No results found for "{searchQuery}"</p>
+              <div className="text-center py-20 bg-card border border-dashed border-border rounded-3xl flex flex-col items-center gap-6">
+                <div className="space-y-2">
+                  <p className="text-muted-foreground text-lg italic">No results found in your current lists for "{searchQuery}"</p>
+                  <p className="text-sm text-muted-foreground">Would you like to generate an AI card and add it to your FT List?</p>
+                </div>
+                <Button
+                  onClick={handleAddWordToFT}
+                  disabled={isGenerating}
+                  className="h-12 px-8 rounded-xl bg-purple-600 hover:bg-purple-700 hover:scale-105 transition-all shadow-lg gap-3"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-5 w-5" />
+                      Add "{searchQuery}" to FT List
+                    </>
+                  )}
+                </Button>
               </div>
             )}
           </div>

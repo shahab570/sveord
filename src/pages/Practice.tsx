@@ -4,7 +4,7 @@ import { Flashcard } from "@/components/practice/Flashcard";
 import { useWords, useUserProgress, WordWithProgress } from "@/hooks/useWords";
 import { db } from "@/services/db";
 import { useLiveQuery } from "dexie-react-hooks";
-import { BookOpen, CheckCircle, Flame, BrainCircuit, Repeat2, Sparkles, History, GraduationCap, Clock, Trash2 } from "lucide-react";
+import { BookOpen, CheckCircle, Flame, BrainCircuit, Repeat2, Sparkles, History, GraduationCap, Clock, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { QuizSession } from "@/components/quiz/QuizSession";
@@ -170,38 +170,6 @@ export default function Practice() {
                 {mode === 'menu' && (
                     <div className="space-y-12">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 pt-8">
-                            {/* Mastery Review Card (Shuffle from history) */}
-                            <Card className="p-6 flex flex-col justify-between border-2 border-primary/20 bg-primary/5 backdrop-blur shadow-lg hover:border-primary/40 transition-all">
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-primary/10 rounded-xl w-fit">
-                                        <History className="h-8 w-8 text-primary" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-foreground mb-2">Mastery Review</h2>
-                                        <p className="text-muted-foreground text-sm">Shuffle and replay quizzes you've completed in the past.</p>
-                                    </div>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-sm font-medium text-muted-foreground">Revision Library: </span>
-                                        <span className="text-xl font-bold text-primary">{practicedQuizzes?.length || 0}</span>
-                                    </div>
-                                </div>
-                                <Button
-                                    size="lg"
-                                    className="w-full mt-6 gap-2"
-                                    disabled={!practicedQuizzes || practicedQuizzes.length === 0}
-                                    onClick={async () => {
-                                        const practiced = await db.quizzes.where('isPracticed').equals(1).toArray();
-                                        if (practiced.length > 0) {
-                                            const randomQuiz = practiced[Math.floor(Math.random() * practiced.length)];
-                                            playSavedQuiz(randomQuiz.id!, randomQuiz.type);
-                                        }
-                                    }}
-                                >
-                                    <Repeat2 className="h-5 w-5" />
-                                    Shuffle Review
-                                </Button>
-                            </Card>
-
                             {/* 1. SRS Card */}
                             <Card className="p-6 flex flex-col justify-between border-2 border-primary/20 bg-card/50 backdrop-blur shadow-lg hover:border-primary/40 transition-all">
                                 <div className="space-y-4">
@@ -356,6 +324,58 @@ export default function Practice() {
                                             Generating...
                                         </>
                                     ) : 'Start Challenge'}
+                                </Button>
+                            </Card>
+
+                            {/* 7. Translation MCQ */}
+                            <Card className="p-6 flex flex-col justify-between border-2 border-violet-500/20 bg-card/50 backdrop-blur shadow-lg hover:border-violet-500/40 transition-all">
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-violet-100 dark:bg-violet-900/20 rounded-xl w-fit">
+                                        <GraduationCap className="h-8 w-8 text-violet-600 dark:text-violet-400" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-foreground mb-2">Swedish MCQ</h2>
+                                        <p className="text-muted-foreground text-sm">Guess the Swedish word for an English meaning (MCQ).</p>
+                                    </div>
+                                </div>
+                                <Button
+                                    size="lg"
+                                    className="w-full mt-6 bg-violet-600 hover:bg-violet-700"
+                                    onClick={() => startQuiz('translation')}
+                                    disabled={!!generatingType}
+                                >
+                                    {generatingType === 'translation' ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : 'Start Production'}
+                                </Button>
+                            </Card>
+
+                            {/* 8. Recall Practice */}
+                            <Card className="p-6 flex flex-col justify-between border-2 border-pink-500/20 bg-card/50 backdrop-blur shadow-lg hover:border-pink-500/40 transition-all">
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-pink-100 dark:bg-pink-900/20 rounded-xl w-fit">
+                                        <BrainCircuit className="h-8 w-8 text-pink-600 dark:text-pink-400" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-foreground mb-2">Recall Master</h2>
+                                        <p className="text-muted-foreground text-sm">Active recall: See English, produce the Swedish word.</p>
+                                    </div>
+                                </div>
+                                <Button
+                                    size="lg"
+                                    className="w-full mt-6 bg-pink-600 hover:bg-pink-700"
+                                    onClick={() => startQuiz('recall')}
+                                    disabled={!!generatingType}
+                                >
+                                    {generatingType === 'recall' ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : 'Start Recall'}
                                 </Button>
                             </Card>
                         </div>

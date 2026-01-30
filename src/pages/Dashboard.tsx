@@ -17,6 +17,7 @@ import {
   Flag,
   AlertTriangle,
   CheckCircle,
+  Sparkles,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
@@ -138,6 +139,10 @@ export default function Dashboard() {
                       <span className="flex items-center gap-1">
                         <BookMarked className="h-4 w-4" />
                         Sidor: {detailedStats?.sidorToday || 0}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="h-4 w-4" />
+                        FT: {detailedStats?.ftToday || 0}
                       </span>
                     </div>
                   </div>
@@ -371,6 +376,25 @@ export default function Dashboard() {
                   );
                 })}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* FT List Progress */}
+        <div className="animate-fade-in" style={{ animationDelay: "235ms" }}>
+          {statsLoading ? (
+            <Skeleton className="h-32 w-full rounded-2xl" />
+          ) : stats && stats.ftStats && (
+            <div className="word-card">
+              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                FT List Progress
+              </h2>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Words mastered in your custom list</span>
+                <span className="text-sm font-bold">{stats.ftStats.learned} / {stats.ftStats.total}</span>
+              </div>
+              <Progress value={stats.ftStats.total > 0 ? (stats.ftStats.learned / stats.ftStats.total) * 100 : 0} className="h-2" />
             </div>
           )}
         </div>

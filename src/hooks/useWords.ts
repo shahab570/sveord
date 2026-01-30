@@ -93,6 +93,10 @@ export function useWords(filters?: {
       collection = db.words.where('sidor_rank').between(filters.sidorRange[0], filters.sidorRange[1], true, true);
     } else if (filters?.ftOnly || filters?.listType === "ft") {
       collection = db.words.where('is_ft').equals(1);
+    } else {
+      // Default: Search across all lists including FT - use a compound index if possible or just filter
+      // For now, let's ensure the baseline collection includes all rows
+      collection = db.words.toCollection();
     }
 
     let words = await collection.toArray();
@@ -579,6 +583,7 @@ export function useDetailedStats() {
     let kellyToday = 0;
     let frequencyToday = 0;
     let sidorToday = 0;
+    let ftToday = 0;
 
     // Bulk fetch words for today's learned items
     const todaySwedishWords = learnedTodayItems.map(p => p.word_swedish);
@@ -588,6 +593,7 @@ export function useDetailedStats() {
         if (w.kelly_level) kellyToday++;
         if (w.frequency_rank) frequencyToday++;
         if (w.sidor_rank) sidorToday++;
+        if (w.is_ft) ftToday++;
       }
     }
 
@@ -613,6 +619,7 @@ export function useDetailedStats() {
       kellyToday,
       frequencyToday,
       sidorToday,
+      ftToday,
       learnedThisWeek,
       learnedThisMonth,
       allTime: allLearned.length,

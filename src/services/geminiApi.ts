@@ -416,6 +416,10 @@ export async function generateAIQuizData(
         typeInstruction = "For each word, create a natural Swedish sentence with a blank marked as '[[blank]]' where the word fits perfectly. Provide the target word as the answer and 3 other grammatically correct but contextually wrong Swedish words as options.";
     } else if (type === 'dialogue') {
         typeInstruction = "Create a short 4-6 turn conversation between two speakers. Include 3-5 blanks marked as [[0]], [[1]], etc. Each blank MUST correspond to one of the target words provided. For each blank, provide the correct answer and 3 smart Swedish distractor words.";
+    } else if (type === 'translation') {
+        typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. Provide 3 other common Swedish words as options to test the user's ability to produce the correct Swedish term based on English.";
+    } else if (type === 'recall') {
+        typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. This is a flashcard-style recall practice, so ensure the targetWord (English) is clear and the answer (Swedish) is accurate. Set an empty options array.";
     }
 
     const prompt = `You are a Swedish language educator. Create a high-quality quiz for these words: ${JSON.stringify(wordList)}.
@@ -453,6 +457,7 @@ export async function generateAIQuizData(
 
         const data = await response.json();
         const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        return parseGeminiResponse(responseText);
     } catch (e) {
         console.error("AI Quiz generation failed:", e);
         return [];

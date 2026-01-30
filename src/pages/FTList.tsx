@@ -21,7 +21,13 @@ export default function FTList() {
     const levelStats = useLevelStats("ft");
 
     const isLoading = words === undefined;
-    const displayWords = words || [];
+
+    const unlearnedWords = useMemo(() => {
+        if (!words) return [];
+        return words.filter((w) => !w.progress?.is_learned);
+    }, [words]);
+
+    const displayWords = unlearnedWords;
 
     const totalCount = levelStats?.["Total"]?.total || 0;
     const learnedCount = levelStats?.["Total"]?.learned || 0;
