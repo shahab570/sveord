@@ -102,12 +102,17 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
     const selectedAnswer = userAnswers[currentIndex] || null;
     const showFeedback = !!selectedAnswer || !!(multiDialogueAnswers[currentIndex] && Object.keys(multiDialogueAnswers[currentIndex]).length === questions[currentIndex].blanks?.length);
 
+    const compareAnswers = (a?: string | null, b?: string | null) => {
+        if (!a || !b) return false;
+        return a.trim().toLowerCase() === b.trim().toLowerCase();
+    };
+
     const handleAnswer = (answer: string) => {
         if (userAnswers[currentIndex]) return; // Already answered
 
         setUserAnswers(prev => ({ ...prev, [currentIndex]: answer }));
 
-        if (answer.trim().toLowerCase() === questions[currentIndex].correctAnswer?.trim().toLowerCase()) {
+        if (compareAnswers(answer, questions[currentIndex].correctAnswer)) {
             setScore(s => s + 1);
         }
     };
@@ -123,7 +128,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
             const currentQ = questions[currentIndex];
             if (currentQ.blanks?.every(b => !!newAnswers[b.index])) {
                 // Calculate score contribution
-                const correctCount = currentQ.blanks.filter(b => newAnswers[b.index].trim().toLowerCase() === b.answer.trim().toLowerCase()).length;
+                const correctCount = currentQ.blanks.filter(b => compareAnswers(newAnswers[b.index], b.answer)).length;
                 if (correctCount === currentQ.blanks.length) {
                     setScore(s => s + 1);
                 }
@@ -163,8 +168,12 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
 
         setIsExplaining(true);
         try {
+            console.log('Fetching AI explanation for:', questions[currentIndex].targetWord);
             const explanation = await getQuizExplanation(questions[currentIndex], userAnswers[currentIndex] || null);
-            setExplanations(prev => ({ ...prev, [currentIndex]: explanation }));
+            setExplanations(prev => ({ ...prev, [currentIndex]: explanation || "ERROR" }));
+        } catch (e) {
+            console.error('Explanation error:', e);
+            setExplanations(prev => ({ ...prev, [currentIndex]: "ERROR" }));
         } finally {
             setIsExplaining(false);
         }

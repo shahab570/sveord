@@ -434,15 +434,17 @@ export async function generateAIQuizData(
     
     Format the response as a JSON array of objects.
     Structure for 'meaning', 'synonym', 'antonym', 'translation':
-    { "type": "...", "targetWord": "word", "correctAnswer": "answer", "options": [{ "word": "text", "swedishWord": "the associated Swedish word", "meaning": "optional english hint" }] }
+    { "type": "...", "targetWord": "word", "correctAnswer": "answer", "options": [{ "word": "answer", "swedishWord": "...", "meaning": "..." }, { "word": "distractor1", ... }] }
+    
+    CRITICAL: The 'options' array MUST include the 'correctAnswer' as one of the choices.
     
     Structure for 'context':
     { "type": "context", "targetWord": "word", "sentence": "Jag bor i en [[blank]].", "correctAnswer": "hus", "options": [{ "word": "bil", "swedishWord": "bil" }, { "word": "skog", "swedishWord": "skog" }, { "word": "stad", "swedishWord": "stad" }, { "word": "hus", "swedishWord": "hus" }] }
     
     Structure for 'dialogue':
-    { "type": "dialogue", "dialogue": [{ "speaker": "A", "text": "Hej, hur [[0]] det?" }], "blanks": [{ "index": 0, "answer": "mår", "options": ["går", "är", "står"] }] }
+    { "type": "dialogue", "dialogue": [{ "speaker": "A", "text": "Hej, hur [[0]] det?" }], "blanks": [{ "index": 0, "answer": "mår", "options": ["mår", "går", "är", "står"] }] }
     
-    CRITICAL: For 'meaning' type, ensure each object in the 'options' array includes the 'swedishWord' field (the original Swedish word the English meaning belongs to). Return ONLY the JSON array.`;
+    CRITICAL: For 'meaning' type, ensure each object in the 'options' array includes the 'swedishWord' field. The 'options' array MUST always contain the 'correctAnswer' (or 'answer' for dialogue). Return ONLY the JSON array.`;
 
     try {
         const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {

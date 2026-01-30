@@ -115,7 +115,14 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                         let icon = null;
 
                         if (showFeedback) {
-                            const isOptionCorrect = optionText.trim().toLowerCase() === (question.correctAnswer || "").trim().toLowerCase();
+                            const rawCorrect = question.correctAnswer;
+                            const normalizedCorrect = typeof rawCorrect === 'string'
+                                ? rawCorrect.trim().toLowerCase()
+                                : typeof rawCorrect === 'object' && rawCorrect !== null && 'word' in rawCorrect
+                                    ? (rawCorrect as any).word.trim().toLowerCase()
+                                    : String(rawCorrect || "").trim().toLowerCase();
+
+                            const isOptionCorrect = optionText.trim().toLowerCase() === normalizedCorrect;
                             const isOptionSelected = optionText.trim().toLowerCase() === (selectedAnswer || "").trim().toLowerCase();
 
                             if (isOptionCorrect) {
@@ -129,7 +136,14 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                             variant = "default";
                         }
 
-                        const isGreen = showFeedback && optionText.trim().toLowerCase() === (question.correctAnswer || "").trim().toLowerCase();
+                        const rawCorrect = question.correctAnswer;
+                        const normalizedCorrect = typeof rawCorrect === 'string'
+                            ? rawCorrect.trim().toLowerCase()
+                            : typeof rawCorrect === 'object' && rawCorrect !== null && 'word' in rawCorrect
+                                ? (rawCorrect as any).word.trim().toLowerCase()
+                                : String(rawCorrect || "").trim().toLowerCase();
+
+                        const isGreen = showFeedback && optionText.trim().toLowerCase() === normalizedCorrect;
 
                         return (
                             <div key={index} className="flex flex-col">
@@ -213,6 +227,12 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+
+            {showFeedback && explanation === "ERROR" && (
+                <div className="mt-4 p-4 text-center bg-destructive/5 text-destructive rounded-lg border border-destructive/20 text-sm">
+                    AI was unable to generate an explanation for this question.
                 </div>
             )}
         </Card>
