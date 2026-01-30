@@ -142,24 +142,22 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                                             )}
                                         </div>
                                     </Button>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
                                         {icon}
-                                        {question.type !== 'meaning' && (
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className={cn(
-                                                    "h-8 w-8 ml-2 hover:bg-background/20 rounded-full",
-                                                    isGreen ? "text-white hover:text-white" : "text-muted-foreground hover:text-primary"
-                                                )}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onWordClick(optionText);
-                                                }}
-                                            >
-                                                <Info className="w-4 h-4" />
-                                            </Button>
-                                        )}
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={cn(
+                                                "h-8 w-8 ml-2 hover:bg-background/20 rounded-full",
+                                                isGreen ? "text-white hover:text-white" : "text-muted-foreground hover:text-primary"
+                                            )}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onWordClick(optionObj.swedishWord || optionText);
+                                            }}
+                                        >
+                                            <Info className="w-4 h-4" />
+                                        </Button>
                                     </div>
                                 </div>
                             </div>

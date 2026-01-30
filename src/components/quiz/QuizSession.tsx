@@ -12,6 +12,7 @@ import { WordCard } from "@/components/study/WordCard";
 import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/services/db';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useCaptureWord } from '@/hooks/useCaptureWord';
 
 interface QuizSessionProps {
     type: QuestionType;
@@ -39,9 +40,28 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
 
     // Modal State
     const [selectedWordKey, setSelectedWordKey] = useState<string | null>(null);
+    const [capturedWord, setCapturedWord] = useState<WordWithProgress | null>(null);
+    const { captureWord, isCapturing: isCapturingWord } = useCaptureWord();
+
     // Find selected word from ALL words (since quiz might involve words not in the current learned list filter if revisiting old quizzes)
     const allWords = useLiveQuery(() => db.words.toArray());
-    const selectedWord = allWords?.find(w => w.swedish_word === selectedWordKey) as WordWithProgress | undefined;
+    const matchedWord = allWords?.find(w => w.swedish_word === selectedWordKey?.toLowerCase()) as WordWithProgress | undefined;
+
+    // Effect to handle capturing word if match is not found
+    useEffect(() => {
+        const handleCapture = async () => {
+            if (selectedWordKey && !matchedWord && !isCapturingWord) {
+                console.log(`Word "${selectedWordKey}" not found, attempts to capture...`);
+                const result = await captureWord(selectedWordKey);
+                if (result) {
+                    setCapturedWord(result);
+                }
+            } else if (matchedWord) {
+                setCapturedWord(matchedWord);
+            }
+        };
+        handleCapture();
+    }, [selectedWordKey, matchedWord, isCapturingWord, captureWord]);
 
     useEffect(() => {
         const loadQuiz = async () => {
@@ -252,26 +272,36 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
             </div>
 
             {/* Word Detail Modal */}
-            <Dialog open={!!selectedWordKey} onOpenChange={(open) => !open && setSelectedWordKey(null)}>
+            <Dialog open={!!selectedWordKey} onOpenChange={(open) => {
+                if (!open) {
+                    setSelectedWordKey(null);
+                    setCapturedWord(null);
+                }
+            }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogTitle className="sr-only">Word Details</DialogTitle>
-                    {selectedWord ? (
+                    {capturedWord ? (
                         <WordCard
-                            word={selectedWord}
+                            word={capturedWord}
                             onPrevious={() => { }}
                             onNext={() => { }}
                             hasPrevious={false}
                             hasNext={false}
                             currentIndex={0}
                             totalCount={1}
-                            learnedCount={0}
+                            learnedCount={capturedWord.progress?.is_learned ? 1 : 0}
                             isRandomMode={false}
                             onToggleRandom={() => { }}
                             showRandomButton={false}
                         />
+                    ) : isCapturingWord ? (
+                        <div className="p-12 flex flex-col items-center gap-4 text-center animate-pulse">
+                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                            <p className="text-muted-foreground font-medium">Finding base form and generating details...</p>
+                        </div>
                     ) : (
-                        <div className="p-4 text-center text-muted-foreground">
-                            Word details not found.
+                        <div className="p-8 text-center text-muted-foreground">
+                            Word details not found or failed to generate.
                         </div>
                     )}
                 </DialogContent>

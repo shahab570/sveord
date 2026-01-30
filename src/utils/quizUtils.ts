@@ -9,6 +9,7 @@ export const MAX_QUIZ_TARGET_LIMIT = 10; // Maximum number of times a word shoul
 export interface QuizOption {
   word: string;
   meaning?: string;
+  swedishWord?: string; // The associated Swedish word for lookups
 }
 
 export interface QuizBlank {
@@ -153,14 +154,18 @@ export const generateQuiz = async (
         updatedUsages.set(w.swedish_word, u);
       });
 
-      const rawOptions = shuffle([correctAnswerText, ...selectedDistractorWords.map(w => w.word_data.meanings[0].english)]);
+      const rawOptions = shuffle([
+        { word: correctAnswerText, swedishWord: target.swedish_word },
+        ...selectedDistractorWords.map(w => ({ word: w.word_data.meanings[0].english, swedishWord: w.swedish_word }))
+      ]);
+
       questions.push({
         id: `${target.id}-${Date.now()}`,
         type,
         targetWord: target.swedish_word,
         targetMeaning: correctAnswerText,
         correctAnswer: correctAnswerText,
-        options: rawOptions.map(optText => ({ word: optText }))
+        options: rawOptions
       });
     } else if (type === 'translation') {
       const correctAnswerText = target.swedish_word;
@@ -178,17 +183,22 @@ export const generateQuiz = async (
         updatedUsages.set(w.swedish_word, u);
       });
 
-      const rawOptions = shuffle([correctAnswerText, ...selectedDistractorWords.map(w => w.swedish_word)]);
+      const rawOptions = shuffle([
+        { word: correctAnswerText, swedishWord: correctAnswerText, meaning: targetMeaningText },
+        ...selectedDistractorWords.map(w => ({
+          word: w.swedish_word,
+          swedishWord: w.swedish_word,
+          meaning: meaningMap.get(w.swedish_word)
+        }))
+      ]);
+
       questions.push({
         id: `${target.id}-${Date.now()}`,
         type,
         targetWord: targetMeaningText, // English word is the prompt
         targetMeaning: correctAnswerText, // Swedish word is the answer
         correctAnswer: correctAnswerText,
-        options: rawOptions.map(optText => ({
-          word: optText,
-          meaning: meaningMap.get(optText)
-        }))
+        options: rawOptions
       });
     } else if (type === 'recall') {
       const correctAnswerText = target.swedish_word;
@@ -214,17 +224,22 @@ export const generateQuiz = async (
         updatedUsages.set(w.swedish_word, u);
       });
 
-      const rawOptions = shuffle([correctAnswerText, ...selectedDistractorWords.map(w => w.swedish_word)]);
+      const rawOptions = shuffle([
+        { word: correctAnswerText, swedishWord: correctAnswerText, meaning: data.meanings?.[0]?.english },
+        ...selectedDistractorWords.map(w => ({
+          word: w.swedish_word,
+          swedishWord: w.swedish_word,
+          meaning: meaningMap.get(w.swedish_word)
+        }))
+      ]);
+
       questions.push({
         id: `${target.id}-${Date.now()}`,
         type,
         targetWord: target.swedish_word,
         targetMeaning: data.meanings?.[0]?.english,
         correctAnswer: correctAnswerText,
-        options: rawOptions.map(optText => ({
-          word: optText,
-          meaning: meaningMap.get(optText)
-        }))
+        options: rawOptions
       });
     }
   });

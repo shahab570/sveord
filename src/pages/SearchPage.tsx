@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, BookOpen, GraduationCap, Hash, BookMarked, Sparkles, Plus, Loader2 } from "lucide-react";
 import { VirtualList } from "@/components/common/VirtualList";
-import { generateFTWordContent } from "@/services/geminiApi";
+import { useCaptureWord } from "@/hooks/useCaptureWord";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { db } from "@/services/db";
 import { toast } from "sonner";
@@ -17,8 +17,8 @@ export default function SearchPage() {
   const [selectedWord, setSelectedWord] = useState<WordWithProgress | null>(
     null
   );
-  const [isGenerating, setIsGenerating] = useState(false);
   const { apiKeys } = useApiKeys();
+  const { captureWord, isCapturing } = useCaptureWord();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -77,45 +77,11 @@ export default function SearchPage() {
 
   const handleAddWordToFT = async () => {
     if (!debouncedSearch.trim()) return;
-    if (!apiKeys.geminiApiKey) {
-      toast.error("Please add a Gemini API Key in Settings to use the FT List.");
-      return;
-    }
 
-    const wordToGenerate = debouncedSearch.trim().toLowerCase();
-    setIsGenerating(true);
-
-    try {
-      const result = await generateFTWordContent(wordToGenerate, apiKeys.geminiApiKey);
-
-      if ('error' in result) {
-        toast.error(`Generation failed: ${result.error}`);
-        return;
-      }
-
-      await db.words.put({
-        swedish_word: wordToGenerate,
-        word_data: {
-          word_type: result.partOfSpeech || 'noun',
-          gender: result.gender,
-          meanings: result.meanings || [],
-          examples: result.examples || [],
-          synonyms: result.synonyms || [],
-          antonyms: result.antonyms || [],
-          inflectionExplanation: result.inflectionExplanation,
-          populated_at: new Date().toISOString()
-        },
-        is_ft: 1,
-        last_synced_at: new Date().toISOString()
-      });
-
-      toast.success(`Successfully added "${wordToGenerate}" to FT List!`);
+    const result = await captureWord(debouncedSearch);
+    if (result) {
+      toast.success(`Successfully added "${result.swedish_word}" to FT List!`);
       // Since words list in SearchPage is live, it will refresh automatically
-    } catch (error) {
-      console.error(error);
-      toast.error("An unexpected error occurred during generation.");
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -320,10 +286,10 @@ export default function SearchPage() {
                 </div>
                 <Button
                   onClick={handleAddWordToFT}
-                  disabled={isGenerating}
+                  disabled={isCapturing}
                   className="h-12 px-8 rounded-xl bg-purple-600 hover:bg-purple-700 hover:scale-105 transition-all shadow-lg gap-3"
                 >
-                  {isGenerating ? (
+                  {isCapturing ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
                       Generating...

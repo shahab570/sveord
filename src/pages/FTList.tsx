@@ -5,19 +5,18 @@ import { useWords, useLevelStats } from "@/hooks/useWords";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Plus, Loader2, BookOpen } from "lucide-react";
-import { generateFTWordContent } from "@/services/geminiApi";
 import { useApiKeys } from "@/hooks/useApiKeys";
-import { db } from "@/services/db";
 import { toast } from "sonner";
+import { useCaptureWord } from "@/hooks/useCaptureWord";
 
 export default function FTList() {
     const [newWord, setNewWord] = useState("");
-    const [isGenerating, setIsGenerating] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isRandomMode, setIsRandomMode] = useState(false);
     const [showLearned, setShowLearned] = useState(false);
 
     const { apiKeys } = useApiKeys();
+    const { captureWord, isCapturing } = useCaptureWord();
     const words = useWords({ listType: "ft" });
     const levelStats = useLevelStats("ft");
 
@@ -35,58 +34,11 @@ export default function FTList() {
     const handleAddWord = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!newWord.trim()) return;
-        if (!apiKeys.geminiApiKey) {
-            toast.error("Please add a Gemini API Key in Settings to use the FT List.");
-            return;
-        }
 
-        const wordToGenerate = newWord.trim().toLowerCase();
-
-        // Check if word already exists
-        const existing = await db.words.get(wordToGenerate);
-        if (existing) {
-            if (existing.is_ft) {
-                toast.info(`"${wordToGenerate}" is already in your FT List.`);
-                return;
-            }
-            // If it exists in another list, maybe we should still mark it as FT or just navigate?
-            // For now, let's allow "promoting" it to FT list if it's not already there.
-        }
-
-        setIsGenerating(true);
-        try {
-            const result = await generateFTWordContent(wordToGenerate, apiKeys.geminiApiKey);
-
-            if ('error' in result) {
-                toast.error(`Generation failed: ${result.error}`);
-                return;
-            }
-
-            await db.words.put({
-                swedish_word: wordToGenerate,
-                word_data: {
-                    word_type: result.partOfSpeech || 'noun',
-                    gender: result.gender,
-                    meanings: result.meanings || [],
-                    examples: result.examples || [],
-                    synonyms: result.synonyms || [],
-                    antonyms: result.antonyms || [],
-                    inflectionExplanation: result.inflectionExplanation,
-                    populated_at: new Date().toISOString()
-                },
-                is_ft: 1,
-                last_synced_at: new Date().toISOString()
-            });
-
-            toast.success(`Successfully added "${wordToGenerate}" to FT List!`);
+        const result = await captureWord(newWord);
+        if (result) {
+            toast.success(`Successfully added "${result.swedish_word}" to FT List!`);
             setNewWord("");
-            // Navigate to the newly added word (usually ends up at the end or reshuffled)
-            // Since it's a live query, words will update automatically.
-        } catch (error) {
-            console.error(error);
-            toast.error("An unexpected error occurred during generation.");
-        } finally {
-            setIsGenerating(false);
         }
     };
 
@@ -158,10 +110,10 @@ export default function FTList() {
                                 placeholder="Enter a new Swedish word..."
                                 value={newWord}
                                 onChange={(e) => setNewWord(e.target.value)}
-                                disabled={isGenerating}
+                                disabled={isCapturing}
                                 className="pr-10 h-12 rounded-xl text-lg"
                             />
-                            {isGenerating && (
+                            {isCapturing && (
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
                                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
                                 </div>
@@ -169,10 +121,10 @@ export default function FTList() {
                         </div>
                         <Button
                             type="submit"
-                            disabled={isGenerating || !newWord.trim()}
+                            disabled={isCapturing || !newWord.trim()}
                             className="h-12 px-6 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-md gap-2"
                         >
-                            {isGenerating ? "Generating..." : (
+                            {isCapturing ? "Generating..." : (
                                 <>
                                     <Plus className="h-5 w-5" />
                                     Add Word

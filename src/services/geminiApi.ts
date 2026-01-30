@@ -58,6 +58,8 @@ export interface WordMeaningResult {
     partOfSpeech?: string;
     gender?: string;
     inflectionExplanation?: string;
+    baseForm?: string;
+    isInflected?: boolean;
 }
 
 export interface AIQuizQuestion {
@@ -429,16 +431,16 @@ export async function generateAIQuizData(
     ${typeInstruction}
     
     Format the response as a JSON array of objects.
-    Structure for 'meaning', 'synonym', 'antonym':
-    { "type": "${type}", "targetWord": "word", "correctAnswer": "answer", "options": [{ "word": "text", "meaning": "optional english hint" }] }
+    Structure for 'meaning', 'synonym', 'antonym', 'translation':
+    { "type": "...", "targetWord": "word", "correctAnswer": "answer", "options": [{ "word": "text", "swedishWord": "the associated Swedish word", "meaning": "optional english hint" }] }
     
     Structure for 'context':
-    { "type": "context", "targetWord": "word", "sentence": "Jag bor i en [[blank]].", "correctAnswer": "hus", "options": [{ "word": "bil" }, { "word": "skog" }, { "word": "stad" }, { "word": "hus" }] }
+    { "type": "context", "targetWord": "word", "sentence": "Jag bor i en [[blank]].", "correctAnswer": "hus", "options": [{ "word": "bil", "swedishWord": "bil" }, { "word": "skog", "swedishWord": "skog" }, { "word": "stad", "swedishWord": "stad" }, { "word": "hus", "swedishWord": "hus" }] }
     
     Structure for 'dialogue':
     { "type": "dialogue", "dialogue": [{ "speaker": "A", "text": "Hej, hur [[0]] det?" }], "blanks": [{ "index": 0, "answer": "mår", "options": ["går", "är", "står"] }] }
     
-    CRITICAL: Ensure the JSON is valid and strictly follows the schema. Return ONLY the JSON array.`;
+    CRITICAL: For 'meaning' type, ensure each object in the 'options' array includes the 'swedishWord' field (the original Swedish word the English meaning belongs to). Return ONLY the JSON array.`;
 
     try {
         const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
@@ -486,12 +488,15 @@ Requirements:
 5. **Part of Speech**: Must be one of: "noun", "verb", "adjective", "adverb", "preposition", "conjunction", "pronoun", "interjection".
 6. **Gender**: If noun, specify "en" or "ett".
 7. **Inflection Explanation**: A 1-2 sentence "Base Word Story" explaining the word's form or usage tips.
+8. **Base Form detection**: (CRITICAL) Identify the dictionary/base form of the word. If the word is already a base form, return true for isInflected: false. If it is inflected (plural, conjugated, etc.), provide the baseForm (e.g. "by" for "byar") and set isInflected: true.
 
 Format your response as JSON:
 {
   "partOfSpeech": "noun/verb/etc",
   "gender": "en/ett/null",
   "inflectionExplanation": "...",
+  "baseForm": "correct root word",
+  "isInflected": true/false,
   "meanings": [{"english": "meaning 1", "context": ""}, {"english": "meaning 2", "context": ""}],
   "examples": [{"swedish": "...", "english": "..."}, {"swedish": "...", "english": "..."}],
   "synonyms": ["...", "..."],
@@ -529,6 +534,8 @@ ONLY return the JSON.`;
             partOfSpeech: result.partOfSpeech,
             gender: result.gender,
             inflectionExplanation: result.inflectionExplanation,
+            baseForm: result.baseForm,
+            isInflected: result.isInflected
         };
     } catch (error: any) {
         return { error: 'Parse Error', details: error.message };
