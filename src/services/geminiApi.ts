@@ -39,9 +39,15 @@ function parseGeminiResponse(responseText: string | undefined): any {
  * Configure the active model and version (used to persist selection)
  */
 export function setActiveConfig(model: string, version: string) {
-    ACTIVE_MODEL = model;
+    // Sanitize accidental experimental model names
+    let sanitizedModel = model;
+    if (model === 'gemini-2.5-flash' || model === 'gemini-2.0-flash') {
+        sanitizedModel = 'gemini-1.5-flash';
+    }
+
+    ACTIVE_MODEL = sanitizedModel;
     ACTIVE_VERSION = version;
-    console.log(`Gemini API configured: ${model} (${version})`);
+    console.log(`Gemini API configured: ${sanitizedModel} (${version})`);
 }
 
 export type GeminiVersion = 'v1' | 'v1beta';
@@ -316,9 +322,8 @@ export async function validateGeminiApiKey(apiKey: string): Promise<{ success: b
     // Prioritize the models we saw in your screenshot!
     const modelsToTry = [...new Set([
         ...availableModels.filter(m => m.includes('flash') || m.includes('pro')),
-        'gemini-2.0-flash',
         'gemini-1.5-flash',
-        'gemini-2.5-flash',
+        'gemini-1.5-pro',
         'gemini-flash-latest',
         'gemini-pro-latest'
     ])].filter(m => !m.includes('vision') && !m.includes('embedding') && m !== '');
@@ -477,8 +482,8 @@ export async function getQuizExplanation(
     question: any,
     selectedAnswer: string | null,
     apiKey: string,
-    version: GeminiVersion = 'v1beta',
-    model: string = 'gemini-1.5-flash'
+    version: GeminiVersion = ACTIVE_VERSION as GeminiVersion,
+    model: string = ACTIVE_MODEL
 ): Promise<string> {
     if (!apiKey) throw new Error("Gemini API key not found. Please add it in Settings.");
 
