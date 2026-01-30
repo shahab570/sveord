@@ -13,6 +13,7 @@ export interface Word {
   frequency_rank: number | null;
   sidor_source_id: number | null;
   sidor_rank: number | null;
+  is_ft?: number;
   created_at: string;
   word_data: WordData | null;
 }
@@ -76,7 +77,8 @@ export function useWords(filters?: {
   sidorRange?: [number, number];
   learnedOnly?: boolean;
   search?: string;
-  listType?: "kelly" | "frequency" | "sidor";
+  listType?: "kelly" | "frequency" | "sidor" | "ft";
+  ftOnly?: boolean;
 }) {
   const { user } = useAuth();
 
@@ -89,6 +91,8 @@ export function useWords(filters?: {
       collection = db.words.where('frequency_rank').between(filters.frequencyRange[0], filters.frequencyRange[1], true, true);
     } else if (filters?.sidorRange) {
       collection = db.words.where('sidor_rank').between(filters.sidorRange[0], filters.sidorRange[1], true, true);
+    } else if (filters?.ftOnly || filters?.listType === "ft") {
+      collection = db.words.where('is_ft').equals(1);
     }
 
     let words = await collection.toArray();
@@ -101,6 +105,8 @@ export function useWords(filters?: {
         words = words.filter(w => !!w.frequency_rank);
       } else if (filters?.listType === "sidor") {
         words = words.filter(w => !!w.sidor_rank);
+      } else if (filters?.listType === "ft") {
+        words = words.filter(w => !!w.is_ft);
       }
     }
 
@@ -142,6 +148,7 @@ export function useWords(filters?: {
         frequency_rank: w.frequency_rank || null,
         sidor_source_id: null,
         sidor_rank: w.sidor_rank || null,
+        is_ft: w.is_ft || 0,
         created_at: "",
         word_data: w.word_data || null,
         progress: progress ? {
@@ -164,7 +171,7 @@ export function useWords(filters?: {
 }
 
 // Hook to get level stats for a specific list type
-export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
+export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") {
   const { user } = useAuth();
 
   return useLiveQuery(async () => {
@@ -205,7 +212,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
 
         stats[freqLevel.label] = { total, learned };
       }
-    } else {
+    } else if (listType === "sidor") {
       // Sidor list
       for (const sidorLevel of SIDOR_LEVELS) {
         const total = await db.words.where('sidor_rank').between(sidorLevel.range[0], sidorLevel.range[1], true, true).count();
@@ -220,6 +227,17 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor") {
 
         stats[sidorLevel.label] = { total, learned };
       }
+    } else {
+      // FT list
+      const total = await db.words.where('is_ft').equals(1).count();
+      let learned = 0;
+      for (const p of learnedProgress) {
+        const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
+        if (w && w.is_ft) {
+          learned++;
+        }
+      }
+      stats["Total"] = { total, learned };
     }
 
     return stats;
@@ -529,6 +547,10 @@ export function useStats() {
       kellyStats,
       frequencyStats,
       sidorStats,
+      ftStats: {
+        total: await db.words.where('is_ft').equals(1).count(),
+        learned: learnedWordDefs.filter(w => !!w.is_ft).length
+      }
     };
   }, [user?.id]);
 }

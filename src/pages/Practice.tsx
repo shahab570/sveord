@@ -16,12 +16,12 @@ export default function Practice() {
     const [mode, setMode] = useState<'menu' | 'srs' | 'quiz'>('menu');
     const [quizType, setQuizType] = useState<QuestionType | null>(null);
     const [activeQuizId, setActiveQuizId] = useState<number | null>(null);
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [generatingType, setGeneratingType] = useState<QuestionType | null>(null);
 
     // SRS State
     const [currentIndex, setCurrentIndex] = useState(0);
     const { upsertProgress } = useUserProgress();
-    const words = useWords(); // Fetch all words for quiz generation
+    const words = useWords({ learnedOnly: true }); // Only fetch learned words for quiz generation
     const { apiKeys } = useApiKeys();
 
     const dueWords = useLiveQuery(async () => {
@@ -98,9 +98,12 @@ export default function Practice() {
     };
 
     const startQuiz = async (type: QuestionType) => {
-        if (!words || words.length === 0) return;
+        if (!words || words.length === 0) {
+            alert("Learn some words first to start a quiz!");
+            return;
+        }
 
-        setIsGenerating(true);
+        setGeneratingType(type);
         try {
             const apiKey = apiKeys.geminiApiKey;
 
@@ -112,7 +115,7 @@ export default function Practice() {
                 // Fallback to algorithmic for synonym/antonym/meaning if no key
                 if (type === 'context' || type === 'dialogue') {
                     alert("A Gemini API Key is required for Context and Dialogue mastery modes. Please add one in Settings.");
-                    setIsGenerating(false);
+                    setGeneratingType(null);
                     return;
                 }
                 id = await generateQuiz(words, type);
@@ -129,7 +132,7 @@ export default function Practice() {
             console.error("Failed to generate quiz:", error);
             alert("Error generating quiz. Please check your internet connection.");
         } finally {
-            setIsGenerating(false);
+            setGeneratingType(null);
         }
     };
 
@@ -239,9 +242,14 @@ export default function Practice() {
                                     size="lg"
                                     className="w-full mt-6 bg-orange-600 hover:bg-orange-700"
                                     onClick={() => startQuiz('context')}
-                                    disabled={isGenerating}
+                                    disabled={!!generatingType}
                                 >
-                                    {isGenerating ? 'Generating...' : 'Start Context Quiz'}
+                                    {generatingType === 'context' ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : 'Start Context Quiz'}
                                 </Button>
                             </Card>
 
@@ -260,9 +268,14 @@ export default function Practice() {
                                     size="lg"
                                     className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700"
                                     onClick={() => startQuiz('dialogue')}
-                                    disabled={isGenerating}
+                                    disabled={!!generatingType}
                                 >
-                                    {isGenerating ? 'Generating...' : 'Start Dialogue'}
+                                    {generatingType === 'dialogue' ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : 'Start Dialogue'}
                                 </Button>
                             </Card>
 
@@ -273,17 +286,22 @@ export default function Practice() {
                                         <BookOpen className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                                     </div>
                                     <div>
-                                        <h2 className="text-2xl font-bold text-foreground mb-2">Word Meanings</h2>
-                                        <p className="text-muted-foreground text-sm">AI-driven semantic analysis and smart options.</p>
+                                        <h2 className="text-2xl font-bold text-foreground mb-2">Word Meaning Mastery</h2>
+                                        <p className="text-muted-foreground text-sm">Guess English meanings of Swedish words you've learned.</p>
                                     </div>
                                 </div>
                                 <Button
                                     size="lg"
                                     className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700"
                                     onClick={() => startQuiz('meaning')}
-                                    disabled={isGenerating}
+                                    disabled={!!generatingType}
                                 >
-                                    {isGenerating ? 'Generating...' : 'Start AI Quiz'}
+                                    {generatingType === 'meaning' ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : 'Start Mastery'}
                                 </Button>
                             </Card>
 
@@ -303,9 +321,14 @@ export default function Practice() {
                                     variant="outline"
                                     className="w-full mt-6 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 dark:border-blue-800"
                                     onClick={() => startQuiz('synonym')}
-                                    disabled={isGenerating}
+                                    disabled={!!generatingType}
                                 >
-                                    {isGenerating ? 'Generating...' : 'Start Challenge'}
+                                    {generatingType === 'synonym' ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : 'Start Challenge'}
                                 </Button>
                             </Card>
 
@@ -325,9 +348,14 @@ export default function Practice() {
                                     variant="outline"
                                     className="w-full mt-6 border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 dark:border-purple-800"
                                     onClick={() => startQuiz('antonym')}
-                                    disabled={isGenerating}
+                                    disabled={!!generatingType}
                                 >
-                                    {isGenerating ? 'Generating...' : 'Start Challenge'}
+                                    {generatingType === 'antonym' ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : 'Start Challenge'}
                                 </Button>
                             </Card>
                         </div>
@@ -455,7 +483,7 @@ export default function Practice() {
                     />
                 )}
             </div>
-        </AppLayout>
+        </AppLayout >
     );
 }
 

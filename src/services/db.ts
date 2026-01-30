@@ -10,6 +10,7 @@ export interface LocalWord {
     sidor_rank?: number;
     word_data?: WordData;
     last_synced_at?: string;
+    is_ft?: number;
 }
 
 export interface LocalUserProgress {
@@ -58,6 +59,10 @@ export class SveordDB extends Dexie {
         this.version(4).stores({
             quizzes: '++id, type, isPracticed, createdAt',
             wordUsage: 'wordSwedish'
+        });
+
+        this.version(5).stores({
+            words: 'swedish_word, id, kelly_level, frequency_rank, sidor_rank, is_ft'
         });
     }
 

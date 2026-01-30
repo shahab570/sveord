@@ -1,5 +1,6 @@
 import { WordData } from '../types/word';
 import { db } from '../services/db';
+import { generateAIQuizData } from '../services/geminiApi';
 
 export type QuestionType = 'synonym' | 'antonym' | 'meaning' | 'context' | 'dialogue';
 
@@ -195,7 +196,7 @@ export const markQuizPracticed = async (id: number) => {
 };
 
 
-import { generateAIQuizData } from '../services/geminiApi';
+
 
 export const generateAIQuiz = async (
   words: { swedish_word: string; word_data: any }[],

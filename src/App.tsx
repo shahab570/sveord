@@ -23,6 +23,7 @@ const FrequencyList = lazyRetry(() => import("./pages/FrequencyList"), "Frequenc
 const SidorList = lazyRetry(() => import("./pages/SidorList"), "SidorList");
 const SearchPage = lazyRetry(() => import("./pages/SearchPage"), "SearchPage");
 const Practice = lazyRetry(() => import("./pages/Practice"), "Practice");
+const FTList = lazyRetry(() => import("./pages/FTList"), "FTList");
 const Settings = lazyRetry(() => import("./pages/Settings"), "Settings");
 const NotFound = lazyRetry(() => import("./pages/NotFound"), "NotFound");
 
@@ -64,6 +65,7 @@ const App = () => (
                     <Route path="/kelly" element={<KellyList />} />
                     <Route path="/frequency" element={<FrequencyList />} />
                     <Route path="/sidor" element={<SidorList />} />
+                    <Route path="/ft" element={<FTList />} />
                     <Route path="/search" element={<SearchPage />} />
                     <Route path="/practice" element={<Practice />} />
                     <Route path="/settings" element={<Settings />} />

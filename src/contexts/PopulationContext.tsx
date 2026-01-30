@@ -337,14 +337,17 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
 
             const updatedData = { ...currentWord.word_data };
             if (field === 'explanation') {
-                updatedData.inflectionExplanation = result.inflectionExplanation || null;
+                updatedData.inflectionExplanation = result.inflectionExplanation || updatedData.inflectionExplanation;
             } else {
-                updatedData.meanings = result.meanings;
-                updatedData.examples = result.examples || updatedData.examples;
-                updatedData.word_type = result.partOfSpeech || updatedData.word_type;
-                updatedData.gender = result.gender || updatedData.gender;
-                updatedData.synonyms = result.synonyms || updatedData.synonyms;
-                updatedData.antonyms = result.antonyms || updatedData.antonyms;
+                // For meanings regenerate, we prioritize the new meanings
+                updatedData.meanings = (result.meanings && result.meanings.length > 0) ? result.meanings : updatedData.meanings;
+
+                // For other fields, only update if AI provided something new and non-empty
+                if (result.examples && result.examples.length > 0) updatedData.examples = result.examples;
+                if (result.partOfSpeech) updatedData.word_type = result.partOfSpeech;
+                if (result.gender) updatedData.gender = result.gender;
+                if (result.synonyms && result.synonyms.length > 0) updatedData.synonyms = result.synonyms;
+                if (result.antonyms && result.antonyms.length > 0) updatedData.antonyms = result.antonyms;
             }
             updatedData.populated_at = new Date().toISOString();
 

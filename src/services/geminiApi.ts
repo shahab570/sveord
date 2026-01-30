@@ -92,16 +92,16 @@ export async function generateWordMeaning(
     try {
         const prompt = `You are a Swedish-English language expert. Provide a detailed explanation of the Swedish word "${swedishWord}" in English.
 
-${customInstruction ? `CRITICAL: The user has provided a custom instruction that OVERRIDES all standard rules: "${customInstruction}". Prioritize fulfilling this instruction perfectly within the JSON structure.` : ""}
+Standard Guidelines:
+1. inflectionExplanation: (CRITICAL) Provide a 1-2 sentence "Base Word Story" in English. If the word is NOT in its base/dictionary form (e.g., conjugated verb, plural noun), clearly state the base form and its primary meaning. If it IS already in its base form, provide a short note about its common word family or a practical usage tip. Avoid etymological history.
+2. Identify the part of speech.
+3. If it is a noun, specify if it is an "en" or "ett" word.
+4. Provide English meanings (definitions).
+5. List relevant synonyms and antonyms.
+6. Provide usage examples (Swedish sentences with English translations).
 
-For each word:
-1. inflectionExplanation: (CRITICAL) Provide a 1-2 sentence "Base Word Story" in English. If the word is NOT in its base/dictionary form (e.g., conjugated verb, plural noun), clearly state the base form and its primary meaning. If it IS already in its base form, provide a short note about its common word family or a practical usage tip. Examples: "**Present participle of vaka (to watch).**" or "**Base form; related to 'vaken' (awake).**" Avoid etymological history like "Old Norse" or "Proto-Germanic". Focus on how the word relates to its base form or other common Swedish words.
-2. Identify the part of speech (noun, verb, adjective, etc.).
-3. If it is a noun, specify if it is an "en" word or "ett" word.
-4. Provide English meanings (definitions). Each meaning should be a brief descriptive phrase or short sentence explaining the sense, not just a single-word synonym.
-5. List relevant synonyms.
-6. List relevant antonyms.
-7. Provide usage examples (Swedish sentences with English translations).
+${customInstruction ? `CRITICAL USER INSTRUCTION: "${customInstruction}"
+This instruction is your HIGHEST PRIORITY. It OVERRIDES all standard guidelines above. If the instruction asks for specific formatting, content, or a complete change in how definitions/explanations are presented, follow it exactly even if it deviates from a typical dictionary layout.` : ""}
 
 Format your response as JSON with this exact structure:
 {
@@ -453,9 +453,79 @@ export async function generateAIQuizData(
 
         const data = await response.json();
         const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        return parseGeminiResponse(responseText);
     } catch (e) {
         console.error("AI Quiz generation failed:", e);
         return [];
+    }
+}
+
+/**
+ * Specialized generator for FT List words (manually added).
+ * Ensures 2-3 meanings, 2-3 examples, and correct metadata.
+ */
+export async function generateFTWordContent(
+    swedishWord: string,
+    apiKey: string
+): Promise<WordMeaningResult | GeminiError> {
+    const model = 'gemini-1.5-flash'; // Optimized for speed and quality
+    const version = ACTIVE_VERSION;
+
+    try {
+        const prompt = `You are a Swedish language expert. Provide high-quality content for the Swedish word "${swedishWord}" for a language learning app.
+
+Requirements:
+1. **2-3 English Meanings**: Clear, descriptive definitions.
+2. **2-3 Usage Examples**: Natural Swedish sentences with English translations.
+3. **1-2 Synonyms**: Swedish words.
+4. **1-2 Antonyms**: Swedish words.
+5. **Part of Speech**: Must be one of: "noun", "verb", "adjective", "adverb", "preposition", "conjunction", "pronoun", "interjection".
+6. **Gender**: If noun, specify "en" or "ett".
+7. **Inflection Explanation**: A 1-2 sentence "Base Word Story" explaining the word's form or usage tips.
+
+Format your response as JSON:
+{
+  "partOfSpeech": "noun/verb/etc",
+  "gender": "en/ett/null",
+  "inflectionExplanation": "...",
+  "meanings": [{"english": "meaning 1", "context": ""}, {"english": "meaning 2", "context": ""}],
+  "examples": [{"swedish": "...", "english": "..."}, {"swedish": "...", "english": "..."}],
+  "synonyms": ["...", "..."],
+  "antonyms": ["...", "..."]
+}
+
+ONLY return the JSON.`;
+
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.3,
+                    responseMimeType: "application/json"
+                }
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { error: `HTTP ${response.status}`, details: errorData.error?.message || response.statusText };
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const result = parseGeminiResponse(responseText);
+
+        return {
+            meanings: result.meanings || [],
+            examples: result.examples || [],
+            synonyms: result.synonyms || [],
+            antonyms: result.antonyms || [],
+            partOfSpeech: result.partOfSpeech,
+            gender: result.gender,
+            inflectionExplanation: result.inflectionExplanation,
+        };
+    } catch (error: any) {
+        return { error: 'Parse Error', details: error.message };
     }
 }
