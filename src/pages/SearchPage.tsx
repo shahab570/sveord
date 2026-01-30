@@ -59,7 +59,7 @@ export default function SearchPage() {
       kellyWords: words.filter((w) => w.kelly_level !== null),
       frequencyWords: words.filter((w) => w.frequency_rank !== null),
       sidorWords: words.filter((w) => w.sidor_rank !== null),
-      ftWords: words.filter((w) => w.is_ft === 1),
+      ftWords: words.filter((w) => !!w.is_ft),
     };
   }, [words]);
 
@@ -222,6 +222,7 @@ export default function SearchPage() {
               <span className="text-xl">×</span>
             </button>
             <WordCard
+              key={selectedWord.swedish_word}
               word={selectedWord}
               onPrevious={() => { }}
               onNext={() => { }}

@@ -45,7 +45,7 @@ interface WordCardProps {
   isRandomMode: boolean;
   onToggleRandom: () => void;
   showRandomButton?: boolean;
-  listType?: "kelly" | "frequency" | "sidor";
+  listType?: "kelly" | "frequency" | "sidor" | "ft";
 }
 
 export function WordCard({

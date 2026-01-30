@@ -13,7 +13,7 @@ export interface Word {
   frequency_rank: number | null;
   sidor_source_id: number | null;
   sidor_rank: number | null;
-  is_ft?: number;
+  is_ft?: number | boolean;
   created_at: string;
   word_data: WordData | null;
 }
@@ -152,7 +152,7 @@ export function useWords(filters?: {
         frequency_rank: w.frequency_rank || null,
         sidor_source_id: null,
         sidor_rank: w.sidor_rank || null,
-        is_ft: w.is_ft || 0,
+        is_ft: w.is_ft ? 1 : 0,
         created_at: "",
         word_data: w.word_data || null,
         progress: progress ? {
@@ -552,7 +552,7 @@ export function useStats() {
       frequencyStats,
       sidorStats,
       ftStats: {
-        total: await db.words.where('is_ft').equals(1).count(),
+        total: await db.words.filter(w => !!w.is_ft).count(),
         learned: learnedWordDefs.filter(w => !!w.is_ft).length
       }
     };
@@ -574,7 +574,8 @@ export function useDetailedStats() {
 
     const allLearned = await db.progress.where('is_learned').equals(1).toArray();
 
-    const learnedTodayItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= today);
+    const nowStr = new Date().toISOString().split('T')[0];
+    const learnedTodayItems = allLearned.filter(p => p.learned_date && p.learned_date.startsWith(nowStr));
     const learnedToday = learnedTodayItems.length;
     const learnedThisWeek = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= weekAgo).length;
     const learnedThisMonth = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= monthAgo).length;
@@ -783,10 +784,11 @@ export function useTodaysLearnedWords() {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     // Fetch progress for today from local DB
+    const nowStr = new Date().toISOString().split('T')[0];
     const todaysProgress = await db.progress
       .where('is_learned')
       .equals(1)
-      .filter(p => !!p.learned_date && new Date(p.learned_date) >= today)
+      .filter(p => !!p.learned_date && p.learned_date.startsWith(nowStr))
       .toArray();
 
     if (!todaysProgress.length) return [];

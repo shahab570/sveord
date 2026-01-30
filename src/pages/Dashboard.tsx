@@ -40,7 +40,7 @@ export default function Dashboard() {
   const statsLoading = stats === undefined;
 
   // Use profile name if available, otherwise fallback to metadata or default
-  const displyName = profile?.first_name || user?.user_metadata?.first_name || 'Shahab';
+  const displayName = profile?.first_name || user?.user_metadata?.first_name || 'Shahab';
 
   const detailedStats = useDetailedStats();
   const detailedLoading = detailedStats === undefined;
@@ -77,7 +77,7 @@ export default function Dashboard() {
 
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground lg:leading-[1.1]">
                 Välkommen tillbaka, <br />
-                <span className="text-primary">{displyName}!</span>
+                <span className="text-primary">{displayName}!</span>
               </h1>
 
               <p className="text-lg text-muted-foreground max-w-md leading-relaxed">

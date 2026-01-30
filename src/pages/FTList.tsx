@@ -15,6 +15,7 @@ export default function FTList() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isRandomMode, setIsRandomMode] = useState(false);
+    const [showLearned, setShowLearned] = useState(false);
 
     const { apiKeys } = useApiKeys();
     const words = useWords({ listType: "ft" });
@@ -22,12 +23,11 @@ export default function FTList() {
 
     const isLoading = words === undefined;
 
-    const unlearnedWords = useMemo(() => {
+    const displayWords = useMemo(() => {
         if (!words) return [];
+        if (showLearned) return words;
         return words.filter((w) => !w.progress?.is_learned);
-    }, [words]);
-
-    const displayWords = unlearnedWords;
+    }, [words, showLearned]);
 
     const totalCount = levelStats?.["Total"]?.total || 0;
     const learnedCount = levelStats?.["Total"]?.learned || 0;
@@ -105,6 +105,13 @@ export default function FTList() {
         }
     };
 
+    // Auto-adjust index if it goes out of bounds when toggling
+    useMemo(() => {
+        if (currentIndex >= displayWords.length && displayWords.length > 0) {
+            setCurrentIndex(displayWords.length - 1);
+        }
+    }, [displayWords.length]);
+
     const currentWord = displayWords[currentIndex];
 
     return (
@@ -122,6 +129,27 @@ export default function FTList() {
                                 Your personal collection of custom-learned words
                             </p>
                         </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-lg border border-border/50">
+                            <input
+                                type="checkbox"
+                                id="showLearned"
+                                checked={showLearned}
+                                onChange={(e) => setShowLearned(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <label htmlFor="showLearned" className="text-sm font-medium text-muted-foreground cursor-pointer">
+                                Show learned words
+                            </label>
+                        </div>
+
+                        {displayWords.length > 0 && (
+                            <div className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-md">
+                                {currentIndex + 1} / {displayWords.length}
+                            </div>
+                        )}
                     </div>
 
                     <form onSubmit={handleAddWord} className="flex gap-2">
@@ -163,7 +191,7 @@ export default function FTList() {
                     </div>
                 ) : currentWord ? (
                     <WordCard
-                        key={currentWord.id}
+                        key={currentWord.swedish_word}
                         word={currentWord}
                         onPrevious={handlePrevious}
                         onNext={handleNext}
@@ -174,7 +202,7 @@ export default function FTList() {
                         learnedCount={learnedCount}
                         isRandomMode={isRandomMode}
                         onToggleRandom={() => setIsRandomMode(!isRandomMode)}
-                        listType="kelly" // Standard styling
+                        listType="ft"
                     />
                 ) : (
                     <div className="word-card text-center py-16 bg-card/30 border-dashed border-2">
