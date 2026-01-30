@@ -8,7 +8,7 @@ import { BookOpen, CheckCircle, Flame, BrainCircuit, Repeat2, Sparkles, History,
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { QuizSession } from "@/components/quiz/QuizSession";
-import { generateQuiz, QuestionType, generateAIQuiz } from "@/utils/quizUtils";
+import { generateQuiz, QuestionType, generateAIQuiz, MAX_QUIZ_TARGET_LIMIT } from "@/utils/quizUtils";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { cn } from "@/lib/utils";
 
@@ -28,9 +28,9 @@ export default function Practice() {
         const now = new Date().toISOString();
         // Get words that are learned and due for review
         const dueProgress = await db.progress
-            .where("is_learned")
-            .equals(1)
-            .filter((p) => !p.srs_next_review || p.srs_next_review <= now)
+            .where('srs_next_review')
+            .belowOrEqual(now)
+            .and(p => p.is_learned === 1)
             .toArray();
 
         const results: WordWithProgress[] = [];
@@ -64,6 +64,18 @@ export default function Practice() {
         }
         return results;
     });
+
+    const poolStats = useLiveQuery(async () => {
+        if (!words) return null;
+        const swedishWords = words.map(w => w.swedish_word);
+        const usages = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
+        const usageMap = new Map(usages.map(u => [u.wordSwedish, u]));
+
+        const usable = words.filter(w => (usageMap.get(w.swedish_word)?.targetCount || 0) < MAX_QUIZ_TARGET_LIMIT).length;
+        const mastered = words.length - usable;
+
+        return { usable, mastered, total: words.length };
+    }, [words]);
 
     // Practiced quizzes for archive
     const practicedQuizzes = useLiveQuery(() =>
@@ -130,7 +142,8 @@ export default function Practice() {
                 setQuizType(type);
                 setMode('quiz');
             } else {
-                alert("Could not generate quiz. You might have hit mastery limits for these words!");
+                setGeneratingType(null);
+                alert("No more words available for this quiz type! All your learned words have reached the Mastery limit (10 practices). Learn more words to generate new quizzes.");
             }
         } catch (error) {
             console.error("Failed to generate quiz:", error);
@@ -152,23 +165,39 @@ export default function Practice() {
         <AppLayout>
             <div className="max-w-4xl mx-auto space-y-8 animate-fade-in px-4">
                 {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="p-4 bg-primary/10 rounded-2xl">
-                            <BrainCircuit className="h-8 w-8 text-primary" />
-                        </div>
+                <div className="flex flex-col gap-6">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                         <div>
-                            <h1 className="text-3xl font-bold text-foreground tracking-tight">Practice Arena</h1>
-                            <p className="text-muted-foreground">Master your vocabulary through strategic challenges</p>
+                            <h1 className="text-3xl font-bold text-foreground">Practice Arena</h1>
+                            <p className="text-muted-foreground mt-1">Strengthen your memory through active recall</p>
                         </div>
-                    </div>
 
-                    {mode === 'srs' && sessionWords && (
-                        <div className="flex items-center gap-4 bg-card border border-border px-6 py-2 rounded-2xl shadow-sm">
-                            <span className="text-sm font-semibold text-primary">{currentIndex + 1} / {sessionWords.length}</span>
-                            <Progress value={progressPercent} className="w-32 h-2" />
-                        </div>
-                    )}
+                        {mode === 'srs' && sessionWords && (
+                            <div className="flex items-center gap-4 bg-card border border-border px-6 py-2 rounded-2xl shadow-sm">
+                                <span className="text-sm font-semibold text-primary">{currentIndex + 1} / {sessionWords.length}</span>
+                                <Progress value={progressPercent} className="w-32 h-2" />
+                            </div>
+                        )}
+
+                        {mode === 'menu' && poolStats && (
+                            <div className="bg-card border border-border rounded-xl px-4 py-2 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-right-2">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider leading-none mb-1">Mastery Pool</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-lg font-bold text-primary">{poolStats.usable}</span>
+                                            <span className="text-xs text-muted-foreground ml-1">Usable</span>
+                                        </div>
+                                        <div className="h-4 w-[1px] bg-border mx-1" />
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-lg font-bold text-green-600">{poolStats.mastered}</span>
+                                            <span className="text-xs text-muted-foreground ml-1">Goal met</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {mode === 'menu' && (
@@ -507,7 +536,7 @@ export default function Practice() {
                     />
                 )}
             </div>
-        </AppLayout >
+        </AppLayout>
     );
 }
 

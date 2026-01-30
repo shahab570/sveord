@@ -4,6 +4,8 @@ import { generateAIQuizData } from '../services/geminiApi';
 
 export type QuestionType = 'synonym' | 'antonym' | 'meaning' | 'context' | 'dialogue' | 'translation' | 'recall';
 
+export const MAX_QUIZ_TARGET_LIMIT = 10; // Maximum number of times a word should be the primary target of a quiz
+
 export interface QuizOption {
   word: string;
   meaning?: string;
@@ -59,19 +61,31 @@ export const generateQuiz = async (
   const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
   const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
 
-  // 2. Rank words by usage frequency to prioritize "fresh" ones
-  // We filter invalid meanings but KEEP words that have hit limits, just deprioritizing them
-  const validWords = words.filter(w => !isInvalidMeaning(w.word_data?.meanings?.[0]?.english));
+  // 2. Filter and Rank words
+  // First, filter out words that have already reached the global practice limit
+  const validWords = words.filter(w => {
+    if (isInvalidMeaning(w.word_data?.meanings?.[0]?.english)) return false;
+    const usage = usageMap.get(w.swedish_word);
+    return (usage?.targetCount || 0) < MAX_QUIZ_TARGET_LIMIT;
+  });
 
+  if (validWords.length === 0) {
+    console.warn('All learned words have reached the mastery limit (MAX_QUIZ_TARGET_LIMIT)');
+    return null;
+  }
+
+  // Rank words by usage frequency to strictly prioritize "under-practiced" ones
   const rankedPool = validWords.sort((a, b) => {
     const aUsage = usageMap.get(a.swedish_word)?.targetCount || 0;
     const bUsage = usageMap.get(b.swedish_word)?.targetCount || 0;
+    // If counts are equal, use random to vary same-tier words
+    if (aUsage === bUsage) return Math.random() - 0.5;
     return aUsage - bUsage;
   });
 
   // Take the target candidates from the least-used words
   const targetPool = rankedPool.slice(0, Math.max(count * 2, 20));
-  const optionPool = validWords; // Use all valid words for options, prioritized by usage in logic if needed but simple filter works for now
+  const optionPool = words.filter(w => !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)); // Options can be any valid word
 
   if (targetPool.length === 0) {
     console.warn('No words available for quiz generation');
@@ -257,11 +271,18 @@ export const generateAIQuiz = async (
   const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
   const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
 
-  const validWords = words.filter(w => !isInvalidMeaning(w.word_data?.meanings?.[0]?.english));
+  const validWords = words.filter(w => {
+    if (isInvalidMeaning(w.word_data?.meanings?.[0]?.english)) return false;
+    const usage = usageMap.get(w.swedish_word);
+    return (usage?.targetCount || 0) < MAX_QUIZ_TARGET_LIMIT;
+  });
+
+  if (validWords.length === 0) return null;
 
   const rankedPool = validWords.sort((a, b) => {
     const aUsage = usageMap.get(a.swedish_word)?.targetCount || 0;
     const bUsage = usageMap.get(b.swedish_word)?.targetCount || 0;
+    if (aUsage === bUsage) return Math.random() - 0.5;
     return aUsage - bUsage;
   });
 
