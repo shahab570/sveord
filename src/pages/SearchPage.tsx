@@ -51,18 +51,15 @@ export default function SearchPage() {
     }
   }, [words, selectedWord]);
 
-  // Split words into Kelly, Frequency, Sidor, and FT lists, filtering out learned ones
+  // Split words into Kelly, Frequency, Sidor, and FT lists
   const { kellyWords, frequencyWords, sidorWords, ftWords } = useMemo(() => {
     if (!words) return { kellyWords: [], frequencyWords: [], sidorWords: [], ftWords: [] };
 
-    // Filtering learned words out of the search columns as requested
-    const unlearned = words.filter(w => !w.progress?.is_learned);
-
     return {
-      kellyWords: unlearned.filter((w) => w.kelly_level !== null),
-      frequencyWords: unlearned.filter((w) => w.frequency_rank !== null),
-      sidorWords: unlearned.filter((w) => w.sidor_rank !== null),
-      ftWords: unlearned.filter((w) => w.is_ft === 1),
+      kellyWords: words.filter((w) => w.kelly_level !== null),
+      frequencyWords: words.filter((w) => w.frequency_rank !== null),
+      sidorWords: words.filter((w) => w.sidor_rank !== null),
+      ftWords: words.filter((w) => w.is_ft === 1),
     };
   }, [words]);
 
