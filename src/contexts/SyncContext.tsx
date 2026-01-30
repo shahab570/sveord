@@ -109,31 +109,49 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             let hasMore = true;
 
             while (hasMore) {
-                // Use !inner to ensure we only get progress where the word still exists
+                // Fetch progress AND full word data for joined words
                 const { data: progress, error: progressError } = await supabase
                     .from('user_progress')
-                    .select('*, words(swedish_word)') // Remove !inner which was hiding the property
+                    .select('*, words(*)') // Fetch full word data to prevent orphans
                     .eq('user_id', user.id)
                     .range(from, from + PAGE_SIZE - 1);
 
                 if (progressError) throw progressError;
 
                 if (progress && progress.length > 0) {
-                    const progressRecords = progress
-                        .map(p => {
-                            // Handle both object and array response (Supabase flexibility)
-                            const wordData = Array.isArray(p.words) ? p.words[0] : p.words;
-                            return {
-                                word_swedish: wordData?.swedish_word,
-                                is_learned: p.is_learned ? 1 : 0,
-                                user_meaning: p.user_meaning || undefined,
-                                custom_spelling: p.custom_spelling || undefined,
-                                learned_date: p.learned_date || undefined,
-                                last_synced_at: new Date().toISOString()
-                            };
-                        })
-                        .filter(p => !!p.word_swedish); // Filter out any orphans
+                    const progressRecords: any[] = [];
+                    const wordUpdates: LocalWord[] = [];
 
+                    for (const row of progress) {
+                        const p = row as any;
+                        const wordData = Array.isArray(p.words) ? p.words[0] : p.words;
+                        if (!wordData) continue;
+
+                        progressRecords.push({
+                            word_swedish: wordData.swedish_word,
+                            is_learned: p.is_learned ? 1 : 0,
+                            user_meaning: p.user_meaning || undefined,
+                            custom_spelling: p.custom_spelling || undefined,
+                            learned_date: p.learned_date || undefined,
+                            last_synced_at: new Date().toISOString(),
+                        });
+
+                        // Ensure we have this word in our local database too!
+                        wordUpdates.push({
+                            id: wordData.id,
+                            swedish_word: wordData.swedish_word,
+                            kelly_level: wordData.kelly_level || undefined,
+                            kelly_source_id: wordData.kelly_source_id || undefined,
+                            frequency_rank: wordData.frequency_rank || undefined,
+                            sidor_rank: wordData.sidor_rank || undefined,
+                            word_data: wordData.word_data as any,
+                            last_synced_at: new Date().toISOString()
+                        });
+                    }
+
+                    if (wordUpdates.length > 0) {
+                        await db.words.bulkPut(wordUpdates);
+                    }
                     if (progressRecords.length > 0) {
                         await db.progress.bulkPut(progressRecords as any);
                     }
