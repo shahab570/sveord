@@ -108,18 +108,18 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                         let icon = null;
 
                         if (showFeedback) {
-                            if (optionText === question.correctAnswer) {
+                            if (optionText.toLowerCase() === question.correctAnswer?.toLowerCase()) {
                                 variant = "default"; // Green-ish usually, or primary
                                 icon = <CheckCircle2 className="w-5 h-5 ml-2 text-green-200" />;
-                            } else if (optionText === selectedAnswer) {
+                            } else if (optionText.toLowerCase() === selectedAnswer?.toLowerCase()) {
                                 variant = "destructive";
                                 icon = <XCircle className="w-5 h-5 ml-2" />;
                             }
-                        } else if (selectedAnswer === optionText) {
+                        } else if (selectedAnswer?.toLowerCase() === optionText.toLowerCase()) {
                             variant = "default";
                         }
 
-                        const isGreen = showFeedback && optionText === question.correctAnswer;
+                        const isGreen = showFeedback && optionText.toLowerCase() === question.correctAnswer?.toLowerCase();
 
                         return (
                             <div key={index} className="flex flex-col">

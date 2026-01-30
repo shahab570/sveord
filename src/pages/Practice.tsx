@@ -22,7 +22,7 @@ export default function Practice() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const { upsertProgress } = useUserProgress();
     const words = useWords({ learnedOnly: true }); // Only fetch learned words for quiz generation
-    const { apiKeys } = useApiKeys();
+    const { apiKeys, loading: keysLoading } = useApiKeys();
 
     const dueWords = useLiveQuery(async () => {
         const now = new Date().toISOString();
@@ -114,7 +114,11 @@ export default function Practice() {
             } else {
                 // Fallback to algorithmic for synonym/antonym/meaning if no key
                 if (type === 'context' || type === 'dialogue') {
-                    alert("A Gemini API Key is required for Context and Dialogue mastery modes. Please add one in Settings.");
+                    if (keysLoading) {
+                        alert("Still loading your API keys. Please wait a moment and try again.");
+                    } else {
+                        alert("A Gemini API Key is required for Context and Dialogue mastery modes. Please add one in Settings.");
+                    }
                     setGeneratingType(null);
                     return;
                 }
@@ -210,7 +214,7 @@ export default function Practice() {
                                     size="lg"
                                     className="w-full mt-6 bg-orange-600 hover:bg-orange-700"
                                     onClick={() => startQuiz('context')}
-                                    disabled={!!generatingType}
+                                    disabled={!!generatingType || (keysLoading && !apiKeys.geminiApiKey)}
                                 >
                                     {generatingType === 'context' ? (
                                         <>
@@ -236,7 +240,7 @@ export default function Practice() {
                                     size="lg"
                                     className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700"
                                     onClick={() => startQuiz('dialogue')}
-                                    disabled={!!generatingType}
+                                    disabled={!!generatingType || (keysLoading && !apiKeys.geminiApiKey)}
                                 >
                                     {generatingType === 'dialogue' ? (
                                         <>
