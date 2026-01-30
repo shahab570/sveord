@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { db } from '@/services/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useCaptureWord } from '@/hooks/useCaptureWord';
-import { getQuizExplanation } from '@/services/geminiApi';
+import { getQuizExplanation, getActiveConfig } from '@/services/geminiApi';
 import { Sparkles } from 'lucide-react';
 import { useApiKeys } from '@/hooks/useApiKeys';
 
@@ -26,7 +26,7 @@ interface QuizSessionProps {
 export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: initialQuizId }) => {
     const { user } = useAuth();
     const words = useWords({ learnedOnly: true });
-    const { apiKeys } = useApiKeys();
+    const { apiKeys, saveGeminiApiKey } = useApiKeys();
     const wordsLoading = words === undefined;
 
     const [activeQuizId, setActiveQuizId] = useState<number | null>(initialQuizId || null);
@@ -74,6 +74,9 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
                 const savedQuiz = await db.quizzes.get(activeQuizId);
                 if (savedQuiz) {
                     setQuestions(savedQuiz.questions);
+                    if (savedQuiz.explanations) {
+                        setExplanations(savedQuiz.explanations);
+                    }
                     return;
                 }
             }
@@ -177,7 +180,24 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
                 return;
             }
             const explanation = await getQuizExplanation(questions[currentIndex], userAnswers[currentIndex] || null, apiKey);
-            setExplanations(prev => ({ ...prev, [currentIndex]: explanation || "ERROR" }));
+            const newExplanations = { ...explanations, [currentIndex]: explanation || "ERROR" };
+            setExplanations(newExplanations);
+
+            // Persist to indexedDB
+            if (activeQuizId) {
+                await db.quizzes.update(activeQuizId, { explanations: newExplanations });
+            }
+
+            // Persist discovered working model back to Supabase settings so it works "first shot" next time
+            const workingConfig = getActiveConfig();
+            if (workingConfig.model !== apiKeys.geminiModel || workingConfig.version !== apiKeys.geminiApiVersion) {
+                console.log(`[QuizSession] Persistence: Auto-syncing working model ${workingConfig.model} to settings...`);
+                try {
+                    await saveGeminiApiKey(apiKey, workingConfig.model, workingConfig.version);
+                } catch (saveErr) {
+                    console.error('[QuizSession] Failed to auto-persist discovered model:', saveErr);
+                }
+            }
         } catch (e) {
             console.error('Explanation error:', e);
             setExplanations(prev => ({ ...prev, [currentIndex]: "ERROR" }));

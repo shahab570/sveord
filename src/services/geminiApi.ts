@@ -2,6 +2,8 @@
 let ACTIVE_MODEL = 'gemini-1.5-flash';
 let ACTIVE_VERSION = 'v1';
 
+export const getActiveConfig = () => ({ model: ACTIVE_MODEL, version: ACTIVE_VERSION });
+
 const getApiUrl = (version: string, model: string) => {
     const v = (version || 'v1').trim().replace(/\s+/g, '');
     // Strip "models/" prefix and ALL WHITESPACE to prevent URL errors
@@ -47,7 +49,9 @@ export function setActiveConfig(model: string, version: string) {
     let sanitizedModel = model.trim().replace(/^models\//, '').replace(/\s+/g, '');
     let sanitizedVersion = version.trim().replace(/\s+/g, '');
 
-    if (sanitizedModel.includes('2.5') || sanitizedModel.includes('2.0')) {
+    // Refine the "bad model" check. Only fallback if it's SPECIFICALLY a known-dead name.
+    // If it's something like "2.5-flash" that we actually found in their account list, KEEP IT.
+    if (sanitizedModel === 'gemini-2.5-flash-experimental' || sanitizedModel === 'gemini-2.0-flash-exp') {
         sanitizedModel = 'gemini-1.5-flash';
     }
 
@@ -496,22 +500,18 @@ export async function getQuizExplanation(
     if (!apiKey) throw new Error("Gemini API key not found. Please add it in Settings.");
 
     const questionJson = JSON.stringify(question, null, 2);
-    const prompt = `Explain the following Swedish language quiz question.
+    const prompt = `Pedagogical explanation for this Swedish quiz question:
+    Question: ${questionJson}
+    User: "${selectedAnswer}"
+    Correct: "${question.correctAnswer}"
     
-    Question data:
-    ${questionJson}
-    
-    User selected: "${selectedAnswer}"
-    Correct answer: "${question.correctAnswer}"
-    
-    Provide a clear, pedagogical explanation in English. 
-    1. Explain why the correct answer is "${question.correctAnswer}".
-    2. Briefly explain why the other options were incorrect or how they differ.
-    3. If the type is 'antonym' or 'synonym', explain the relationship between the words.
-    4. Keep it concise but helpful for a language learner.
-    Do NOT use complex jargon. Use bold for Swedish words.`;
+    Instruction: Briefly explain (1-3 sentences) why "${question.correctAnswer}" is correct. 
+    Notes:
+    - If synonym/antonym, explain the relationship.
+    - Mention why distractors might be wrong if relevant.
+    - Be concise. Use bold for Swedish words.`;
 
-    const v = version || ACTIVE_VERSION || 'v1beta';
+    const v = version || ACTIVE_VERSION || 'v1';
     const m = model || ACTIVE_MODEL || 'gemini-1.5-flash';
     const fetchUrl = `${getApiUrl(v, m)}?key=${apiKey}`;
 
@@ -525,8 +525,8 @@ export async function getQuizExplanation(
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 500,
+                    temperature: 0.3,
+                    maxOutputTokens: 300,
                 }
             })
         });
@@ -547,7 +547,9 @@ export async function getQuizExplanation(
                 const available = await listModels(apiKey);
                 const betterModel = available.find(mod => mod.includes('1.5-flash')) || available.find(mod => mod.includes('flash'));
                 if (betterModel && betterModel !== m) {
-                    console.log(`[GeminiExplanation] Found replacement model: ${betterModel}. Retrying...`);
+                    console.log(`[GeminiExplanation] Found replacement model: ${betterModel}. Updating config and retrying...`);
+                    // IMPORTANT: Update global config so NEXT request uses this working model!
+                    setActiveConfig(betterModel, v);
                     return getQuizExplanation(question, selectedAnswer, apiKey, v as GeminiVersion, betterModel);
                 }
             }

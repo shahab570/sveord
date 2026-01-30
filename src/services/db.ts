@@ -30,6 +30,7 @@ export interface SavedQuiz {
     id?: number;
     type: string;
     questions: any[];
+    explanations?: Record<number, string>;
     isPracticed: number;
     createdAt: string;
     practicedAt?: string;
