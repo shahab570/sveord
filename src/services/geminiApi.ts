@@ -2,8 +2,12 @@
 let ACTIVE_MODEL = 'gemini-1.5-flash';
 let ACTIVE_VERSION = 'v1beta';
 
-const getApiUrl = (version: string, model: string) =>
-    `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent`;
+const getApiUrl = (version: string, model: string) => {
+    const v = (version || 'v1beta').trim();
+    // Strip "models/" prefix if it accidentally exists to prevent double-prefix 404s
+    const m = (model || 'gemini-1.5-flash').trim().replace(/^models\//, '');
+    return `https://generativelanguage.googleapis.com/${v}/models/${m}:generateContent`;
+};
 
 /**
  * Helper to parse JSON from Gemini response, handling potential backticks or trailing text
@@ -39,15 +43,15 @@ function parseGeminiResponse(responseText: string | undefined): any {
  * Configure the active model and version (used to persist selection)
  */
 export function setActiveConfig(model: string, version: string) {
-    // Sanitize accidental experimental model names
-    let sanitizedModel = model;
-    if (model === 'gemini-2.5-flash' || model === 'gemini-2.0-flash') {
+    // Sanitize accidental experimental or dirty model names
+    let sanitizedModel = model.trim().replace(/^models\//, '');
+    if (sanitizedModel.includes('2.5') || sanitizedModel.includes('2.0')) {
         sanitizedModel = 'gemini-1.5-flash';
     }
 
     ACTIVE_MODEL = sanitizedModel;
     ACTIVE_VERSION = version;
-    console.log(`Gemini API configured: ${sanitizedModel} (${version})`);
+    console.log(`[GeminiConfig] Applied: ${sanitizedModel} (${version})`);
 }
 
 export type GeminiVersion = 'v1' | 'v1beta';
@@ -503,8 +507,15 @@ export async function getQuizExplanation(
     4. Keep it concise but helpful for a language learner.
     Do NOT use complex jargon. Use bold for Swedish words.`;
 
+    const v = version || ACTIVE_VERSION || 'v1beta';
+    const m = model || ACTIVE_MODEL || 'gemini-1.5-flash';
+    const fetchUrl = `${getApiUrl(v, m)}?key=${apiKey}`;
+
+    console.log('[GeminiExplanation] Model:', m, 'Version:', v);
+    console.log('[GeminiExplanation] Requesting:', fetchUrl.split('?')[0]);
+
     try {
-        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+        const response = await fetch(fetchUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -516,9 +527,14 @@ export async function getQuizExplanation(
             })
         });
 
-        if (!response.ok) throw new Error("Failed to fetch explanation from Gemini");
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[GeminiExplanation] Server replied with ${response.status}:`, errorText);
+            throw new Error(`Failed to fetch explanation: ${response.status}`);
+        }
+
         const data = await response.json();
-        return data.candidates[0].content.parts[0].text;
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "No explanation provided.";
     } catch (error) {
         console.error("Error getting quiz explanation:", error);
         return "Sorry, I couldn't generate an explanation right now. Please try again.";
