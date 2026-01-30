@@ -476,10 +476,10 @@ export async function generateAIQuizData(
 export async function getQuizExplanation(
     question: any,
     selectedAnswer: string | null,
+    apiKey: string,
     version: GeminiVersion = 'v1beta',
     model: string = 'gemini-1.5-flash'
 ): Promise<string> {
-    const apiKey = localStorage.getItem('GEMINI_API_KEY');
     if (!apiKey) throw new Error("Gemini API key not found. Please add it in Settings.");
 
     const questionJson = JSON.stringify(question, null, 2);

@@ -15,6 +15,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useCaptureWord } from '@/hooks/useCaptureWord';
 import { getQuizExplanation } from '@/services/geminiApi';
 import { Sparkles } from 'lucide-react';
+import { useApiKeys } from '@/hooks/useApiKeys';
 
 interface QuizSessionProps {
     type: QuestionType;
@@ -25,6 +26,7 @@ interface QuizSessionProps {
 export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: initialQuizId }) => {
     const { user } = useAuth();
     const words = useWords({ learnedOnly: true });
+    const { apiKeys } = useApiKeys();
     const wordsLoading = words === undefined;
 
     const [activeQuizId, setActiveQuizId] = useState<number | null>(initialQuizId || null);
@@ -169,7 +171,12 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         setIsExplaining(true);
         try {
             console.log('Fetching AI explanation for:', questions[currentIndex].targetWord);
-            const explanation = await getQuizExplanation(questions[currentIndex], userAnswers[currentIndex] || null);
+            const apiKey = apiKeys.geminiApiKey;
+            if (!apiKey) {
+                setExplanations(prev => ({ ...prev, [currentIndex]: "Please add a Gemini API key in Settings to use AI explanations." }));
+                return;
+            }
+            const explanation = await getQuizExplanation(questions[currentIndex], userAnswers[currentIndex] || null, apiKey);
             setExplanations(prev => ({ ...prev, [currentIndex]: explanation || "ERROR" }));
         } catch (e) {
             console.error('Explanation error:', e);
