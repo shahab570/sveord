@@ -101,7 +101,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user, isSyncing, syncAll]);
 
-    const syncProgress = useCallback(async () => {
+    const syncProgress = useCallback(async (silent = false) => {
         if (!user) return;
         try {
             let from = 0;
@@ -158,7 +158,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
                     if (progress.length < PAGE_SIZE) {
                         hasMore = false;
-                        toast.success(`Successfully synced ${from + progress.length} progress records.`);
+                        if (!silent) {
+                            toast.success(`Successfully synced ${from + progress.length} progress records.`);
+                        }
                     } else {
                         from += PAGE_SIZE;
                     }
@@ -244,7 +246,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             } else {
                 // Always sync progress on mount to ensure local device is up to date with cloud
                 console.log('Refreshing progress from cloud...');
-                await syncProgress();
+                await syncProgress(true);
             }
         };
         checkAndSync();
