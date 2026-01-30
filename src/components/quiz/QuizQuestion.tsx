@@ -108,18 +108,21 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                         let icon = null;
 
                         if (showFeedback) {
-                            if (optionText.toLowerCase() === question.correctAnswer?.toLowerCase()) {
-                                variant = "default"; // Green-ish usually, or primary
-                                icon = <CheckCircle2 className="w-5 h-5 ml-2 text-green-200" />;
-                            } else if (optionText.toLowerCase() === selectedAnswer?.toLowerCase()) {
+                            const isOptionCorrect = optionText.trim().toLowerCase() === (question.correctAnswer || "").trim().toLowerCase();
+                            const isOptionSelected = optionText.trim().toLowerCase() === (selectedAnswer || "").trim().toLowerCase();
+
+                            if (isOptionCorrect) {
+                                variant = "default";
+                                icon = <CheckCircle2 className="w-5 h-5 ml-2 text-white" />;
+                            } else if (isOptionSelected) {
                                 variant = "destructive";
-                                icon = <XCircle className="w-5 h-5 ml-2" />;
+                                icon = <XCircle className="w-5 h-5 ml-2 text-white" />;
                             }
-                        } else if (selectedAnswer?.toLowerCase() === optionText.toLowerCase()) {
+                        } else if (selectedAnswer?.trim().toLowerCase() === optionText.trim().toLowerCase()) {
                             variant = "default";
                         }
 
-                        const isGreen = showFeedback && optionText.toLowerCase() === question.correctAnswer?.toLowerCase();
+                        const isGreen = showFeedback && optionText.trim().toLowerCase() === (question.correctAnswer || "").trim().toLowerCase();
 
                         return (
                             <div key={index} className="flex flex-col">
@@ -128,7 +131,7 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                                         variant={variant}
                                         className={cn(
                                             "w-full h-auto py-4 text-lg justify-between px-6 transition-all min-h-[3.5rem]",
-                                            isGreen && "bg-green-600 hover:bg-green-700 text-white border-green-600",
+                                            isGreen && "!bg-green-600 !hover:bg-green-700 !text-white !border-green-600 shadow-lg ring-2 ring-green-400/20",
                                             !showFeedback && "hover:border-primary/50 hover:bg-accent/50"
                                         )}
                                         onClick={() => !showFeedback && onAnswer(optionText)}
@@ -171,7 +174,7 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
 
 function renderSentenceWithBlank(sentence: string, correctAnswer: string, selectedAnswer: string | null, showFeedback: boolean) {
     const parts = sentence.split('[[blank]]');
-    const isCorrect = selectedAnswer === correctAnswer;
+    const isCorrect = (selectedAnswer || "").trim().toLowerCase() === (correctAnswer || "").trim().toLowerCase();
 
     return (
         <span>

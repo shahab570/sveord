@@ -29,14 +29,13 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
     const [questions, setQuestions] = useState<IQuizQuestion[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [score, setScore] = useState(0);
-    const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-    const [showFeedback, setShowFeedback] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // Dialogue mastery state
-    const [dialogueAnswers, setDialogueAnswers] = useState<Record<number, string>>({});
+    // Persisted session answers
+    const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
+    const [multiDialogueAnswers, setMultiDialogueAnswers] = useState<Record<number, Record<number, string>>>({});
 
     // Modal State
     const [selectedWordKey, setSelectedWordKey] = useState<string | null>(null);
@@ -96,38 +95,43 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         loadQuiz();
     }, [words, type, activeQuizId]);
 
-    const handleAnswer = (answer: string) => {
-        setSelectedAnswer(answer);
-        setShowFeedback(true);
+    const selectedAnswer = userAnswers[currentIndex] || null;
+    const showFeedback = !!selectedAnswer || !!(multiDialogueAnswers[currentIndex] && Object.keys(multiDialogueAnswers[currentIndex]).length === questions[currentIndex].blanks?.length);
 
-        if (answer === questions[currentIndex].correctAnswer) {
+    const handleAnswer = (answer: string) => {
+        if (userAnswers[currentIndex]) return; // Already answered
+
+        setUserAnswers(prev => ({ ...prev, [currentIndex]: answer }));
+
+        if (answer.trim().toLowerCase() === questions[currentIndex].correctAnswer?.trim().toLowerCase()) {
             setScore(s => s + 1);
         }
     };
 
     const handleDialogueAnswer = (blankIndex: number, answer: string) => {
-        setDialogueAnswers(prev => ({ ...prev, [blankIndex]: answer }));
+        if (showFeedback) return;
 
-        // Check if all blanks filled
-        const currentQ = questions[currentIndex];
-        if (currentQ.blanks) {
-            const newAnswers = { ...dialogueAnswers, [blankIndex]: answer };
-            if (currentQ.blanks.every(b => !!newAnswers[b.index])) {
-                setShowFeedback(true);
+        setMultiDialogueAnswers(prev => {
+            const currentAnswers = prev[currentIndex] || {};
+            const newAnswers = { ...currentAnswers, [blankIndex]: answer };
+
+            // Check if all blanks filled
+            const currentQ = questions[currentIndex];
+            if (currentQ.blanks?.every(b => !!newAnswers[b.index])) {
                 // Calculate score contribution
-                const correctCount = currentQ.blanks.filter(b => newAnswers[b.index] === b.answer).length;
+                const correctCount = currentQ.blanks.filter(b => newAnswers[b.index].trim().toLowerCase() === b.answer.trim().toLowerCase()).length;
                 if (correctCount === currentQ.blanks.length) {
                     setScore(s => s + 1);
                 }
             }
-        }
+
+            return { ...prev, [currentIndex]: newAnswers };
+        });
     };
 
     const handleNext = async () => {
         if (currentIndex < questions.length - 1) {
             setCurrentIndex(c => c + 1);
-            setSelectedAnswer(null);
-            setShowFeedback(false);
         } else {
             setIsFinished(true);
             if (activeQuizId) {
@@ -136,13 +140,16 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         }
     };
 
+    const handlePrevious = () => {
+        setCurrentIndex(c => Math.max(0, c - 1));
+    };
+
     const handleRestart = async () => {
         setQuestions([]);
         setCurrentIndex(0);
         setScore(0);
-        setSelectedAnswer(null);
-        setDialogueAnswers({});
-        setShowFeedback(false);
+        setUserAnswers({});
+        setMultiDialogueAnswers({});
         setIsFinished(false);
         setActiveQuizId(null); // Force generate new one
     };
@@ -242,7 +249,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
                 <QuizDialogue
                     question={currentQuestion}
                     onAnswer={handleDialogueAnswer}
-                    userAnswers={dialogueAnswers}
+                    userAnswers={multiDialogueAnswers[currentIndex] || {}}
                     showFeedback={showFeedback}
                 />
             ) : (
@@ -255,20 +262,36 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
                 />
             )}
 
-            <div className="flex justify-center min-h-[3rem]">
-                {showFeedback && (
-                    <Button
-                        size="lg"
-                        onClick={handleNext}
-                        className="animate-in fade-in slide-in-from-bottom-2 gap-2 text-lg shadow-lg"
-                    >
-                        {currentIndex < questions.length - 1 ? (
-                            <>Next Question <ArrowRight className="w-5 h-5" /></>
-                        ) : (
-                            <>Finish Quiz <Trophy className="w-5 h-5" /></>
-                        )}
-                    </Button>
-                )}
+            <div className="flex items-center justify-between w-full max-w-2xl mx-auto gap-4">
+                <div className="flex-1">
+                    {currentIndex > 0 && (
+                        <Button
+                            variant="ghost"
+                            onClick={handlePrevious}
+                            className="text-muted-foreground hover:text-primary gap-2"
+                        >
+                            <ArrowRight className="w-4 h-4 rotate-180" /> Previous
+                        </Button>
+                    )}
+                </div>
+
+                <div className="flex-[2] flex justify-center min-h-[3.5rem]">
+                    {showFeedback && (
+                        <Button
+                            size="lg"
+                            onClick={handleNext}
+                            className="animate-in fade-in slide-in-from-bottom-2 gap-2 text-lg shadow-lg w-full max-w-xs"
+                        >
+                            {currentIndex < questions.length - 1 ? (
+                                <>Next Question <ArrowRight className="w-5 h-5" /></>
+                            ) : (
+                                <>Finish Quiz <Trophy className="w-5 h-5" /></>
+                            )}
+                        </Button>
+                    )}
+                </div>
+
+                <div className="flex-1" />
             </div>
 
             {/* Word Detail Modal */}

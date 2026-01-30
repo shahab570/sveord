@@ -74,7 +74,7 @@ function renderTextWithBlanks(
             if (!blank) return part;
 
             const selected = userAnswers[blankIdx];
-            const isCorrect = selected === blank.answer;
+            const isCorrect = (selected || "").trim().toLowerCase() === (blank.answer || "").trim().toLowerCase();
 
             return (
                 <span key={i} className="inline-flex flex-col gap-1 mx-1 align-middle">
