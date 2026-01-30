@@ -40,7 +40,7 @@ const shuffle = <T>(array: T[]): T[] => {
 };
 
 export const generateQuiz = async (
-  words: { id: number; swedish_word: string; word_data: any }[],
+  words: { id: number; swedish_word: string; word_data: any; progress?: { learned_date?: string | null } }[],
   type: QuestionType,
   count: number = 10
 ): Promise<number | null> => {
@@ -75,12 +75,17 @@ export const generateQuiz = async (
   }
 
   // Rank words by usage frequency to strictly prioritize "under-practiced" ones
+  // Primary: targetCount asc, Secondary: learned_date desc (newest first)
   const rankedPool = validWords.sort((a, b) => {
     const aUsage = usageMap.get(a.swedish_word)?.targetCount || 0;
     const bUsage = usageMap.get(b.swedish_word)?.targetCount || 0;
-    // If counts are equal, use random to vary same-tier words
-    if (aUsage === bUsage) return Math.random() - 0.5;
-    return aUsage - bUsage;
+
+    if (aUsage !== bUsage) return aUsage - bUsage;
+
+    // Tie-break: newer learned words first
+    const aDate = a.progress?.learned_date || '';
+    const bDate = b.progress?.learned_date || '';
+    return bDate.localeCompare(aDate);
   });
 
   // Take the target candidates from the least-used words
@@ -255,7 +260,7 @@ export const markQuizPracticed = async (id: number) => {
 
 
 export const generateAIQuiz = async (
-  words: { swedish_word: string; word_data: any }[],
+  words: { swedish_word: string; word_data: any; progress?: { learned_date?: string | null } }[],
   type: QuestionType,
   apiKey: string,
   count: number = 10
@@ -282,8 +287,12 @@ export const generateAIQuiz = async (
   const rankedPool = validWords.sort((a, b) => {
     const aUsage = usageMap.get(a.swedish_word)?.targetCount || 0;
     const bUsage = usageMap.get(b.swedish_word)?.targetCount || 0;
-    if (aUsage === bUsage) return Math.random() - 0.5;
-    return aUsage - bUsage;
+    if (aUsage !== bUsage) return aUsage - bUsage;
+
+    // Newer words first
+    const aDate = a.progress?.learned_date || '';
+    const bDate = b.progress?.learned_date || '';
+    return bDate.localeCompare(aDate);
   });
 
   const targetPool = rankedPool.slice(0, Math.max(count * 2, 20));
