@@ -102,7 +102,7 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                         )}
                     </div>
                 ) : (
-                    question.options.map((optionObj, index) => {
+                    question.options?.map((optionObj, index) => {
                         const optionText = optionObj.word;
                         let variant: "default" | "outline" | "secondary" | "destructive" | "ghost" | "link" = "outline";
                         let icon = null;

@@ -433,7 +433,7 @@ export async function generateAIQuizData(
     { "type": "${type}", "targetWord": "word", "correctAnswer": "answer", "options": [{ "word": "text", "meaning": "optional english hint" }] }
     
     Structure for 'context':
-    { "type": "context", "targetWord": "word", "sentence": "Jag bor i en [[blank]].", "blanks": [{ "index": 0, "answer": "hus", "options": ["bil", "skog", "stad"] }] }
+    { "type": "context", "targetWord": "word", "sentence": "Jag bor i en [[blank]].", "correctAnswer": "hus", "options": [{ "word": "bil" }, { "word": "skog" }, { "word": "stad" }, { "word": "hus" }] }
     
     Structure for 'dialogue':
     { "type": "dialogue", "dialogue": [{ "speaker": "A", "text": "Hej, hur [[0]] det?" }], "blanks": [{ "index": 0, "answer": "mår", "options": ["går", "är", "står"] }] }
