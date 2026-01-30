@@ -467,7 +467,7 @@ export async function generateFTWordContent(
     swedishWord: string,
     apiKey: string
 ): Promise<WordMeaningResult | GeminiError> {
-    const model = 'gemini-1.5-flash'; // Optimized for speed and quality
+    const model = ACTIVE_MODEL;
     const version = ACTIVE_VERSION;
 
     try {
