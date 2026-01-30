@@ -214,7 +214,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user, isSyncing]);
 
-    // Initial sync on mount if DB is empty
+    // Initial sync on mount
     useEffect(() => {
         const checkAndSync = async () => {
             if (!user) return;
@@ -224,12 +224,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                 console.log('Words missing, triggering full sync...');
                 await syncAll();
             } else {
-                // Words are there, but check for progress
-                const progressCount = await db.progress.count();
-                if (progressCount === 0) {
-                    console.log('Progress missing, triggering progress sync...');
-                    await syncProgress();
-                }
+                // Always sync progress on mount to ensure local device is up to date with cloud
+                console.log('Refreshing progress from cloud...');
+                await syncProgress();
             }
         };
         checkAndSync();
