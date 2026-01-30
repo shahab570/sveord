@@ -15,6 +15,7 @@ export default function FrequencyList() {
   const [selectedLevel, setSelectedLevel] = useState<string>("A1");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRandomMode, setIsRandomMode] = useState(false);
+  const [showLearned, setShowLearned] = useState(false);
 
   const currentFrequencyRange = FREQUENCY_LEVELS.find(
     (r) => r.value === selectedLevel
@@ -34,17 +35,15 @@ export default function FrequencyList() {
     );
   }, [words]);
 
-  // Filter out learned words - they should not be shown
-  const unlearnedWords = useMemo(() => {
+  const displayWords = useMemo(() => {
+    if (!sortedWords) return [];
+    if (showLearned) return sortedWords;
     return sortedWords.filter((w) => !w.progress?.is_learned);
-  }, [sortedWords]);
+  }, [sortedWords, showLearned]);
 
-  // Use levelStats for accurate counts (not limited by Supabase's 1000-row default)
+  // Use levelStats for accurate counts
   const totalInLevel = levelStats?.[selectedLevel]?.total || 0;
   const learnedCount = levelStats?.[selectedLevel]?.learned || 0;
-
-  // Always show only unlearned words (random mode cycles within them)
-  const displayWords = unlearnedWords;
 
   useEffect(() => {
     setCurrentIndex(0);
@@ -52,8 +51,8 @@ export default function FrequencyList() {
 
   const handleNext = () => {
     if (!displayWords) return;
-    if (isRandomMode && unlearnedWords.length > 1) {
-      const randomIndex = Math.floor(Math.random() * unlearnedWords.length);
+    if (isRandomMode && displayWords.length > 1) {
+      const randomIndex = Math.floor(Math.random() * displayWords.length);
       setCurrentIndex(randomIndex);
     } else if (currentIndex < displayWords.length - 1) {
       setCurrentIndex(currentIndex + 1);
@@ -88,28 +87,43 @@ export default function FrequencyList() {
             </div>
           </div>
 
-          <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FREQUENCY_LEVELS.map((level) => {
-                const stats = levelStats?.[level.label];
-                return (
-                  <SelectItem key={level.value} value={level.value}>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Level {level.label}</span>
-                      {stats && (
-                        <span className="text-xs text-muted-foreground">
-                          ({stats.learned}/{stats.total})
-                        </span>
-                      )}
-                    </div>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-lg border border-border/50">
+              <input
+                type="checkbox"
+                id="showLearned"
+                checked={showLearned}
+                onChange={(e) => setShowLearned(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="showLearned" className="text-sm font-medium text-muted-foreground cursor-pointer">
+                Show learned
+              </label>
+            </div>
+
+            <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FREQUENCY_LEVELS.map((level) => {
+                  const stats = levelStats?.[level.label];
+                  return (
+                    <SelectItem key={level.value} value={level.value}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Level {level.label}</span>
+                        {stats && (
+                          <span className="text-xs text-muted-foreground">
+                            ({stats.learned}/{stats.total})
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Word Card */}
@@ -121,7 +135,7 @@ export default function FrequencyList() {
           </div>
         ) : currentWord ? (
           <WordCard
-            key={currentWord.id}
+            key={currentWord.swedish_word}
             word={currentWord}
             onPrevious={handlePrevious}
             onNext={handleNext}

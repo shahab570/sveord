@@ -183,7 +183,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") 
     const stats: Record<string, { total: number; learned: number }> = {};
 
     // Get all learned items first to avoid repeated queries
-    const learnedProgress = await db.progress.where('is_learned').equals(1).toArray();
+    const learnedProgress = await db.progress.filter(p => !!p.is_learned).toArray();
 
     if (listType === "kelly") {
       for (const level of CEFR_LEVELS) {
@@ -476,8 +476,8 @@ export function useStats() {
 
     const totalWords = await db.words.count();
 
-    // Fetch all learned words once
-    const learnedProgress = await db.progress.where('is_learned').equals(1).toArray();
+    // Fetch all learned words once (truthy)
+    const learnedProgress = await db.progress.filter(p => !!p.is_learned).toArray();
     const learnedWords = learnedProgress.length;
 
     // Get the swedish words for all learned items
@@ -567,15 +567,15 @@ export function useDetailedStats() {
 
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const localStartOfToday = today.getTime();
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
     const monthAgo = new Date(today);
     monthAgo.setMonth(monthAgo.getMonth() - 1);
 
-    const allLearned = await db.progress.where('is_learned').equals(1).toArray();
+    const allLearned = await db.progress.filter(p => !!p.is_learned).toArray();
 
-    const nowStr = new Date().toISOString().split('T')[0];
-    const learnedTodayItems = allLearned.filter(p => p.learned_date && p.learned_date.startsWith(nowStr));
+    const learnedTodayItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= localStartOfToday);
     const learnedToday = learnedTodayItems.length;
     const learnedThisWeek = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= weekAgo).length;
     const learnedThisMonth = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= monthAgo).length;
@@ -781,14 +781,11 @@ export function useTodaysLearnedWords() {
     if (!user) return [];
 
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const localStartOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
     // Fetch progress for today from local DB
-    const nowStr = new Date().toISOString().split('T')[0];
     const todaysProgress = await db.progress
-      .where('is_learned')
-      .equals(1)
-      .filter(p => !!p.learned_date && p.learned_date.startsWith(nowStr))
+      .filter(p => !!p.is_learned && !!p.learned_date && new Date(p.learned_date).getTime() >= localStartOfToday)
       .toArray();
 
     if (!todaysProgress.length) return [];
