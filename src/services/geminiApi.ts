@@ -1,6 +1,6 @@
 // Gemini API service for generating Swedish word meanings
 let ACTIVE_MODEL = 'gemini-1.5-flash';
-let ACTIVE_VERSION = 'v1beta';
+let ACTIVE_VERSION = 'v1';
 
 const getApiUrl = (version: string, model: string) => {
     const v = (version || 'v1beta').trim();
@@ -332,8 +332,10 @@ export async function validateGeminiApiKey(apiKey: string): Promise<{ success: b
         'gemini-pro-latest'
     ])].filter(m => !m.includes('vision') && !m.includes('embedding') && m !== '');
 
-    const versions = ['v1beta', 'v1'];
+    const versions = ['v1', 'v1beta']; // Try v1 first for stability
     let lastError = 'No models found to test.';
+
+    console.log('[GeminiProbe] Full model list found:', availableModels.join(', '));
 
     for (const model of modelsToTry) {
         for (const version of versions) {
@@ -530,6 +532,13 @@ export async function getQuizExplanation(
         if (!response.ok) {
             const errorText = await response.text();
             console.error(`[GeminiExplanation] Server replied with ${response.status}:`, errorText);
+
+            // Auto-retry with v1 if v1beta failed with 404
+            if (response.status === 404 && v === 'v1beta') {
+                console.log('[GeminiExplanation] 404 on v1beta, retrying with v1...');
+                return getQuizExplanation(question, selectedAnswer, apiKey, 'v1', m);
+            }
+
             throw new Error(`Failed to fetch explanation: ${response.status}`);
         }
 
