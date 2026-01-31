@@ -92,7 +92,9 @@ export function useWords(filters?: {
     } else if (filters?.sidorRange) {
       collection = db.words.where('sidor_rank').between(filters.sidorRange[0], filters.sidorRange[1], true, true);
     } else if (filters?.ftOnly || filters?.listType === "ft") {
-      collection = db.words.where('is_ft').equals(1);
+      // FT words might have is_ft = 1, OR they might be words redownloaded from cloud 
+      // that have NO standard list rankings.
+      collection = db.words.toCollection();
     } else {
       // Default: Search across all lists including FT - use a compound index if possible or just filter
       // For now, let's ensure the baseline collection includes all rows
@@ -110,7 +112,11 @@ export function useWords(filters?: {
       } else if (filters?.listType === "sidor") {
         words = words.filter(w => !!w.sidor_rank);
       } else if (filters?.listType === "ft") {
-        words = words.filter(w => !!w.is_ft);
+        words = words.filter(w =>
+          w.is_ft === 1 ||
+          (w.word_data && !w.kelly_level && !w.frequency_rank && !w.sidor_rank) ||
+          (w.word_data as any)?.is_ft === true // Check inside JSON too
+        );
       }
     }
 

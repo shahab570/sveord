@@ -72,7 +72,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                             sidor_rank: wordData.sidor_rank || undefined,
                             word_data: wordData.word_data as any,
                             last_synced_at: new Date().toISOString(),
-                            is_ft: existing?.is_ft // Preserve FT flag
+                            is_ft: (wordData.word_data as any)?.is_ft ? 1 : existing?.is_ft // Restore from JSON or preserve local
                         });
                     }
 
@@ -140,7 +140,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                             sidor_rank: w.sidor_rank || undefined,
                             word_data: w.word_data as any,
                             last_synced_at: new Date().toISOString(),
-                            is_ft: existing?.is_ft // Preserve FT flag if it exists locally
+                            is_ft: (w.word_data as any)?.is_ft ? 1 : existing?.is_ft // Restore from JSON or preserve local
                         };
                     }));
                     await db.words.bulkPut(wordUpdates);

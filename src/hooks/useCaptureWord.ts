@@ -79,7 +79,8 @@ export function useCaptureWord() {
                 synonyms: result.synonyms || [],
                 antonyms: result.antonyms || [],
                 inflectionExplanation: result.inflectionExplanation,
-                populated_at: new Date().toISOString()
+                populated_at: new Date().toISOString(),
+                is_ft: true // Save to cloud JSON
             };
 
             // 5. Persist to Supabase first to get a real ID (Cloud Persistence)
