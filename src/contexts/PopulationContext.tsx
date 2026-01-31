@@ -451,20 +451,30 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             if (fetchError) throw fetchError;
             if (!words) return;
 
-            const updates: any[] = [];
-            const localUpdates: any[] = [];
+            // Process in chunks to avoid overwhelming the network
+            const CHUNK_SIZE = 500;
+            for (let i = 0; i < words.length; i += CHUNK_SIZE) {
+                const chunk = words.slice(i, i + CHUNK_SIZE);
+                const supabaseUpdates: any[] = [];
+                const dexieUpdates: any[] = [];
 
-            for (const word of words) {
-                const data = word.word_data as any;
-                if (data.grammaticalForms) {
+                for (const word of chunk) {
+                    const data = word.word_data as any;
+                    // Wipe the key entirely by setting to null to ensure filter works
                     const updatedData = { ...data, grammaticalForms: null };
-                    updates.push(supabase.from('words').update({ word_data: updatedData }).eq('id', word.id));
-                    localUpdates.push(db.words.update(word.swedish_word, { word_data: updatedData }));
+                    supabaseUpdates.push({ id: word.id, swedish_word: word.swedish_word, word_data: updatedData });
+                    dexieUpdates.push({ ...word, word_data: updatedData });
+                }
+
+                if (supabaseUpdates.length > 0) {
+                    setLastBatchInfo(`Resetting... ${i + chunk.length} / ${words.length}`);
+                    await supabase.from('words').upsert(supabaseUpdates);
+                    await db.words.bulkPut(dexieUpdates);
                 }
             }
 
-            await Promise.all([...updates, ...localUpdates]);
-            toast.success(`Grammar progress reset for ${updates.length / 2} words.`);
+            setRangeStart(1); // Reset start point to the beginning
+            toast.success(`Grammar progress reset for all words.`);
             await fetchStatus();
         } catch (err: any) {
             toast.error(err.message || "Reset failed");
