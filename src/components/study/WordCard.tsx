@@ -17,6 +17,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePopulation } from "@/contexts/PopulationContext";
@@ -288,6 +289,15 @@ export function WordCard({
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
+                  <a
+                    href={`https://svenska.se/tre/?sok=${encodeURIComponent(word.swedish_word)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 text-muted-foreground/40 hover:text-primary transition-all hover:scale-110 active:scale-95"
+                    title="Verify with Svenska.se (SAOL/SO/SAOB)"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
                 </div>
               </div>
             )}
