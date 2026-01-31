@@ -31,6 +31,7 @@ interface PopulationContextType {
     pausePopulation: () => void;
     resumePopulation: () => void;
     fetchStatus: () => Promise<void>;
+    cleanGrammar: () => Promise<void>;
     regenerateSingleWord: (wordId: number, swedishWord: string) => Promise<void>;
     regenerateFieldWithInstruction: (wordId: number, field: 'explanation' | 'meanings', instruction: string, swedishWordFallback?: string) => Promise<void>;
     enhanceUserNote: (text: string) => Promise<string>;
@@ -395,13 +396,53 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
+    const cleanGrammar = async () => {
+        setIsPopulating(true);
+        setLastBatchInfo("Cleaning up hallucinated grammar forms...");
+        try {
+            const { data: words, error: fetchError } = await supabase
+                .from('words')
+                .select('id, swedish_word, word_data')
+                .not('word_data', 'is', null);
+
+            if (fetchError) throw fetchError;
+            if (!words) return;
+
+            const nonInflectableTypes = ['adverb', 'preposition', 'conjunction', 'pronoun', 'interjection', 'particle'];
+            const updates: any[] = [];
+            const localUpdates: any[] = [];
+            let count = 0;
+
+            for (const word of words) {
+                const data = word.word_data as any;
+                const type = (data?.word_type || '').toLowerCase();
+
+                if (nonInflectableTypes.includes(type) && data.grammaticalForms && data.grammaticalForms.length > 0) {
+                    const updatedData = { ...data, grammaticalForms: [] };
+                    updates.push(supabase.from('words').update({ word_data: updatedData }).eq('id', word.id));
+                    localUpdates.push(db.words.update(word.swedish_word, { word_data: updatedData }));
+                    count++;
+                }
+            }
+
+            await Promise.all([...updates, ...localUpdates]);
+            toast.success(`Cleaned up grammar for ${count} non-inflectable words.`);
+            await fetchStatus();
+        } catch (err: any) {
+            toast.error(err.message || "Cleanup failed");
+        } finally {
+            setIsPopulating(false);
+            setLastBatchInfo(null);
+        }
+    };
+
     return (
         <PopulationContext.Provider value={{
             status, isPopulating, isPaused, overwrite: currentMode === 'overwrite', setOverwrite: (val) => setCurrentMode(val ? 'overwrite' : 'missing_data'),
             rangeStart, setRangeStart, rangeEnd, setRangeEnd,
             lastBatchInfo, error, processedCount, sessionTotal,
             startPopulation, pausePopulation, resumePopulation,
-            fetchStatus, regenerateSingleWord, regenerateFieldWithInstruction,
+            fetchStatus, cleanGrammar, regenerateSingleWord, regenerateFieldWithInstruction,
             enhanceUserNote
         }}>
             {children}

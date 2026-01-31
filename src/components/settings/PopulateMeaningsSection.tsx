@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 export function PopulateMeaningsSection() {
-    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused, lastBatchInfo } = usePopulation();
+    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused, lastBatchInfo, cleanGrammar } = usePopulation();
     const [overwrite, setOverwrite] = useState(false);
 
     if (!status || status.total === 0) return null;
@@ -71,6 +71,16 @@ export function PopulateMeaningsSection() {
                     >
                         <RefreshCw className={`h-3 w-3 ${isPopulating ? 'animate-spin' : ''}`} />
                         Refine All
+                    </Button>
+                    <Button
+                        onClick={cleanGrammar}
+                        disabled={isPopulating}
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-blue-500 hover:text-blue-700 font-bold"
+                    >
+                        <AlertCircle className="h-3 w-3" />
+                        Clean Hallucinations
                     </Button>
                 </div>
             </div>

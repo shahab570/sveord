@@ -10,9 +10,15 @@ export function generateForms(word: string, type: string, aiForms?: GrammaticalF
         return aiForms;
     }
 
-    const forms: GrammaticalForm[] = [];
-    const lowerWord = word.toLowerCase().trim();
     const lowerType = (type || '').toLowerCase();
+    const lowerWord = word.toLowerCase().trim();
+
+    // Adverbs, Prepositions, Conjunctions, Pronouns don't have these form sets
+    if (['adverb', 'preposition', 'conjunction', 'pronoun', 'interjection'].includes(lowerType)) {
+        return [];
+    }
+
+    const forms: GrammaticalForm[] = [];
 
     if (lowerType.includes('noun') || lowerType.includes('substantiv')) {
         // Simple heuristic for Nouns

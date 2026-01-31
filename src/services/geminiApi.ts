@@ -221,7 +221,16 @@ Task: Provide the standard grammatical forms for these words: ${JSON.stringify(w
 
 For each word, return:
 - word: string
-- grammaticalForms: Array of { label: string, word: string } (CRITICAL: VERBS: Infinitive, Present, Past, Supine, Imperative. NOUNS: Indefinite Singular, Definite Singular, Indefinite Plural, Definite Plural. ADJECTIVES: Common, Neuter, Plural/Definite. Use these exact labels.)
+- partOfSpeech: string (verb, noun, adjective, adverb, preposition, conjunction, etc.)
+- grammaticalForms: Array of { label: string, word: string } 
+
+CRITICAL RULES:
+1. ONLY provide grammaticalForms for VERBS, NOUNS, and ADJECTIVES.
+2. If a word is an ADVERB, PREPOSITION, CONJUNCTION, or PRONOUN, you MUST return an EMPTY ARRAY: "grammaticalForms": [].
+3. For VERBS: Infinitive, Present, Past, Supine, Imperative.
+4. For NOUNS: Indefinite Singular, Definite Singular, Indefinite Plural, Definite Plural.
+5. For ADJECTIVES: Common, Neuter, Plural/Definite.
+6. LINGUISTIC ACCURACY IS MANDATORY. NEVER invent forms.
 
 Output Format: A JSON Array of these objects.
 JSON ONLY.`;
