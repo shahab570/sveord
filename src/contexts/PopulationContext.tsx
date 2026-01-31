@@ -401,32 +401,58 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         setIsPopulating(true);
         setLastBatchInfo("Cleaning up hallucinated grammar forms...");
         try {
-            const { data: words, error: fetchError } = await supabase
-                .from('words')
-                .select('id, swedish_word, word_data')
-                .not('word_data', 'is', null);
+            let allWords: any[] = [];
+            let lastId = 0;
+            let hasMore = true;
 
-            if (fetchError) throw fetchError;
-            if (!words) return;
+            // Page through ALL words to overcome the 1000-limit
+            while (hasMore) {
+                const { data, error: fetchError } = await supabase
+                    .from('words')
+                    .select('id, swedish_word, word_data')
+                    .not('word_data', 'is', null)
+                    .gt('id', lastId)
+                    .order('id', { ascending: true })
+                    .limit(1000);
+
+                if (fetchError) throw fetchError;
+                if (!data || data.length === 0) {
+                    hasMore = false;
+                } else {
+                    allWords = [...allWords, ...data];
+                    lastId = data[data.length - 1].id;
+                    setLastBatchInfo(`Scanning for hallucinations... ${allWords.length}`);
+                }
+            }
 
             const nonInflectableTypes = ['adverb', 'preposition', 'conjunction', 'pronoun', 'interjection', 'particle'];
-            const updates: any[] = [];
-            const localUpdates: any[] = [];
+            const supabaseUpdates: any[] = [];
+            const dexieUpdates: any[] = [];
             let count = 0;
 
-            for (const word of words) {
+            for (const word of allWords) {
                 const data = word.word_data as any;
                 const type = (data?.word_type || '').toLowerCase();
 
                 if (nonInflectableTypes.includes(type) && data.grammaticalForms && data.grammaticalForms.length > 0) {
                     const updatedData = { ...data, grammaticalForms: [] };
-                    updates.push(supabase.from('words').update({ word_data: updatedData }).eq('id', word.id));
-                    localUpdates.push(db.words.update(word.swedish_word, { word_data: updatedData }));
+                    supabaseUpdates.push({ id: word.id, swedish_word: word.swedish_word, word_data: updatedData });
+                    dexieUpdates.push({ ...word, word_data: updatedData });
                     count++;
                 }
             }
 
-            await Promise.all([...updates, ...localUpdates]);
+            // Process updates in chunks of 500
+            const CHUNK_SIZE = 500;
+            for (let i = 0; i < supabaseUpdates.length; i += CHUNK_SIZE) {
+                const supChunk = supabaseUpdates.slice(i, i + CHUNK_SIZE);
+                const dexChunk = dexieUpdates.slice(i, i + CHUNK_SIZE);
+
+                setLastBatchInfo(`Cleaning... ${i + supChunk.length} / ${supabaseUpdates.length}`);
+                await supabase.from('words').upsert(supChunk);
+                await db.words.bulkPut(dexChunk);
+            }
+
             toast.success(`Cleaned up grammar for ${count} non-inflectable words.`);
             await fetchStatus();
         } catch (err: any) {
