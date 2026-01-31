@@ -463,7 +463,9 @@ export async function generateAIQuizData(
     Structure for 'dialogue':
     { "type": "dialogue", "dialogue": [{ "speaker": "A", "text": "Hej, hur [[0]] det?", "translation": "Hi, how are you?" }], "blanks": [{ "index": 0, "answer": "mår", "options": ["mår", "går", "är", "står"] }] }
     
-    CRITICAL: For 'meaning' type, ensure each object in the 'options' array includes the 'swedishWord' field. The 'options' array MUST always contain the 'correctAnswer' (or 'answer' for dialogue). Return ONLY the JSON array.`;
+    CRITICAL: For 'meaning' type, ensure each object in the 'options' array includes the 'swedishWord' field.
+    CRITICAL: For 'dialogue' type, ensure 'answer' and 'options' are ONLY plain strings, NEVER objects.
+    The 'options' array MUST always contain the 'correctAnswer' (or 'answer' for dialogue). Return ONLY the JSON array.`;
 
     try {
         const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {

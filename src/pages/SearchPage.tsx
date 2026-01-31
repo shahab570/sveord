@@ -10,6 +10,7 @@ import { useCaptureWord } from "@/hooks/useCaptureWord";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { db } from "@/services/db";
 import { toast } from "sonner";
+import { stripMarkdown } from "@/utils/markdownUtils";
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,9 +122,9 @@ export default function SearchPage() {
             <span className={`text-base text-foreground ${isLearned ? 'font-black tracking-tight text-lg' : 'font-medium'}`}>
               {word.swedish_word}
             </span>
-            {word.progress?.user_meaning && (
+            {(word.progress?.user_meaning || word.word_data?.meanings?.[0]?.english) && (
               <span className={`text-xs truncate max-w-[150px] ${isLearned ? 'text-foreground/80 font-medium' : 'text-muted-foreground'}`}>
-                {word.progress.user_meaning}
+                {stripMarkdown(word.progress?.user_meaning || word.word_data?.meanings?.[0]?.english || "")}
               </span>
             )}
           </div>

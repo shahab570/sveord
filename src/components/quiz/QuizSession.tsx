@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useWords, WordWithProgress } from '@/hooks/useWords';
-import { generateQuiz, QuizQuestion as IQuizQuestion, QuestionType, markQuizPracticed } from '@/utils/quizUtils';
+import { generateQuiz, QuizQuestion as IQuizQuestion, QuestionType, markQuizPracticed, sanitizeQuestions } from '@/utils/quizUtils';
 import { QuizQuestion } from './QuizQuestion';
 import { QuizDialogue } from './QuizDialogue';
 import { cn } from '@/lib/utils';
@@ -75,7 +75,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
             if (activeQuizId) {
                 const savedQuiz = await db.quizzes.get(activeQuizId);
                 if (savedQuiz) {
-                    setQuestions(savedQuiz.questions);
+                    setQuestions(sanitizeQuestions(savedQuiz.questions));
                     if (savedQuiz.explanations) {
                         setExplanations(savedQuiz.explanations);
                     }
@@ -93,7 +93,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
                     } else {
                         const savedQuiz = await db.quizzes.get(newQuizId);
                         if (savedQuiz) {
-                            setQuestions(savedQuiz.questions);
+                            setQuestions(sanitizeQuestions(savedQuiz.questions));
                             setActiveQuizId(newQuizId);
                         }
                     }

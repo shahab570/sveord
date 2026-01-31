@@ -300,6 +300,44 @@ export const markQuizPracticed = async (id: number) => {
 
 
 
+export const sanitizeQuestions = (questions: QuizQuestion[]): QuizQuestion[] => {
+  return questions.map(q => {
+    const sanitized = { ...q };
+
+    // Ensure all strings are strings, not objects (fixes React error #31)
+    if (sanitized.type === 'dialogue') {
+      if (sanitized.dialogue) {
+        sanitized.dialogue = sanitized.dialogue.map(turn => ({
+          ...turn,
+          text: String(turn.text || ""),
+          translation: String(turn.translation || "")
+        }));
+      }
+      if (sanitized.blanks) {
+        sanitized.blanks = sanitized.blanks.map(blank => ({
+          ...blank,
+          answer: typeof blank.answer === 'object' ? (blank.answer as any).word || (blank.answer as any).answer || JSON.stringify(blank.answer) : String(blank.answer || ""),
+          options: (blank.options || []).map(opt => typeof opt === 'object' ? (opt as any).word || (opt as any).option || JSON.stringify(opt) : String(opt || ""))
+        }));
+      }
+    }
+
+    // Also sanitize MCQ options just in case
+    if (sanitized.options) {
+      sanitized.options = sanitized.options.map(opt => ({
+        ...opt,
+        word: typeof opt.word === 'object' ? (opt.word as any).word || (opt.word as any).text || JSON.stringify(opt.word) : String(opt.word || "")
+      }));
+    }
+
+    if (sanitized.correctAnswer) {
+      sanitized.correctAnswer = typeof sanitized.correctAnswer === 'object' ? (sanitized.correctAnswer as any).word || (sanitized.correctAnswer as any).text || JSON.stringify(sanitized.correctAnswer) : String(sanitized.correctAnswer);
+    }
+
+    return sanitized;
+  });
+};
+
 export const generateAIQuiz = async (
   words: { swedish_word: string; word_data: any; progress?: { learned_date?: string | null } }[],
   type: QuestionType,
@@ -348,11 +386,11 @@ export const generateAIQuiz = async (
   if (!aiQuestions || aiQuestions.length === 0) return null;
 
   // 3. Map to internal schema and save
-  const questions: QuizQuestion[] = aiQuestions.map((q, i) => ({
+  const questions: QuizQuestion[] = sanitizeQuestions(aiQuestions.map((q, i) => ({
     ...q,
     id: `${Date.now()}-${i}`,
     type: q.type as QuestionType
-  }));
+  })));
 
   // Track usage
   for (const word of selectedWords) {

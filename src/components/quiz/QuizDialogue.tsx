@@ -92,6 +92,12 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
     );
 };
 
+const ensureString = (val: any): string => {
+    if (typeof val === 'string') return val;
+    if (!val) return "";
+    return val.word || val.text || val.answer || JSON.stringify(val);
+};
+
 function renderTextWithBlanks(
     text: string,
     blanks: QuizBlank[],
@@ -130,12 +136,12 @@ function renderTextWithBlanks(
                     >
                         <option value="" disabled>?</option>
                         {(shuffledBlanks[blankIdx] || []).map((opt, oi) => (
-                            <option key={oi} value={opt}>{opt}</option>
+                            <option key={oi} value={ensureString(opt)}>{ensureString(opt)}</option>
                         ))}
                     </select>
                     {showFeedback && !isCorrect && (
                         <span className="text-xs text-green-600 font-bold uppercase mt-1.5 leading-none text-center animate-in fade-in slide-in-from-top-1 bg-green-50 px-1.5 py-0.5 rounded border border-green-200 shadow-sm">
-                            Correct: {blank.answer}
+                            Correct: {ensureString(blank.answer)}
                         </span>
                     )}
                 </span>
@@ -152,9 +158,9 @@ function renderTranslationWithBlanks(text: string, blanks: QuizBlank[]) {
         if (match) {
             const blankIdx = parseInt(match[1]);
             const blank = blanks.find(b => b.index === blankIdx);
-            return <strong key={i} className="not-italic font-bold text-primary/80">{blank?.answer || part}</strong>;
+            return <strong key={i} className="not-italic font-bold text-primary/80">{ensureString(blank?.answer || part)}</strong>;
         }
-        return part;
+        return ensureString(part);
     });
 }
 
