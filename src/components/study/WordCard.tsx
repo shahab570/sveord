@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ReactMarkdown from 'react-markdown';
 import { WordWithProgress, useUserProgress } from "@/hooks/useWords";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -526,10 +527,9 @@ export function WordCard({
                     className="p-4 bg-white/50 rounded-2xl border-2 border-dashed border-border hover:border-primary/30 transition-all cursor-pointer group/note"
                   >
                     {meaning ? (
-                      <div
-                        className="prose prose-sm max-w-none text-slate-600 leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: meaning }}
-                      />
+                      <div className="prose prose-sm max-w-none text-slate-600 leading-relaxed text-left">
+                        <ReactMarkdown>{meaning}</ReactMarkdown>
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center py-4 text-muted-foreground/40 group-hover/note:text-primary/40">
                         <Pencil className="h-6 w-6 mb-2" />
