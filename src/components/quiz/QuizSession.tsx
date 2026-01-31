@@ -50,25 +50,24 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
     const [capturedWord, setCapturedWord] = useState<WordWithProgress | null>(null);
     const { captureWord, isCapturing: isCapturingWord } = useCaptureWord();
 
-    // Find selected word from ALL words (since quiz might involve words not in the current learned list filter if revisiting old quizzes)
-    const allWords = useLiveQuery(() => db.words.toArray());
-    const matchedWord = allWords?.find(w => w.swedish_word === selectedWordKey?.toLowerCase()) as WordWithProgress | undefined;
+    // Reactive lookup for the selected word
+    const matchedWord = useLiveQuery(
+        () => selectedWordKey ? db.words.get(selectedWordKey.toLowerCase()) : null,
+        [selectedWordKey]
+    ) as WordWithProgress | undefined;
 
-    // Effect to handle capturing word if match is not found
+    // Effect to handle capturing word if match is not found in local DB
     useEffect(() => {
-        const handleCapture = async () => {
-            if (selectedWordKey && !matchedWord && !isCapturingWord) {
-                console.log(`Word "${selectedWordKey}" not found, attempts to capture...`);
-                const result = await captureWord(selectedWordKey);
-                if (result) {
-                    setCapturedWord(result);
-                }
-            } else if (matchedWord) {
-                setCapturedWord(matchedWord);
-            }
-        };
-        handleCapture();
+        if (selectedWordKey && matchedWord === null && !isCapturingWord) {
+            console.log(`Word "${selectedWordKey}" not found in local DB, capturing...`);
+            captureWord(selectedWordKey).then(result => {
+                if (result) setCapturedWord(result);
+            });
+        }
     }, [selectedWordKey, matchedWord, isCapturingWord, captureWord]);
+
+    // Derived word for display: priority to captured result, then local DB match
+    const displayWord = capturedWord || matchedWord;
 
     useEffect(() => {
         const loadQuiz = async () => {
@@ -382,16 +381,16 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
             }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogTitle className="sr-only">Word Details</DialogTitle>
-                    {capturedWord ? (
+                    {displayWord ? (
                         <WordCard
-                            word={capturedWord}
+                            word={displayWord}
                             onPrevious={() => { }}
                             onNext={() => { }}
                             hasPrevious={false}
                             hasNext={false}
                             currentIndex={0}
                             totalCount={1}
-                            learnedCount={capturedWord.progress?.is_learned ? 1 : 0}
+                            learnedCount={displayWord.progress?.is_learned ? 1 : 0}
                             isRandomMode={false}
                             onToggleRandom={() => { }}
                             showRandomButton={false}
