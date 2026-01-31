@@ -32,6 +32,7 @@ interface PopulationContextType {
     resumePopulation: () => void;
     fetchStatus: () => Promise<void>;
     cleanGrammar: () => Promise<void>;
+    resetGrammar: () => Promise<void>;
     regenerateSingleWord: (wordId: number, swedishWord: string) => Promise<void>;
     regenerateFieldWithInstruction: (wordId: number, field: 'explanation' | 'meanings', instruction: string, swedishWordFallback?: string) => Promise<void>;
     enhanceUserNote: (text: string) => Promise<string>;
@@ -436,13 +437,50 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
+    const resetGrammar = async () => {
+        if (!confirm("This will wipe all existing 'Grammar Forms' progress so you can start fresh with the new SAOL rules. Are you sure?")) return;
+
+        setIsPopulating(true);
+        setLastBatchInfo("Resetting grammar progress...");
+        try {
+            const { data: words, error: fetchError } = await supabase
+                .from('words')
+                .select('id, swedish_word, word_data')
+                .not('word_data', 'is', null);
+
+            if (fetchError) throw fetchError;
+            if (!words) return;
+
+            const updates: any[] = [];
+            const localUpdates: any[] = [];
+
+            for (const word of words) {
+                const data = word.word_data as any;
+                if (data.grammaticalForms) {
+                    const updatedData = { ...data, grammaticalForms: null };
+                    updates.push(supabase.from('words').update({ word_data: updatedData }).eq('id', word.id));
+                    localUpdates.push(db.words.update(word.swedish_word, { word_data: updatedData }));
+                }
+            }
+
+            await Promise.all([...updates, ...localUpdates]);
+            toast.success(`Grammar progress reset for ${updates.length / 2} words.`);
+            await fetchStatus();
+        } catch (err: any) {
+            toast.error(err.message || "Reset failed");
+        } finally {
+            setIsPopulating(false);
+            setLastBatchInfo(null);
+        }
+    };
+
     return (
         <PopulationContext.Provider value={{
             status, isPopulating, isPaused, overwrite: currentMode === 'overwrite', setOverwrite: (val) => setCurrentMode(val ? 'overwrite' : 'missing_data'),
             rangeStart, setRangeStart, rangeEnd, setRangeEnd,
             lastBatchInfo, error, processedCount, sessionTotal,
             startPopulation, pausePopulation, resumePopulation,
-            fetchStatus, cleanGrammar, regenerateSingleWord, regenerateFieldWithInstruction,
+            fetchStatus, cleanGrammar, resetGrammar, regenerateSingleWord, regenerateFieldWithInstruction,
             enhanceUserNote
         }}>
             {children}

@@ -11,11 +11,12 @@ import {
     Info,
     Pause,
     Play,
-    Languages
+    Languages,
+    Trash2
 } from "lucide-react";
 
 export function PopulateMeaningsSection() {
-    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused, lastBatchInfo, cleanGrammar } = usePopulation();
+    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused, lastBatchInfo, cleanGrammar, resetGrammar } = usePopulation();
     const [overwrite, setOverwrite] = useState(false);
 
     if (!status || status.total === 0) return null;
@@ -38,23 +39,6 @@ export function PopulateMeaningsSection() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <Button
-                        onClick={() => startPopulation('missing_data')}
-                        disabled={isPopulating}
-                        variant="outline"
-                        className="gap-2"
-                    >
-                        {isPopulating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-                        Fill Meanings
-                    </Button>
-                    <Button
-                        onClick={() => startPopulation('missing_stories')}
-                        disabled={isPopulating}
-                        className="gap-2 bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-200"
-                    >
-                        {isPopulating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                        Fill Stories
-                    </Button>
-                    <Button
                         onClick={() => startPopulation('missing_grammar')}
                         disabled={isPopulating}
                         className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
@@ -63,14 +47,14 @@ export function PopulateMeaningsSection() {
                         Fill Grammar
                     </Button>
                     <Button
-                        onClick={() => startPopulation('overwrite')}
+                        onClick={resetGrammar}
                         disabled={isPopulating}
                         variant="ghost"
                         size="sm"
-                        className="gap-2 text-muted-foreground hover:text-destructive"
+                        className="gap-2 text-destructive hover:text-red-700 font-bold"
                     >
-                        <RefreshCw className={`h-3 w-3 ${isPopulating ? 'animate-spin' : ''}`} />
-                        Refine All
+                        <Trash2 className="h-3 w-3" />
+                        Reset Progress
                     </Button>
                     <Button
                         onClick={cleanGrammar}
@@ -86,36 +70,10 @@ export function PopulateMeaningsSection() {
             </div>
 
             <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-secondary/30 rounded-xl border border-border/50">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data Coverage</span>
-                            <span className="text-xs font-bold text-primary">
-                                {Math.round((status.completed / status.total) * 100)}%
-                            </span>
-                        </div>
-                        <p className="text-2xl font-bold text-foreground">
-                            {status.completed} <span className="text-sm font-normal text-muted-foreground">/ {status.total}</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">Total defined words</p>
-                    </div>
-
-                    <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Base Word Stories</span>
-                            <span className="text-xs font-bold text-purple-600">
-                                {Math.round((status.explanationCount / status.total) * 100)}%
-                            </span>
-                        </div>
-                        <p className="text-2xl font-bold text-purple-700">
-                            {status.explanationCount} <span className="text-sm font-normal text-purple-400">/ {status.total}</span>
-                        </p>
-                        <p className="text-xs text-purple-600/80 mt-1">Total base-form stories generated</p>
-                    </div>
-
+                <div className="grid grid-cols-1 gap-4">
                     <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
                         <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Grammar Forms</span>
+                            <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Grammar Forms Coverage</span>
                             <span className="text-xs font-bold text-blue-600">
                                 {Math.round((status.grammarCount / status.total) * 100)}%
                             </span>
