@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,15 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
     showFeedback,
 }) => {
     if (!question.dialogue || !question.blanks) return null;
+
+    const shuffledBlanks = useMemo(() => {
+        if (!question.blanks) return {};
+        const map: Record<number, string[]> = {};
+        question.blanks.forEach(blank => {
+            map[blank.index] = shuffle([...blank.options, blank.answer]);
+        });
+        return map;
+    }, [question.id, question.blanks]);
 
     return (
         <Card className="w-full max-w-2xl mx-auto shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -46,7 +55,7 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
                                     ? "bg-background border border-border rounded-tl-none"
                                     : "bg-primary text-primary-foreground rounded-tr-none"
                             )}>
-                                {renderTextWithBlanks(turn.text, question.blanks!, onAnswer, userAnswers, showFeedback, turn.speaker === "B")}
+                                {renderTextWithBlanks(turn.text, question.blanks!, onAnswer, userAnswers, showFeedback, turn.speaker === "B", shuffledBlanks)}
                             </div>
                         </div>
                     ))}
@@ -62,7 +71,8 @@ function renderTextWithBlanks(
     onAnswer: (idx: number, val: string) => void,
     userAnswers: Record<number, string>,
     showFeedback: boolean,
-    isPrimary: boolean
+    isPrimary: boolean,
+    shuffledBlanks: Record<number, string[]>
 ) {
     const parts = text.split(/(\[\[\d+\]\])/g);
 
@@ -92,7 +102,7 @@ function renderTextWithBlanks(
                         onChange={(e) => onAnswer(blankIdx, e.target.value)}
                     >
                         <option value="" disabled>?</option>
-                        {shuffle([...blank.options, blank.answer]).map((opt, oi) => (
+                        {(shuffledBlanks[blankIdx] || []).map((opt, oi) => (
                             <option key={oi} value={opt}>{opt}</option>
                         ))}
                     </select>
