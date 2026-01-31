@@ -502,22 +502,27 @@ export async function getQuizExplanation(
     if (!apiKey) throw new Error("Gemini API key not found. Please add it in Settings.");
 
     const questionJson = JSON.stringify(question, null, 2);
-    const prompt = `You are a helpful Swedish language tutor. Provide a detailed pedagogical explanation for this quiz question.
-    
-    Question Data: ${questionJson}
-    User's Selected Answer: "${selectedAnswer || 'None'}"
-    Correct Answer: "${question.correctAnswer}"
-    
-    Your explanation must include:
-    1. **Translation**: A full English translation of the prompt sentence or the word relationship.
-    2. **Reasoning**: A clear explanation of why **${question.correctAnswer}** is the correct/best choice in this specific context.
-    3. **Comparison**: If the user chose a wrong answer ("${selectedAnswer}"), explain why it was incorrect (e.g., wrong grammatical form, opposite meaning, or doesn't fit the context). If they didn't choose yet, briefly explain why the other options are distracting or incorrect.
-    
-    Rules:
-    - Use **bold** for Swedish words and *italics* for English words/translations.
-    - Be supportive and educational.
-    - Keep it concise but thorough (3-5 sentences total).
-    - Format as a single paragraph or small block of text.`;
+    const prompt = `You are an expert Swedish language educator. Your goal is to provide a comprehensive, high-quality pedagogical explanation for this quiz question to help a student learn.
+
+    ### QUIZ CONTEXT:
+    - Question JSON: ${questionJson}
+    - Student's Choice: "${selectedAnswer || 'No choice yet'}"
+    - Correct Answer: "${question.correctAnswer}"
+
+    ### YOUR TASK:
+    Write a clear, educational explanation (50-100 words) that includes the following three sections:
+
+    1. **FULL TRANSLATION**: Provide a natural English translation of the prompt ${question.type === 'context' ? 'sentence' : 'word/phrase'}.
+    2. **WHY THIS IS CORRECT**: Explain the specific meaning of **${question.correctAnswer}** and why it's the perfect fit here ${question.type === 'context' ? '(grammar, logic, or nuance)' : ''}.
+    3. **WHY OTHERS ARE WRONG**: Briefly explain the meanings of the distractor words and why they don't fit (e.g., wrong part of speech, different meaning, or opposite nuance).
+
+    ### RULES:
+    - **CRITICAL**: Use **bold** for ALL Swedish words.
+    - **CRITICAL**: Use *italics* for ALL English translations and meanings.
+    - Use a professional yet encouraging tone.
+    - If the student's choice was "${selectedAnswer}" and it was WRONG, specifically explain the mistake.
+    - Do NOT be lazy. Provide a thorough explanation.
+    - Format as a single, well-organized response without section headers.`;
 
     const v = version || ACTIVE_VERSION || 'v1';
     const m = model || ACTIVE_MODEL || 'gemini-1.5-flash';
@@ -533,8 +538,8 @@ export async function getQuizExplanation(
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
-                    temperature: 0.3,
-                    maxOutputTokens: 300,
+                    temperature: 0.2,
+                    maxOutputTokens: 1024,
                 }
             })
         });
