@@ -443,18 +443,36 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         setIsPopulating(true);
         setLastBatchInfo("Resetting grammar progress...");
         try {
-            const { data: words, error: fetchError } = await supabase
-                .from('words')
-                .select('id, swedish_word, word_data')
-                .not('word_data', 'is', null);
+            let allWords: any[] = [];
+            let lastId = 0;
+            let hasMore = true;
 
-            if (fetchError) throw fetchError;
-            if (!words) return;
+            // Page through ALL words to overcome the 1000-limit
+            while (hasMore) {
+                const { data, error: fetchError } = await supabase
+                    .from('words')
+                    .select('id, swedish_word, word_data')
+                    .not('word_data', 'is', null)
+                    .gt('id', lastId)
+                    .order('id', { ascending: true })
+                    .limit(1000);
+
+                if (fetchError) throw fetchError;
+                if (!data || data.length === 0) {
+                    hasMore = false;
+                } else {
+                    allWords = [...allWords, ...data];
+                    lastId = data[data.length - 1].id;
+                    setLastBatchInfo(`Fetching words to reset... ${allWords.length}`);
+                }
+            }
+
+            if (allWords.length === 0) return;
 
             // Process in chunks to avoid overwhelming the network
             const CHUNK_SIZE = 500;
-            for (let i = 0; i < words.length; i += CHUNK_SIZE) {
-                const chunk = words.slice(i, i + CHUNK_SIZE);
+            for (let i = 0; i < allWords.length; i += CHUNK_SIZE) {
+                const chunk = allWords.slice(i, i + CHUNK_SIZE);
                 const supabaseUpdates: any[] = [];
                 const dexieUpdates: any[] = [];
 
@@ -467,14 +485,14 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 }
 
                 if (supabaseUpdates.length > 0) {
-                    setLastBatchInfo(`Resetting... ${i + chunk.length} / ${words.length}`);
+                    setLastBatchInfo(`Resetting... ${i + chunk.length} / ${allWords.length}`);
                     await supabase.from('words').upsert(supabaseUpdates);
                     await db.words.bulkPut(dexieUpdates);
                 }
             }
 
             setRangeStart(1); // Reset start point to the beginning
-            toast.success(`Grammar progress reset for all words.`);
+            toast.success(`Grammar progress reset for ${allWords.length} words.`);
             await fetchStatus();
         } catch (err: any) {
             toast.error(err.message || "Reset failed");
