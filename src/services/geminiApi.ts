@@ -636,6 +636,11 @@ Requirements:
 6. **Gender**: If noun, specify "en" or "ett".
 7. **Inflection Explanation**: A 1-2 sentence "Base Word Story" explaining the word's form or usage tips.
 8. **Base Form detection**: (CRITICAL) Identify the dictionary/base form of the word. If the word is already a base form, return true for isInflected: false. If it is inflected (plural, conjugated, etc.), provide the baseForm (e.g. "by" for "byar") and set isInflected: true.
+9. **Grammatical Forms**: (STRICT RULES) Provide the standard forms based on SAOL:
+   - VERBS: 5 forms (Infinitive, Present, Past, Supine, Imperative).
+   - NOUNS: 4 forms (Indef. Sing, Def. Sing, Indef. Plur, Def. Plur).
+   - ADJECTIVES: 3 forms (Common, Neuter, Plural).
+   - OTHERS: Return empty array.
 
 Format your response as JSON:
 {
@@ -644,6 +649,7 @@ Format your response as JSON:
   "inflectionExplanation": "...",
   "baseForm": "correct root word",
   "isInflected": true/false,
+  "grammaticalForms": [{"label": "Infinitive", "word": "word"}, ...],
   "meanings": [{"english": "meaning 1", "context": ""}, {"english": "meaning 2", "context": ""}],
   "examples": [{"swedish": "...", "english": "..."}, {"swedish": "...", "english": "..."}],
   "synonyms": ["...", "..."],
@@ -682,7 +688,8 @@ ONLY return the JSON.`;
             gender: result.gender,
             inflectionExplanation: result.inflectionExplanation,
             baseForm: result.baseForm,
-            isInflected: result.isInflected
+            isInflected: result.isInflected,
+            grammaticalForms: result.grammaticalForms || result.grammatical_forms || []
         };
     } catch (error: any) {
         return { error: 'Parse Error', details: error.message };

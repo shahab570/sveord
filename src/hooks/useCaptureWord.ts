@@ -79,6 +79,7 @@ export function useCaptureWord() {
                 synonyms: result.synonyms || [],
                 antonyms: result.antonyms || [],
                 inflectionExplanation: result.inflectionExplanation,
+                grammaticalForms: result.grammaticalForms || [],
                 populated_at: new Date().toISOString(),
                 is_ft: true // Save to cloud JSON
             };
