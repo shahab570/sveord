@@ -502,16 +502,22 @@ export async function getQuizExplanation(
     if (!apiKey) throw new Error("Gemini API key not found. Please add it in Settings.");
 
     const questionJson = JSON.stringify(question, null, 2);
-    const prompt = `Pedagogical explanation for this Swedish quiz question:
-    Question: ${questionJson}
-    User: "${selectedAnswer}"
-    Correct: "${question.correctAnswer}"
+    const prompt = `You are a helpful Swedish language tutor. Provide a detailed pedagogical explanation for this quiz question.
     
-    Instruction: Briefly explain (1-3 sentences) why "${question.correctAnswer}" is correct. 
-    Notes:
-    - If synonym/antonym, explain the relationship.
-    - Mention why distractors might be wrong if relevant.
-    - Be concise. Use bold for Swedish words.`;
+    Question Data: ${questionJson}
+    User's Selected Answer: "${selectedAnswer || 'None'}"
+    Correct Answer: "${question.correctAnswer}"
+    
+    Your explanation must include:
+    1. **Translation**: A full English translation of the prompt sentence or the word relationship.
+    2. **Reasoning**: A clear explanation of why **${question.correctAnswer}** is the correct/best choice in this specific context.
+    3. **Comparison**: If the user chose a wrong answer ("${selectedAnswer}"), explain why it was incorrect (e.g., wrong grammatical form, opposite meaning, or doesn't fit the context). If they didn't choose yet, briefly explain why the other options are distracting or incorrect.
+    
+    Rules:
+    - Use **bold** for Swedish words and *italics* for English words/translations.
+    - Be supportive and educational.
+    - Keep it concise but thorough (3-5 sentences total).
+    - Format as a single paragraph or small block of text.`;
 
     const v = version || ACTIVE_VERSION || 'v1';
     const m = model || ACTIVE_MODEL || 'gemini-1.5-flash';
