@@ -436,8 +436,10 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
 
                 if (nonInflectableTypes.includes(type) && data.grammaticalForms && data.grammaticalForms.length > 0) {
                     const updatedData = { ...data, grammaticalForms: [] };
-                    supabaseUpdates.push({ id: word.id, swedish_word: word.swedish_word, word_data: updatedData });
-                    dexieUpdates.push({ ...word, word_data: updatedData });
+                    // Spread the entire word to preserve all other DB columns
+                    const updatedFullWord = { ...word, word_data: updatedData };
+                    supabaseUpdates.push(updatedFullWord);
+                    dexieUpdates.push(updatedFullWord);
                     count++;
                 }
             }
@@ -507,8 +509,10 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                     // Fully remove the key to ensure the counter hits 0
                     const updatedData = { ...data };
                     delete updatedData.grammaticalForms;
-                    supabaseUpdates.push({ id: word.id, swedish_word: word.swedish_word, word_data: updatedData });
-                    dexieUpdates.push({ ...word, word_data: updatedData });
+                    // Spread the entire word to preserve all other DB columns (kelly_level, rank, etc.)
+                    const updatedFullWord = { ...word, word_data: updatedData };
+                    supabaseUpdates.push(updatedFullWord);
+                    dexieUpdates.push(updatedFullWord);
                 }
 
                 if (supabaseUpdates.length > 0) {
