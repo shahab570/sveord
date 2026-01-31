@@ -217,8 +217,9 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                         populated_at: new Date().toISOString(),
                     };
 
-                    supabaseUpdates.push({ id: word.id, swedish_word: word.swedish_word, word_data: wordData });
-                    dexieUpdates.push({ ...word, word_data: wordData });
+                    const updatedFullWord = { ...word, word_data: wordData };
+                    supabaseUpdates.push(updatedFullWord);
+                    dexieUpdates.push(updatedFullWord);
 
                     if (result.grammaticalForms && result.grammaticalForms.length > 0) {
                         successCount++;
