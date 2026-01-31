@@ -268,21 +268,22 @@ export function WordCard({
                 </button>
               </div>
             ) : (
-              <div className="relative group/title">
+              <div className="flex items-center gap-4 group/title">
                 <h2 className="text-5xl md:text-6xl font-black text-foreground tracking-tighter">
                   {customSpelling || word.swedish_word}
                 </h2>
-                <div className="flex gap-2 absolute -right-16 top-1/2 -translate-y-1/2">
+                <div className="flex gap-1">
                   <button
                     onClick={handleCopy}
-                    className="p-1.5 text-muted-foreground hover:text-primary opacity-0 group-hover/title:opacity-100 transition-all hover:scale-110 active:scale-95"
+                    className="p-2 text-muted-foreground/40 hover:text-primary transition-all hover:scale-110 active:scale-95"
                     title="Copy word"
                   >
-                    <Copy className="h-4 w-4" />
+                    <Copy className="h-5 w-5" />
                   </button>
                   <button
                     onClick={() => setIsEditingSpelling(true)}
-                    className="p-1.5 text-muted-foreground opacity-0 group-hover/title:opacity-100 transition-opacity"
+                    className="p-2 text-muted-foreground/40 hover:text-primary transition-all hover:scale-110 active:scale-95"
+                    title="Edit spelling"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
