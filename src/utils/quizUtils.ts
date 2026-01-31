@@ -24,7 +24,7 @@ export interface QuizQuestion {
   targetWord?: string;
   targetMeaning?: string;
   sentence?: string; // For 'context' type
-  dialogue?: Array<{ speaker: string; text: string }>; // For 'dialogue' type
+  dialogue?: Array<{ speaker: string; text: string; translation?: string }>; // For 'dialogue' type
   blanks?: QuizBlank[]; // For context and dialogue types
   correctAnswer?: string; // For MCQ types
   options?: QuizOption[]; // For MCQ types

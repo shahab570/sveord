@@ -436,7 +436,7 @@ export async function generateAIQuizData(
     } else if (type === 'context') {
         typeInstruction = "For each word, create a natural Swedish sentence with a blank marked as '[[blank]]' where the word fits perfectly. Provide the target word as the answer and 3 other grammatically correct but contextually wrong Swedish words as options.";
     } else if (type === 'dialogue') {
-        typeInstruction = "Create a short 4-6 turn conversation between two speakers. Include 3-5 blanks marked as [[0]], [[1]], etc. Each blank MUST correspond to one of the target words provided. For each blank, provide the correct answer and 3 smart Swedish distractor words.";
+        typeInstruction = "Create a short 4-6 turn conversation between two speakers. Include 3-5 blanks marked as [[0]], [[1]], etc. Each blank MUST correspond to one of the target words provided. For each blank, provide the correct answer and 3 smart Swedish distractor words. CRITICAL: For each turn in the dialogue, provide a 'translation' field with the English translation.";
     } else if (type === 'translation') {
         typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. Provide 3 other common Swedish words as options to test the user's ability to produce the correct Swedish term based on English.";
     } else if (type === 'recall') {
@@ -461,7 +461,7 @@ export async function generateAIQuizData(
     { "type": "context", "targetWord": "word", "sentence": "Jag bor i en [[blank]].", "correctAnswer": "hus", "options": [{ "word": "bil", "swedishWord": "bil" }, { "word": "skog", "swedishWord": "skog" }, { "word": "stad", "swedishWord": "stad" }, { "word": "hus", "swedishWord": "hus" }] }
     
     Structure for 'dialogue':
-    { "type": "dialogue", "dialogue": [{ "speaker": "A", "text": "Hej, hur [[0]] det?" }], "blanks": [{ "index": 0, "answer": "mår", "options": ["mår", "går", "är", "står"] }] }
+    { "type": "dialogue", "dialogue": [{ "speaker": "A", "text": "Hej, hur [[0]] det?", "translation": "Hi, how are you?" }], "blanks": [{ "index": 0, "answer": "mår", "options": ["mår", "går", "är", "står"] }] }
     
     CRITICAL: For 'meaning' type, ensure each object in the 'options' array includes the 'swedishWord' field. The 'options' array MUST always contain the 'correctAnswer' (or 'answer' for dialogue). Return ONLY the JSON array.`;
 

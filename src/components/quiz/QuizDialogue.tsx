@@ -18,7 +18,13 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
     userAnswers,
     showFeedback,
 }) => {
+    const [visibleTranslations, setVisibleTranslations] = useState<Record<number, boolean>>({});
+
     if (!question.dialogue || !question.blanks) return null;
+
+    const toggleTranslation = (idx: number) => {
+        setVisibleTranslations(prev => ({ ...prev, [idx]: !prev[idx] }));
+    };
 
     const shuffledBlanks = useMemo(() => {
         if (!question.blanks) return {};
@@ -27,7 +33,7 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
             map[blank.index] = shuffle([...blank.options, blank.answer]);
         });
         return map;
-    }, [question.id, question.blanks]);
+    }, [question.id]);
 
     return (
         <Card className="w-full max-w-2xl mx-auto shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -50,12 +56,27 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
                                 Speaker {turn.speaker}
                             </span>
                             <div className={cn(
-                                "max-w-[85%] p-3 rounded-2xl text-sm md:text-base shadow-sm",
+                                "max-w-[85%] p-3 rounded-2xl text-sm md:text-base shadow-sm relative group/msg",
                                 turn.speaker === "A"
                                     ? "bg-background border border-border rounded-tl-none"
                                     : "bg-primary text-primary-foreground rounded-tr-none"
                             )}>
                                 {renderTextWithBlanks(turn.text, question.blanks!, onAnswer, userAnswers, showFeedback, turn.speaker === "B", shuffledBlanks)}
+
+                                {turn.translation && (
+                                    <div
+                                        onClick={() => toggleTranslation(i)}
+                                        className={cn(
+                                            "mt-2 pt-2 border-t border-current/10 text-xs italic cursor-pointer transition-all select-none",
+                                            visibleTranslations[i]
+                                                ? "opacity-60"
+                                                : "opacity-20 blur-[2px] hover:opacity-40 hover:blur-none"
+                                        )}
+                                        title="Click to reveal translation"
+                                    >
+                                        {visibleTranslations[i] ? turn.translation : "Click to see translation"}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -90,7 +111,7 @@ function renderTextWithBlanks(
                 <span key={i} className="inline-flex flex-col gap-1 mx-1 align-middle">
                     <select
                         className={cn(
-                            "h-8 px-2 rounded-md text-sm font-medium border-2 transition-all appearance-none cursor-pointer",
+                            "h-8 px-2 rounded-md text-sm font-medium border-2 appearance-none cursor-pointer",
                             !selected && "border-dashed border-muted-foreground/30 bg-muted/20 text-muted-foreground",
                             selected && !showFeedback && (isPrimary ? "bg-primary-foreground text-primary border-primary-foreground" : "bg-primary text-primary-foreground border-primary"),
                             showFeedback && isCorrect && "bg-green-500 text-white border-green-500",
