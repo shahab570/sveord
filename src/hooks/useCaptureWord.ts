@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { generateFTWordContent } from "@/services/geminiApi";
 import { db } from "@/services/db";
+import { supabase } from "@/integrations/supabase/client";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { toast } from "sonner";
 import { WordWithProgress } from "./useWords";
@@ -81,7 +82,36 @@ export function useCaptureWord() {
                 populated_at: new Date().toISOString()
             };
 
+            // 5. Persist to Supabase first to get a real ID (Cloud Persistence)
+            let cloudId: number | undefined;
+            try {
+                const { data: remoteWord, error: remoteError } = await supabase
+                    .from('words')
+                    .insert({
+                        swedish_word: baseForm,
+                        word_data: wordData as any,
+                    })
+                    .select('id')
+                    .single();
+
+                if (!remoteError && remoteWord) {
+                    cloudId = remoteWord.id;
+                    console.log(`Saved "${baseForm}" to cloud with ID: ${cloudId}`);
+                } else if (remoteError?.code === '23505') {
+                    // Unique constraint violation - word might have just been added by someone else or another tab
+                    const { data: existingRemote } = await supabase
+                        .from('words')
+                        .select('id')
+                        .eq('swedish_word', baseForm)
+                        .single();
+                    cloudId = existingRemote?.id;
+                }
+            } catch (err) {
+                console.error("Cloud persistence failed, falling back to local only:", err);
+            }
+
             const wordToSave = {
+                id: cloudId, // Might be undefined if cloud insert failed
                 swedish_word: baseForm, // Use base form as primary entry
                 word_data: wordData as any,
                 is_ft: 1,

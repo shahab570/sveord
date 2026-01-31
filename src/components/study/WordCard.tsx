@@ -25,7 +25,7 @@ import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { cn } from "@/lib/utils";
 import { generateForms, GrammaticalForm, WordType } from "@/services/grammar";
 import { getAudioForWord, playAudioBlob } from "@/services/forvoApi";
-import { Loader2, Volume2, Download, CheckCircle2 } from "lucide-react";
+import { Loader2, Volume2, Download, CheckCircle2, Copy } from "lucide-react";
 
 interface FormWithAudio extends GrammaticalForm {
   audioBlob?: Blob | null;
@@ -202,6 +202,12 @@ export function WordCard({
     }
   };
 
+  const handleCopy = () => {
+    const textToCopy = customSpelling || word.swedish_word;
+    navigator.clipboard.writeText(textToCopy);
+    toast.success("Word copied to clipboard!");
+  };
+
   return (
     <div className="w-full animate-in fade-in zoom-in duration-300">
       <div className="bg-card rounded-[2rem] border-2 border-primary/10 shadow-xl overflow-hidden">
@@ -266,12 +272,21 @@ export function WordCard({
                 <h2 className="text-5xl md:text-6xl font-black text-foreground tracking-tighter">
                   {customSpelling || word.swedish_word}
                 </h2>
-                <button
-                  onClick={() => setIsEditingSpelling(true)}
-                  className="absolute -right-8 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground opacity-0 group-hover/title:opacity-100 transition-opacity"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
+                <div className="flex gap-2 absolute -right-16 top-1/2 -translate-y-1/2">
+                  <button
+                    onClick={handleCopy}
+                    className="p-1.5 text-muted-foreground hover:text-primary opacity-0 group-hover/title:opacity-100 transition-all hover:scale-110 active:scale-95"
+                    title="Copy word"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setIsEditingSpelling(true)}
+                    className="p-1.5 text-muted-foreground opacity-0 group-hover/title:opacity-100 transition-opacity"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             )}
             {wordData?.word_type && (

@@ -152,7 +152,7 @@ export function useWords(filters?: {
         frequency_rank: w.frequency_rank || null,
         sidor_source_id: null,
         sidor_rank: w.sidor_rank || null,
-        is_ft: w.is_ft ? 1 : 0,
+        is_ft: (w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)) ? 1 : 0,
         created_at: "",
         word_data: w.word_data || null,
         progress: progress ? {
@@ -552,8 +552,8 @@ export function useStats() {
       frequencyStats,
       sidorStats,
       ftStats: {
-        total: await db.words.filter(w => !!w.is_ft).count(),
-        learned: learnedWordDefs.filter(w => !!w.is_ft).length
+        total: await db.words.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).count(),
+        learned: learnedWordDefs.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).length
       }
     };
   }, [user?.id]);
@@ -594,7 +594,7 @@ export function useDetailedStats() {
         if (w.kelly_level) kellyToday++;
         if (w.frequency_rank) frequencyToday++;
         if (w.sidor_rank) sidorToday++;
-        if (w.is_ft) ftToday++;
+        if (w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)) ftToday++;
       }
     }
 

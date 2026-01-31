@@ -43,16 +43,21 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                 if (words && words.length > 0) {
                     allWords = [...allWords, ...words];
                     // Bulk put current batch immediately to save memory and show progress if needed
-                    await db.words.bulkPut(words.map(w => ({
-                        id: w.id, // CRITICAL FIX: Save the Supabase ID locally
-                        swedish_word: w.swedish_word,
-                        kelly_level: w.kelly_level || undefined,
-                        kelly_source_id: w.kelly_source_id || undefined,
-                        frequency_rank: w.frequency_rank || undefined,
-                        sidor_rank: w.sidor_rank || undefined,
-                        word_data: w.word_data as any,
-                        last_synced_at: new Date().toISOString()
-                    })));
+                    const wordUpdates = await Promise.all(words.map(async w => {
+                        const existing = await db.words.get(w.swedish_word);
+                        return {
+                            id: w.id, // CRITICAL FIX: Save the Supabase ID locally
+                            swedish_word: w.swedish_word,
+                            kelly_level: w.kelly_level || undefined,
+                            kelly_source_id: w.kelly_source_id || undefined,
+                            frequency_rank: w.frequency_rank || undefined,
+                            sidor_rank: w.sidor_rank || undefined,
+                            word_data: w.word_data as any,
+                            last_synced_at: new Date().toISOString(),
+                            is_ft: existing?.is_ft // Preserve FT flag if it exists locally
+                        };
+                    }));
+                    await db.words.bulkPut(wordUpdates);
 
                     if (words.length < PAGE_SIZE) {
                         hasMore = false;
@@ -137,6 +142,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                         });
 
                         // Ensure we have this word in our local database too!
+                        const existing = await db.words.get(wordData.swedish_word);
                         wordUpdates.push({
                             id: wordData.id,
                             swedish_word: wordData.swedish_word,
@@ -145,7 +151,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                             frequency_rank: wordData.frequency_rank || undefined,
                             sidor_rank: wordData.sidor_rank || undefined,
                             word_data: wordData.word_data as any,
-                            last_synced_at: new Date().toISOString()
+                            last_synced_at: new Date().toISOString(),
+                            is_ft: existing?.is_ft // Preserve FT flag
                         });
                     }
 
