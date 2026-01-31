@@ -254,6 +254,33 @@ export default function Settings() {
           </p>
         </section>
 
+        {/* Data Recovery */}
+        <section className="word-card space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <RefreshCw className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Data Recovery</h2>
+              <p className="text-sm text-muted-foreground">Restore missing list data from the cloud</p>
+            </div>
+          </div>
+          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+            <p className="text-sm text-amber-700 mb-3">
+              If your Kelly or Sidor list counts seem low, use this button to redownload your full data from Supabase.
+            </p>
+            <Button
+              variant="outline"
+              onClick={forceRefresh}
+              disabled={isSyncing}
+              className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-100"
+            >
+              <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+              Force Refresh (Restore All)
+            </Button>
+          </div>
+        </section>
+
 
         {/* Profile Settings Section */}
         <div className="animate-fade-in">

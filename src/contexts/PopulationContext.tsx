@@ -150,7 +150,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
 
         const batchSize = (currentMode === 'missing_stories' || currentMode === 'missing_grammar') ? 100 : 50;
         try {
-            let query = supabase.from('words').select('id, swedish_word, word_data');
+            let query = supabase.from('words').select('*');
             query = query.gte('id', startFromId).lte('id', rangeEnd);
 
             if (currentMode === 'missing_data') {
@@ -409,7 +409,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             while (hasMore) {
                 const { data, error: fetchError } = await supabase
                     .from('words')
-                    .select('id, swedish_word, word_data')
+                    .select('*')
                     .not('word_data', 'is', null)
                     .gt('id', lastId)
                     .order('id', { ascending: true })
@@ -477,7 +477,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             while (hasMore) {
                 const { data, error: fetchError } = await supabase
                     .from('words')
-                    .select('id, swedish_word, word_data')
+                    .select('*')
                     .not('word_data', 'is', null)
                     .gt('id', lastId)
                     .order('id', { ascending: true })
