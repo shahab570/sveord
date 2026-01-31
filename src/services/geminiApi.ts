@@ -441,6 +441,8 @@ export async function generateAIQuizData(
         typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. Provide 3 other common Swedish words as options to test the user's ability to produce the correct Swedish term based on English.";
     } else if (type === 'recall') {
         typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. This is a flashcard-style recall practice, so ensure the targetWord (English) is clear and the answer (Swedish) is accurate. Set an empty options array.";
+    } else if (type === 'similarity') {
+        typeInstruction = "For each word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. Provide 3 smart distractors that are ARCHITECTURALLY/STRUCTURALLY similar to the correct Swedish word (e.g., if correct is 'en', distractors could be 'än', 'ett'). Focus on words that look almost identical but have different meanings to test the user's precision.";
     }
 
     const prompt = `You are a Swedish language educator. Create a high-quality quiz for these words: ${JSON.stringify(wordList)}.

@@ -411,6 +411,32 @@ export default function Practice() {
                                     ) : 'Start Recall'}
                                 </Button>
                             </Card>
+
+                            {/* 9. Similarity Quiz */}
+                            <Card className="p-6 flex flex-col justify-between border-2 border-cyan-500/20 bg-card/50 backdrop-blur shadow-lg hover:border-cyan-500/40 transition-all">
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-cyan-100 dark:bg-cyan-900/20 rounded-xl w-fit">
+                                        <Sparkles className="h-8 w-8 text-cyan-600 dark:text-cyan-400" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-foreground mb-2">Similarity Mastery</h2>
+                                        <p className="text-muted-foreground text-sm">Master similar-looking Swedish words (e.g. en vs än) to avoid confusion.</p>
+                                    </div>
+                                </div>
+                                <Button
+                                    size="lg"
+                                    className="w-full mt-6 bg-cyan-600 hover:bg-cyan-700"
+                                    onClick={() => startQuiz('similarity')}
+                                    disabled={!!generatingType}
+                                >
+                                    {generatingType === 'similarity' ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Generating...
+                                        </>
+                                    ) : 'Start Challenge'}
+                                </Button>
+                            </Card>
                         </div>
 
                         {/* REVIEW ARCHIVE */}

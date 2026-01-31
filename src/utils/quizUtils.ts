@@ -2,7 +2,7 @@ import { WordData } from '../types/word';
 import { db } from '../services/db';
 import { generateAIQuizData } from '../services/geminiApi';
 
-export type QuestionType = 'synonym' | 'antonym' | 'meaning' | 'context' | 'dialogue' | 'translation' | 'recall';
+export type QuestionType = 'synonym' | 'antonym' | 'meaning' | 'context' | 'dialogue' | 'translation' | 'recall' | 'similarity';
 
 export const MAX_QUIZ_TARGET_LIMIT = 10; // Maximum number of times a word should be the primary target of a quiz
 
@@ -38,6 +38,28 @@ const shuffle = <T>(array: T[]): T[] => {
     [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
   }
   return newArray;
+};
+
+// Simple edit distance helper
+const getEditDistance = (a: string, b: string): number => {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
 };
 
 export const generateQuiz = async (
@@ -112,7 +134,7 @@ export const generateQuiz = async (
     const data = word.word_data as WordData;
     if (type === 'synonym') return data.synonyms && data.synonyms.length > 0;
     if (type === 'antonym') return data.antonyms && data.antonyms.length > 0;
-    if (type === 'meaning' || type === 'translation' || type === 'recall') return data.meanings && data.meanings.length > 0;
+    if (type === 'meaning' || type === 'translation' || type === 'recall' || type === 'similarity') return data.meanings && data.meanings.length > 0;
     return false;
   });
 
@@ -167,25 +189,29 @@ export const generateQuiz = async (
         correctAnswer: correctAnswerText,
         options: rawOptions
       });
-    } else if (type === 'translation') {
+    } else if (type === 'similarity') {
       const correctAnswerText = target.swedish_word;
       const targetMeaningText = data.meanings[0].english;
 
-      const otherWords = optionPool.filter(w =>
-        w.swedish_word !== target.swedish_word &&
-        !isInvalidMeaning(w.word_data?.meanings?.[0]?.english)
-      );
+      // Find words that look similar (Edit distance <= 2)
+      const distractors = optionPool
+        .filter(w => w.swedish_word !== target.swedish_word)
+        .sort((a, b) => {
+          const distA = getEditDistance(target.swedish_word, a.swedish_word);
+          const distB = getEditDistance(target.swedish_word, b.swedish_word);
+          return distA - distB;
+        })
+        .slice(0, 3);
 
-      const selectedDistractorWords = shuffle(otherWords).slice(0, 3);
-      selectedDistractorWords.forEach(w => {
+      distractors.forEach(w => {
         const u = updatedUsages.get(w.swedish_word) || { target: 0, option: 0 };
         u.option += 1;
         updatedUsages.set(w.swedish_word, u);
       });
 
       const rawOptions = shuffle([
-        { word: correctAnswerText, swedishWord: correctAnswerText, meaning: targetMeaningText },
-        ...selectedDistractorWords.map(w => ({
+        { word: correctAnswerText, swedishWord: target.swedish_word, meaning: targetMeaningText },
+        ...distractors.map(w => ({
           word: w.swedish_word,
           swedishWord: w.swedish_word,
           meaning: meaningMap.get(w.swedish_word)
@@ -195,7 +221,7 @@ export const generateQuiz = async (
       questions.push({
         id: `${target.id}-${Date.now()}`,
         type,
-        targetWord: targetMeaningText, // English word is the prompt
+        targetWord: targetMeaningText, // English meaning is the prompt
         targetMeaning: correctAnswerText, // Swedish word is the answer
         correctAnswer: correctAnswerText,
         options: rawOptions
