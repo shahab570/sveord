@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { db, LocalWord, LocalUserProgress } from '@/services/db';
@@ -19,92 +19,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const { user } = useAuth();
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+    const syncLockRef = useRef(false);
 
-    const syncAll = useCallback(async () => {
-        if (!user || isSyncing) return;
-        setIsSyncing(true);
-        try {
-            console.log('Starting full sync...');
-            let allWords: any[] = [];
-            let from = 0;
-            const PAGE_SIZE = 500;
-            let hasMore = true;
-
-            // 1. Sync Words (Paginated)
-            while (hasMore) {
-                const { data: words, error: wordsError } = await supabase
-                    .from('words')
-                    .select('*')
-                    .order('id', { ascending: true }) // Explicit ordering
-                    .range(from, from + PAGE_SIZE - 1);
-
-                if (wordsError) throw wordsError;
-
-                if (words && words.length > 0) {
-                    allWords = [...allWords, ...words];
-                    // Bulk put current batch immediately to save memory and show progress if needed
-                    const wordUpdates = await Promise.all(words.map(async w => {
-                        const existing = await db.words.get(w.swedish_word);
-                        return {
-                            id: w.id, // CRITICAL FIX: Save the Supabase ID locally
-                            swedish_word: w.swedish_word,
-                            kelly_level: w.kelly_level || undefined,
-                            kelly_source_id: w.kelly_source_id || undefined,
-                            frequency_rank: w.frequency_rank || undefined,
-                            sidor_rank: w.sidor_rank || undefined,
-                            word_data: w.word_data as any,
-                            last_synced_at: new Date().toISOString(),
-                            is_ft: existing?.is_ft // Preserve FT flag if it exists locally
-                        };
-                    }));
-                    await db.words.bulkPut(wordUpdates);
-
-                    if (words.length < PAGE_SIZE) {
-                        hasMore = false;
-                    } else {
-                        from += PAGE_SIZE;
-                    }
-                } else {
-                    hasMore = false;
-                }
-            }
-
-            // 2. Sync Progress
-            await syncProgress();
-
-            setLastSyncTime(new Date());
-            console.log('Full sync completed');
-        } catch (error: any) {
-            console.error('Sync failed:', error);
-            if (error.name === 'BulkError') {
-                toast.error(`Sync failed for some records: ${error.message}. Try Force Refresh.`);
-            } else {
-                toast.error(`Failed to sync data: ${error.message}`);
-            }
-        } finally {
-            setIsSyncing(false);
-        }
-    }, [user, isSyncing]);
-
-    const forceRefresh = useCallback(async () => {
-        if (!user || isSyncing) return;
-        const confirm = window.confirm("This will clear your local cache and re-download everything. Continue?");
-        if (!confirm) return;
-
-        setIsSyncing(true);
-        try {
-            console.log('Clearing local database...');
-            await db.words.clear();
-            await db.progress.clear();
-            setIsSyncing(false); // Enable syncAll to run
-            await syncAll();
-        } catch (error: any) {
-            console.error('Force refresh failed:', error);
-            toast.error('Failed to clear local database');
-        } finally {
-            setIsSyncing(false);
-        }
-    }, [user, isSyncing, syncAll]);
+    const setSyncing = (val: boolean) => {
+        syncLockRef.current = val;
+        setIsSyncing(val);
+    };
 
     const syncProgress = useCallback(async (silent = false) => {
         if (!user) return;
@@ -186,9 +106,95 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user]);
 
+    const syncAll = useCallback(async () => {
+        if (!user || syncLockRef.current) return;
+        setSyncing(true);
+        try {
+            console.log('Starting full sync...');
+            let allWords: any[] = [];
+            let from = 0;
+            const PAGE_SIZE = 500;
+            let hasMore = true;
+
+            // 1. Sync Words (Paginated)
+            while (hasMore) {
+                const { data: words, error: wordsError } = await supabase
+                    .from('words')
+                    .select('*')
+                    .order('id', { ascending: true }) // Explicit ordering
+                    .range(from, from + PAGE_SIZE - 1);
+
+                if (wordsError) throw wordsError;
+
+                if (words && words.length > 0) {
+                    allWords = [...allWords, ...words];
+                    // Bulk put current batch immediately to save memory and show progress if needed
+                    const wordUpdates = await Promise.all(words.map(async w => {
+                        const existing = await db.words.get(w.swedish_word);
+                        return {
+                            id: w.id, // CRITICAL FIX: Save the Supabase ID locally
+                            swedish_word: w.swedish_word,
+                            kelly_level: w.kelly_level || undefined,
+                            kelly_source_id: w.kelly_source_id || undefined,
+                            frequency_rank: w.frequency_rank || undefined,
+                            sidor_rank: w.sidor_rank || undefined,
+                            word_data: w.word_data as any,
+                            last_synced_at: new Date().toISOString(),
+                            is_ft: existing?.is_ft // Preserve FT flag if it exists locally
+                        };
+                    }));
+                    await db.words.bulkPut(wordUpdates);
+
+                    if (words.length < PAGE_SIZE) {
+                        hasMore = false;
+                    } else {
+                        from += PAGE_SIZE;
+                    }
+                } else {
+                    hasMore = false;
+                }
+            }
+
+            // 2. Sync Progress
+            await syncProgress(true);
+
+            setLastSyncTime(new Date());
+            console.log('Full sync completed');
+        } catch (error: any) {
+            console.error('Sync failed:', error);
+            if (error.name === 'BulkError') {
+                toast.error(`Sync failed for some records: ${error.message}. Try Force Refresh.`);
+            } else {
+                toast.error(`Failed to sync data: ${error.message}`);
+            }
+        } finally {
+            setSyncing(false);
+        }
+    }, [user, syncProgress]);
+
+    const forceRefresh = useCallback(async () => {
+        if (!user || syncLockRef.current) return;
+        const confirm = window.confirm("This will clear your local cache and re-download everything. Continue?");
+        if (!confirm) return;
+
+        setSyncing(true);
+        try {
+            console.log('Clearing local database...');
+            await db.words.clear();
+            await db.progress.clear();
+            syncLockRef.current = false; // Temporarily unlock to let syncAll run
+            await syncAll();
+        } catch (error: any) {
+            console.error('Force refresh failed:', error);
+            toast.error('Failed to clear local database');
+        } finally {
+            setSyncing(false);
+        }
+    }, [user, syncAll]);
+
     const syncMissingStories = useCallback(async () => {
-        if (!user || isSyncing) return;
-        setIsSyncing(true);
+        if (!user || syncLockRef.current) return;
+        setSyncing(true);
         try {
             const localWordsMissingStories = await db.words
                 .filter(w => !w.word_data?.inflectionExplanation)
@@ -237,9 +243,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             console.error('Story sync failed:', error);
             toast.error(`Failed to sync stories: ${error.message}`);
         } finally {
-            setIsSyncing(false);
+            setSyncing(false);
         }
-    }, [user, isSyncing]);
+    }, [user]);
 
     // Initial sync on mount
     useEffect(() => {
@@ -253,11 +259,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             } else {
                 // Always sync progress on mount to ensure local device is up to date with cloud
                 console.log('Refreshing progress from cloud...');
-                await syncProgress(true);
+                if (!syncLockRef.current) {
+                    setSyncing(true);
+                    try {
+                        await syncProgress(true);
+                    } finally {
+                        setSyncing(false);
+                    }
+                }
             }
         };
         checkAndSync();
-    }, [user, syncAll, syncProgress]);
+    }, [user?.id, syncAll, syncProgress]);
 
     return (
         <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress, syncMissingStories, forceRefresh }}>
