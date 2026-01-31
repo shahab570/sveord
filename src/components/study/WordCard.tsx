@@ -455,10 +455,10 @@ export function WordCard({
             <div className="space-y-3 bg-secondary/10 p-4 rounded-2xl border border-border/50">
               {wordData.examples.slice(0, 2).map((example, idx) => (
                 <div key={idx} className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground leading-relaxed italic">
+                  <p className="text-base font-semibold text-foreground leading-relaxed italic">
                     "{example.swedish}"
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     "{example.english}"
                   </p>
                 </div>
