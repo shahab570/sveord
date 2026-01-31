@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 export function PopulateMeaningsSection() {
-    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused } = usePopulation();
+    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused, lastBatchInfo } = usePopulation();
     const [overwrite, setOverwrite] = useState(false);
 
     if (!status || status.total === 0) return null;
@@ -144,9 +144,16 @@ export function PopulateMeaningsSection() {
                             </div>
                         </div>
                         <Progress value={(processedCount / sessionTotal) * 100} className="h-1.5" />
-                        <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest pt-1">
-                            {isPaused ? "Generation Paused" : "Batch size 50 • Optimized for speed"}
-                        </p>
+                        <div className="flex flex-col items-center gap-1 pt-1">
+                            {lastBatchInfo && (
+                                <p className="text-[10px] text-primary font-medium animate-pulse">
+                                    {lastBatchInfo}
+                                </p>
+                            )}
+                            <p className="text-[9px] text-muted-foreground uppercase tracking-widest">
+                                {isPaused ? "Generation Paused" : "Optimized for speed • Batch size 100"}
+                            </p>
+                        </div>
                     </div>
                 )}
 

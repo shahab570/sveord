@@ -176,7 +176,7 @@ Only return the JSON.`;
             partOfSpeech: result.partOfSpeech,
             gender: result.gender,
             inflectionExplanation: result.inflectionExplanation,
-            grammaticalForms: result.grammaticalForms,
+            grammaticalForms: result.grammaticalForms || result.grammatical_forms,
         };
     } catch (error: any) {
         return { error: 'Parse Error', details: error.message };
@@ -193,7 +193,8 @@ export async function generateMeaningsTrueBatch(
     modelOverride?: string,
     versionOverride?: string,
     customInstruction?: string,
-    onlyExplanations: boolean = false
+    onlyExplanations: boolean = false,
+    onlyGrammar: boolean = false
 ): Promise<Map<string, WordMeaningResult>> {
     const model = modelOverride || ACTIVE_MODEL;
     const version = versionOverride || ACTIVE_VERSION;
@@ -211,6 +212,16 @@ Task: Produce a short "Base Word Story" for each word in this list: ${JSON.strin
 For each word, return a JSON object with:
 - word: string (The Swedish word)
 - inflectionExplanation: string (CRITICAL: 1-2 sentences. If not a base form, state base/dictionary form. Format: "**[form] of [base] ([meaning]).**". If already base form, provide a brief usage note or related word. No etymology/history. NEVER null.)
+
+Output Format: A JSON Array of these objects.
+JSON ONLY.`;
+        } else if (onlyGrammar) {
+            prompt = `You are a Swedish grammar expert. 
+Task: Provide the standard grammatical forms for these words: ${JSON.stringify(words)}.
+
+For each word, return:
+- word: string
+- grammaticalForms: Array of { label: string, word: string } (CRITICAL: VERBS: Infinitive, Present, Past, Supine, Imperative. NOUNS: Indefinite Singular, Definite Singular, Indefinite Plural, Definite Plural. ADJECTIVES: Common, Neuter, Plural/Definite. Use these exact labels.)
 
 Output Format: A JSON Array of these objects.
 JSON ONLY.`;
@@ -274,7 +285,7 @@ JSON ONLY.`;
                     partOfSpeech: item.partOfSpeech,
                     gender: item.gender,
                     inflectionExplanation: item.inflectionExplanation,
-                    grammaticalForms: item.grammaticalForms
+                    grammaticalForms: item.grammaticalForms || item.grammatical_forms
                 });
             }
         });

@@ -114,7 +114,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             const { count: grammarCount } = await supabase
                 .from('words')
                 .select('*', { count: 'exact', head: true })
-                .not('word_data->>grammaticalForms', 'is', null);
+                .filter('word_data->grammaticalForms', 'not.is', 'null');
 
             const { data: maxIdData } = await supabase
                 .from('words')
@@ -146,7 +146,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             return { lastId: startFromId, count: 0 };
         }
 
-        const batchSize = currentMode === 'missing_stories' ? 100 : 50;
+        const batchSize = (currentMode === 'missing_stories' || currentMode === 'missing_grammar') ? 100 : 50;
         try {
             let query = supabase.from('words').select('id, swedish_word, word_data');
             query = query.gte('id', startFromId).lte('id', rangeEnd);
@@ -169,11 +169,21 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             if (fetchError) throw fetchError;
             if (!words || words.length === 0) return { lastId: startFromId, count: 0 };
 
-            setLastBatchInfo(`Generating batch: ${words[0].swedish_word} ... ${words[words.length - 1].swedish_word} (${words.length} words)`);
+            const rangeStr = `${words[0].swedish_word} - ${words[words.length - 1].swedish_word}`;
+            setLastBatchInfo(`[${rangeStr}] Processing ${words.length} words...`);
 
             const swedishWords = words.map(w => w.swedish_word);
             const onlyExplanations = currentMode === 'missing_stories';
-            const resultsMap = await generateMeaningsTrueBatch(swedishWords, apiKeys.geminiApiKey, undefined, undefined, undefined, onlyExplanations);
+            const onlyGrammar = currentMode === 'missing_grammar';
+            const resultsMap = await generateMeaningsTrueBatch(
+                swedishWords,
+                apiKeys.geminiApiKey,
+                undefined,
+                undefined,
+                undefined,
+                onlyExplanations,
+                onlyGrammar
+            );
 
             if (!resultsMap || resultsMap.size === 0) {
                 console.warn("Batch generated no results, skipping ahead to avoid getting stuck.");
@@ -182,7 +192,10 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 return { lastId: lastProcessedId + 1, count: words.length };
             }
 
-            const updatePromises: any[] = [];
+            setLastBatchInfo(`[${rangeStr}] Saving ${resultsMap.size} results...`);
+
+            const supabaseUpdates: any[] = [];
+            const dexieUpdates: any[] = [];
             let successCount = 0;
 
             for (const word of words) {
@@ -193,7 +206,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                     const wordData = {
                         word_type: result.partOfSpeech || (existingData?.word_type || ''),
                         gender: result.gender || (existingData?.gender || ''),
-                        inflectionExplanation: result.inflectionExplanation || null,
+                        inflectionExplanation: result.inflectionExplanation || (existingData?.inflectionExplanation || null),
                         meanings: (existingData && existingData.meanings && existingData.meanings.length > 0) ? existingData.meanings : (result.meanings || []),
                         examples: (existingData && existingData.examples && existingData.examples.length > 0) ? existingData.examples : (result.examples || []),
                         synonyms: (existingData && existingData.synonyms && existingData.synonyms.length > 0) ? existingData.synonyms : (result.synonyms || []),
@@ -202,13 +215,22 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                         populated_at: new Date().toISOString(),
                     };
 
-                    updatePromises.push(supabase.from('words').update({ word_data: wordData }).eq('id', word.id));
-                    updatePromises.push(db.words.update(word.swedish_word, { word_data: wordData }));
-                    successCount++;
+                    supabaseUpdates.push({ id: word.id, swedish_word: word.swedish_word, word_data: wordData });
+                    dexieUpdates.push({ ...word, word_data: wordData });
+
+                    if (result.grammaticalForms && result.grammaticalForms.length > 0) {
+                        successCount++;
+                    }
                 }
             }
 
-            await Promise.all(updatePromises);
+            if (supabaseUpdates.length > 0) {
+                const { error: upError } = await supabase.from('words').upsert(supabaseUpdates);
+                if (upError) console.error("Supabase bulk upsert failed:", upError);
+                await db.words.bulkPut(dexieUpdates);
+            }
+
+            setLastBatchInfo(`[${rangeStr}] Complete! Saved ${successCount} forms.`);
             setProcessedCount(prev => prev + words.length);
             const lastProcessedId = words.length > 0 ? words[words.length - 1].id : startFromId;
             return { lastId: lastProcessedId + 1, count: words.length };
@@ -279,7 +301,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             if (count > 0 && currentCursor <= rangeEnd && !pauseRef.current) {
                 // Refresh status every batch to show progress in real-time
                 await fetchStatus();
-                setTimeout(runNextBatch, 500); // Slightly longer delay to allow DB counts to settle
+                setTimeout(runNextBatch, 200); // Faster inter-batch delay
             } else {
                 setIsPopulating(false);
                 if (count === 0 && !pauseRef.current) {
