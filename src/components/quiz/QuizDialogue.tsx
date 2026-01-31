@@ -34,7 +34,9 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
         if (!question.blanks) return {};
         const map: Record<number, string[]> = {};
         question.blanks.forEach(blank => {
-            map[blank.index] = shuffle([...blank.options, blank.answer]);
+            // Deduplicate to prevent same option appearing twice (e.g. if AI includes answer in options)
+            const uniqueOptions = Array.from(new Set([...(blank.options || []), blank.answer]));
+            map[blank.index] = shuffle(uniqueOptions);
         });
         return map;
     }, [question.id]);
