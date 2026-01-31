@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,10 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
     const toggleTranslation = (idx: number) => {
         setVisibleTranslations(prev => ({ ...prev, [idx]: !prev[idx] }));
     };
+
+    useEffect(() => {
+        setVisibleTranslations({});
+    }, [question.id]);
 
     const shuffledBlanks = useMemo(() => {
         if (!question.blanks) return {};
@@ -74,7 +78,9 @@ export const QuizDialogue: React.FC<QuizDialogueProps> = ({
                                         )}
                                         title="Click to reveal translation"
                                     >
-                                        {visibleTranslations[i] ? turn.translation : "Click to see translation"}
+                                        {visibleTranslations[i]
+                                            ? renderTranslationWithBlanks(turn.translation, question.blanks!)
+                                            : "Click to see translation"}
                                     </div>
                                 )}
                             </div>
@@ -127,10 +133,28 @@ function renderTextWithBlanks(
                             <option key={oi} value={opt}>{opt}</option>
                         ))}
                     </select>
+                    {showFeedback && !isCorrect && (
+                        <span className="text-xs text-green-600 font-bold uppercase mt-1.5 leading-none text-center animate-in fade-in slide-in-from-top-1 bg-green-50 px-1.5 py-0.5 rounded border border-green-200 shadow-sm">
+                            Correct: {blank.answer}
+                        </span>
+                    )}
                 </span>
             );
         }
         return <span key={i}>{part}</span>;
+    });
+}
+
+function renderTranslationWithBlanks(text: string, blanks: QuizBlank[]) {
+    const parts = text.split(/(\[\[\d+\]\])/g);
+    return parts.map((part, i) => {
+        const match = part.match(/\[\[(\d+)\]\]/);
+        if (match) {
+            const blankIdx = parseInt(match[1]);
+            const blank = blanks.find(b => b.index === blankIdx);
+            return <strong key={i} className="not-italic font-bold text-primary/80">{blank?.answer || part}</strong>;
+        }
+        return part;
     });
 }
 

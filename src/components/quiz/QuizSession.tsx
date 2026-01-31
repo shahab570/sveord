@@ -3,6 +3,7 @@ import { useWords, WordWithProgress } from '@/hooks/useWords';
 import { generateQuiz, QuizQuestion as IQuizQuestion, QuestionType, markQuizPracticed } from '@/utils/quizUtils';
 import { QuizQuestion } from './QuizQuestion';
 import { QuizDialogue } from './QuizDialogue';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +42,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
     const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
     const [multiDialogueAnswers, setMultiDialogueAnswers] = useState<Record<number, Record<number, string>>>({});
     const [explanations, setExplanations] = useState<Record<number, string>>({});
+    const [revealedDialogueIndex, setRevealedDialogueIndex] = useState<number | null>(null);
     const [isExplaining, setIsExplaining] = useState(false);
 
     // Modal State
@@ -104,8 +106,15 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         loadQuiz();
     }, [words, type, activeQuizId]);
 
+    const currentQuestion = questions[currentIndex] as IQuizQuestion | undefined;
     const selectedAnswer = userAnswers[currentIndex] || null;
-    const showFeedback = !!selectedAnswer || !!(multiDialogueAnswers[currentIndex] && Object.keys(multiDialogueAnswers[currentIndex]).length === questions[currentIndex].blanks?.length);
+    const isCurrentDialogueRevealed = revealedDialogueIndex === currentIndex;
+    const showFeedback = currentQuestion?.type === 'dialogue'
+        ? isCurrentDialogueRevealed
+        : !!selectedAnswer;
+
+    const allBlanksFilled = currentQuestion?.type === 'dialogue' &&
+        !!(multiDialogueAnswers[currentIndex] && Object.keys(multiDialogueAnswers[currentIndex]).length === currentQuestion.blanks?.length);
 
     const compareAnswers = (a?: string | null, b?: string | null) => {
         if (!a || !b) return false;
@@ -146,6 +155,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
     const handleNext = async () => {
         if (currentIndex < questions.length - 1) {
             setCurrentIndex(c => c + 1);
+            setRevealedDialogueIndex(null);
         } else {
             setIsFinished(true);
             if (activeQuizId) {
@@ -164,6 +174,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         setScore(0);
         setUserAnswers({});
         setMultiDialogueAnswers({});
+        setRevealedDialogueIndex(null);
         setIsFinished(false);
         setActiveQuizId(null); // Force generate new one
     };
@@ -263,7 +274,6 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         return null;
     }
 
-    const currentQuestion = questions[currentIndex];
     const progress = ((currentIndex + (showFeedback ? 1 : 0)) / questions.length) * 100;
 
     return (
@@ -331,6 +341,20 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
                 </div>
 
                 <div className="flex-[2] flex justify-center min-h-[3.5rem]">
+                    {currentQuestion.type === 'dialogue' && !showFeedback && (
+                        <Button
+                            size="lg"
+                            disabled={!allBlanksFilled}
+                            onClick={() => setRevealedDialogueIndex(currentIndex)}
+                            className={cn(
+                                "animate-in fade-in slide-in-from-bottom-2 gap-2 text-lg shadow-lg w-full max-w-xs transition-all",
+                                allBlanksFilled ? "bg-primary" : "bg-muted text-muted-foreground"
+                            )}
+                        >
+                            {allBlanksFilled ? "Check Answers" : "Fill all blanks"}
+                        </Button>
+                    )}
+
                     {showFeedback && (
                         <Button
                             size="lg"
