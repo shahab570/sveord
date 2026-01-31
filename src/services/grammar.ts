@@ -14,11 +14,19 @@ export function generateForms(word: string, type: string, aiForms?: GrammaticalF
     const lowerWord = word.toLowerCase().trim();
 
     // Adverbs, Prepositions, Conjunctions, Pronouns don't have these form sets
-    if (['adverb', 'preposition', 'conjunction', 'pronoun', 'interjection'].includes(lowerType)) {
+    if (['adverb', 'preposition', 'conjunction', 'pronoun', 'interjection', 'particle', 'räkneord'].includes(lowerType)) {
         return [];
     }
 
     const forms: GrammaticalForm[] = [];
+
+    // Strictly validate form counts for AI data to catch hallucinations
+    if (aiForms && aiForms.length > 0) {
+        if (lowerType === 'verb' && aiForms.length !== 5) return []; // Reject invalid counts
+        if (lowerType.includes('noun') && aiForms.length < 2) return [];
+        if (lowerType === 'adjective' && aiForms.length !== 3) return [];
+        return aiForms;
+    }
 
     if (lowerType.includes('noun') || lowerType.includes('substantiv')) {
         // Simple heuristic for Nouns

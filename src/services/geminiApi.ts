@@ -224,13 +224,12 @@ For each word, return:
 - partOfSpeech: string (verb, noun, adjective, adverb, preposition, conjunction, etc.)
 - grammaticalForms: Array of { label: string, word: string } 
 
-CRITICAL RULES:
-1. ONLY provide grammaticalForms for VERBS, NOUNS, and ADJECTIVES.
-2. If a word is an ADVERB, PREPOSITION, CONJUNCTION, or PRONOUN, you MUST return an EMPTY ARRAY: "grammaticalForms": [].
-3. For VERBS: Infinitive, Present, Past, Supine, Imperative.
-4. For NOUNS: Indefinite Singular, Definite Singular, Indefinite Plural, Definite Plural.
-5. For ADJECTIVES: Common, Neuter, Plural/Definite.
-6. LINGUISTIC ACCURACY IS MANDATORY. NEVER invent forms.
+CRITICAL RULES (Based on SAOL/Swedish Academy):
+1. VERBS: MUST provide exactly 5 forms (Infinitive, Present, Past, Supine, Imperative).
+2. NOUNS: MUST provide exactly 4 forms (Indef. Sing, Def. Sing, Indef. Plur, Def. Plur). If uncountable (singulare tantum), return 2 forms and label plural as "N/A".
+3. ADJECTIVES: MUST provide exactly 3 forms (Common, Neuter, Plural/Definite).
+4. ALL OTHER TYPES (Adverb, Preposition, Conjunction, Pronoun, Interjection, Partikel): Return an EMPTY ARRAY: "grammaticalForms": [].
+5. LINGUISTIC ACCURACY IS MANDATORY. NEVER invent forms. If unsure, return exactly what SAOL (svenska.se) would show.
 
 Output Format: A JSON Array of these objects.
 JSON ONLY.`;
