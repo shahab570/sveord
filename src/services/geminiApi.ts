@@ -78,6 +78,7 @@ export interface WordMeaningResult {
     inflectionExplanation?: string;
     baseForm?: string;
     isInflected?: boolean;
+    grammaticalForms?: Array<{ label: string; word: string }>;
 }
 
 export interface AIQuizQuestion {
@@ -129,10 +130,19 @@ Format your response as JSON with this exact structure:
   "gender": "en/ett/null",
   "inflectionExplanation": "explanation or null",
   "meanings": [{"english": "meaning 1", "context": ""}],
+  "grammaticalForms": [
+    {"label": "Infinitive", "word": "word"},
+    {"label": "Present", "word": "word"},
+    {"label": "Past", "word": "word"},
+    {"label": "Supine", "word": "word"},
+    {"label": "Imperative", "word": "word"}
+  ],
   "examples": [{"swedish": "sentence 1", "english": "translation 1"}],
   "synonyms": ["synonym"],
   "antonyms": ["antonym"]
 }
+
+CRITICAL: Swedish grammar is strict. Double check irregular verbs (e.g., känna -> känner/kände/känt, springa -> springer/sprang/sprungit) and nouns (e.g., bok -> boken/böcker/böckerna). NEVER regularize irregular forms.
 
 Only return the JSON.`;
 
@@ -166,6 +176,7 @@ Only return the JSON.`;
             partOfSpeech: result.partOfSpeech,
             gender: result.gender,
             inflectionExplanation: result.inflectionExplanation,
+            grammaticalForms: result.grammaticalForms,
         };
     } catch (error: any) {
         return { error: 'Parse Error', details: error.message };
@@ -217,6 +228,7 @@ Fields:
 - partOfSpeech: string (noun, verb, etc)
 - gender: string (en/ett/null)
 - meanings: Array of { english: "descriptive definition" } (List ALL common meanings. Each explanation should be a brief descriptive phrase or short sentence explaining the sense, not just a single-word synonym.)
+- grammaticalForms: Array of { label: string, word: string } (CRITICAL: Provide the 4-5 MOST COMMON grammatical forms. VERBS: Infinitive, Present, Past, Supine, Imperative. NOUNS: Indefinite Singular, Definite Singular, Indefinite Plural, Definite Plural. ADJECTIVES: Common, Neuter, Plural/Definite. Use these exact labels. LINGUISTIC ACCURACY IS MANDATORY. DO NOT regularize irregular words. Examples: känna -> känner/kände/känt; bok -> boken/böcker/böckerna.)
 - synonyms: String[] (Max 3)
 - antonyms: String[] (Max 3)
 - examples: [] (Keep empty to save space)
@@ -261,7 +273,8 @@ JSON ONLY.`;
                     antonyms: item.antonyms || [],
                     partOfSpeech: item.partOfSpeech,
                     gender: item.gender,
-                    inflectionExplanation: item.inflectionExplanation
+                    inflectionExplanation: item.inflectionExplanation,
+                    grammaticalForms: item.grammaticalForms
                 });
             }
         });

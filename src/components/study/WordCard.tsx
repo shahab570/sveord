@@ -87,7 +87,7 @@ export function WordCard({
 
   const fetchAudioForms = async () => {
     const type = (wordData?.word_type || 'noun') as WordType;
-    const generatedForms = generateForms(word.swedish_word, type);
+    const generatedForms = generateForms(word.swedish_word, type, wordData?.grammaticalForms);
     const resultsWithStatus: FormWithAudio[] = generatedForms.map(f => ({ ...f, isLoading: true }));
     setForms(resultsWithStatus);
     setIsFetchingAudio(true);

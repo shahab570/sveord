@@ -5,7 +5,11 @@ export interface GrammaticalForm {
     word: string;
 }
 
-export function generateForms(word: string, type: string): GrammaticalForm[] {
+export function generateForms(word: string, type: string, aiForms?: GrammaticalForm[]): GrammaticalForm[] {
+    if (aiForms && aiForms.length > 0) {
+        return aiForms;
+    }
+
     const forms: GrammaticalForm[] = [];
     const lowerWord = word.toLowerCase().trim();
     const lowerType = (type || '').toLowerCase();

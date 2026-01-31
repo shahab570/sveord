@@ -10,7 +10,8 @@ import {
     BookOpen,
     Info,
     Pause,
-    Play
+    Play,
+    Languages
 } from "lucide-react";
 
 export function PopulateMeaningsSection() {
@@ -54,6 +55,14 @@ export function PopulateMeaningsSection() {
                         Fill Stories
                     </Button>
                     <Button
+                        onClick={() => startPopulation('missing_grammar')}
+                        disabled={isPopulating}
+                        className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
+                    >
+                        {isPopulating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+                        Fill Grammar
+                    </Button>
+                    <Button
                         onClick={() => startPopulation('overwrite')}
                         disabled={isPopulating}
                         variant="ghost"
@@ -92,6 +101,19 @@ export function PopulateMeaningsSection() {
                             {status.explanationCount} <span className="text-sm font-normal text-purple-400">/ {status.total}</span>
                         </p>
                         <p className="text-xs text-purple-600/80 mt-1">Total base-form stories generated</p>
+                    </div>
+
+                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Grammar Forms</span>
+                            <span className="text-xs font-bold text-blue-600">
+                                {Math.round((status.grammarCount / status.total) * 100)}%
+                            </span>
+                        </div>
+                        <p className="text-2xl font-bold text-blue-700">
+                            {status.grammarCount} <span className="text-sm font-normal text-blue-400">/ {status.total}</span>
+                        </p>
+                        <p className="text-xs text-blue-600/80 mt-1">Total words with AI-verified forms</p>
                     </div>
                 </div>
 
@@ -147,6 +169,6 @@ export function PopulateMeaningsSection() {
                     </div>
                 )}
             </div>
-        </section >
+        </section>
     );
 }

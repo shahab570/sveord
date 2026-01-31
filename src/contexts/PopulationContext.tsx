@@ -10,6 +10,7 @@ interface PopulationStatus {
     total: number;
     remaining: number;
     explanationCount: number;
+    grammarCount: number;
 }
 
 interface PopulationContextType {
@@ -26,7 +27,7 @@ interface PopulationContextType {
     error: string | null;
     processedCount: number;
     sessionTotal: number;
-    startPopulation: (mode: 'missing_data' | 'missing_stories' | 'overwrite') => Promise<void>;
+    startPopulation: (mode: 'missing_data' | 'missing_stories' | 'missing_grammar' | 'overwrite') => Promise<void>;
     pausePopulation: () => void;
     resumePopulation: () => void;
     fetchStatus: () => Promise<void>;
@@ -42,7 +43,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
     const [status, setStatus] = useState<PopulationStatus | null>(null);
     const [isPopulating, setIsPopulating] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
-    const [currentMode, setCurrentMode] = useState<'missing_data' | 'missing_stories' | 'overwrite'>('missing_data');
+    const [currentMode, setCurrentMode] = useState<'missing_data' | 'missing_stories' | 'missing_grammar' | 'overwrite'>('missing_data');
     const [rangeStart, setRangeStart] = useState<number>(1);
     const [rangeEnd, setRangeEnd] = useState<number>(15000);
     const [lastBatchInfo, setLastBatchInfo] = useState<string | null>(null);
@@ -110,6 +111,11 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 .not('word_data->>inflectionExplanation', 'is', null)
                 .not('word_data->>inflectionExplanation', 'eq', '');
 
+            const { count: grammarCount } = await supabase
+                .from('words')
+                .select('*', { count: 'exact', head: true })
+                .not('word_data->>grammaticalForms', 'is', null);
+
             const { data: maxIdData } = await supabase
                 .from('words')
                 .select('id')
@@ -126,6 +132,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 completed: completedCount || 0,
                 remaining: (totalCount || 0) - (completedCount || 0),
                 explanationCount: explanationCount || 0,
+                grammarCount: grammarCount || 0,
             });
             setError(null);
         } catch (err: any) {
@@ -149,6 +156,9 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             } else if (currentMode === 'missing_stories') {
                 // Find words that have data but NO inflectionExplanation (null, missing, or empty)
                 query = query.or('word_data.is.null,word_data->>inflectionExplanation.is.null,word_data->>inflectionExplanation.eq.""');
+            } else if (currentMode === 'missing_grammar') {
+                // Find words that have data but NO grammaticalForms (stored as array in JSON)
+                query = query.or('word_data.is.null,word_data->>grammaticalForms.is.null');
             }
             // else overwrite mode doesn't need extra filter
 
@@ -188,6 +198,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                         examples: (existingData && existingData.examples && existingData.examples.length > 0) ? existingData.examples : (result.examples || []),
                         synonyms: (existingData && existingData.synonyms && existingData.synonyms.length > 0) ? existingData.synonyms : (result.synonyms || []),
                         antonyms: (existingData && existingData.antonyms && existingData.antonyms.length > 0) ? existingData.antonyms : (result.antonyms || []),
+                        grammaticalForms: result.grammaticalForms || (existingData?.grammaticalForms || null),
                         populated_at: new Date().toISOString(),
                     };
 
@@ -229,6 +240,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                     examples: (existingData && existingData.examples && existingData.examples.length > 0) ? existingData.examples : (result.examples || []),
                     synonyms: (existingData && existingData.synonyms && existingData.synonyms.length > 0) ? existingData.synonyms : (result.synonyms || []),
                     antonyms: (existingData && existingData.antonyms && existingData.antonyms.length > 0) ? existingData.antonyms : (result.antonyms || []),
+                    grammaticalForms: result.grammaticalForms || (existingData?.grammaticalForms || null),
                     populated_at: new Date().toISOString(),
                 };
 
@@ -244,7 +256,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
-    const startPopulation = async (mode: 'missing_data' | 'missing_stories' | 'overwrite' = 'missing_data') => {
+    const startPopulation = async (mode: 'missing_data' | 'missing_stories' | 'missing_grammar' | 'overwrite' = 'missing_data') => {
         if (isPopulating) return;
         setCurrentMode(mode);
         setIsPopulating(true);
@@ -348,6 +360,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 if (result.gender) updatedData.gender = result.gender;
                 if (result.synonyms && result.synonyms.length > 0) updatedData.synonyms = result.synonyms;
                 if (result.antonyms && result.antonyms.length > 0) updatedData.antonyms = result.antonyms;
+                if (result.grammaticalForms && result.grammaticalForms.length > 0) updatedData.grammaticalForms = result.grammaticalForms;
             }
             updatedData.populated_at = new Date().toISOString();
 
