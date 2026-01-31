@@ -116,7 +116,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             const { count: grammarCount } = await supabase
                 .from('words')
                 .select('*', { count: 'exact', head: true })
-                .filter('word_data->grammaticalForms', 'not.is', 'null');
+                .not('word_data->>grammaticalForms', 'is', null);
 
             const { data: maxIdData } = await supabase
                 .from('words')
@@ -504,8 +504,9 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
 
                 for (const word of chunk) {
                     const data = word.word_data as any;
-                    // Wipe the key entirely by setting to null to ensure filter works
-                    const updatedData = { ...data, grammaticalForms: null };
+                    // Fully remove the key to ensure the counter hits 0
+                    const updatedData = { ...data };
+                    delete updatedData.grammaticalForms;
                     supabaseUpdates.push({ id: word.id, swedish_word: word.swedish_word, word_data: updatedData });
                     dexieUpdates.push({ ...word, word_data: updatedData });
                 }
