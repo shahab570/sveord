@@ -34,24 +34,30 @@ export function PatternSession({ onExit, initialData }: PatternSessionProps) {
     const [isWordModalOpen, setIsWordModalOpen] = useState(false);
 
     // Helper to save/update the pattern session
+    // Helper to save/update the pattern session
     const savePatternSession = async (data: PatternArticleResult) => {
         try {
-            // Check if exists by pattern name to update instead of duplicate (simplified logic)
-            // In a real app we might want unique IDs, but pattern name is a decent unique key for this user context
-            const existing = await db.patterns.where('pattern').equals(data.pattern).first();
+            // If we have an existing ID in the state (from initialData or previous save), update it.
+            // We use a custom property on our state object to track this ID since PatternArticleResult doesn't have it natively.
+            const currentArticle = article as (PatternArticleResult & { dbId?: number }) | null;
 
-            if (existing && existing.id) {
-                await db.patterns.update(existing.id, {
+            if (currentArticle?.dbId) {
+                await db.patterns.update(currentArticle.dbId, {
                     content: data,
-                    created_at: new Date().toISOString() // Bump timestamp on update
+                    created_at: new Date().toISOString() // Bump timestamp
                 });
+                // Update local state if needed, though usually not strictly necessary for this flow
             } else {
-                await db.patterns.add({
+                // New session -> Add new record
+                const id = await db.patterns.add({
                     title: data.title,
                     pattern: data.pattern,
                     content: data,
                     created_at: new Date().toISOString()
                 });
+
+                // CRITICAL: Update state so subsequent "Load More" actions update THIS record instead of creating duplicates
+                setArticle({ ...data, dbId: id } as any);
             }
         } catch (e) {
             console.error("Failed to auto-save pattern session:", e);
@@ -68,21 +74,42 @@ export function PatternSession({ onExit, initialData }: PatternSessionProps) {
 
         setLoading(true);
         setError(null);
-        setArticle(null);
+        // Do not verify/access 'article' state here for logic, as it might be stale.
+        // We are starting a FRESH session.
 
         try {
+            // Get user words for context
             const userWordList = words ? words.map(w => w.swedish_word) : [];
-            const result = await generatePatternArticle("Auto", apiKeys.geminiApiKey, userWordList);
+
+            // Get recent history to avoid repetition
+            const recentPatterns = await db.patterns
+                .orderBy('created_at')
+                .reverse()
+                .limit(10)
+                .toArray();
+
+            const excludeList = recentPatterns.map(p => p.pattern);
+
+            const result = await generatePatternArticle("Auto", apiKeys.geminiApiKey, userWordList, excludeList);
 
             if ('error' in result) {
                 setError(result.details || result.error);
+                setArticle(null); // Clear any old article on error
             } else {
-                setArticle(result);
-                // Auto-save the new session
-                savePatternSession(result);
+                // FORCE NEW SAVED ENTRY
+                const newId = await db.patterns.add({
+                    title: result.title,
+                    pattern: result.pattern,
+                    content: result,
+                    created_at: new Date().toISOString()
+                });
+
+                // Set state with the new DB ID so future updates (Load More) attach to this
+                setArticle({ ...result, dbId: newId } as any);
             }
         } catch (err: any) {
             setError(err.message || "Failed to generate article");
+            setArticle(null);
         } finally {
             setLoading(false);
         }

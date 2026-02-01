@@ -717,7 +717,8 @@ export interface PatternArticleResult {
 export async function generatePatternArticle(
     pattern: string, // Can be empty or "Surprise Me" for auto-mode
     apiKey: string,
-    userWords: string[] = []
+    userWords: string[] = [],
+    excludePatterns: string[] = []
 ): Promise<PatternArticleResult | GeminiError> {
     const model = ACTIVE_MODEL;
     const version = ACTIVE_VERSION;
@@ -727,13 +728,23 @@ export async function generatePatternArticle(
             ? `USER CONTEXT: The user already knows these words: ${JSON.stringify(userWords.slice(0, 50))}.`
             : "USER CONTEXT: The user is a beginner.";
 
+        const exclusionText = excludePatterns.length > 0
+            ? `CRITICAL EXCLUSION: DU NOT USE THESE PATTERNS/SUFFIXES: ${JSON.stringify(excludePatterns)}. Find something different.`
+            : "";
+
         const prompt = `You are an expert Swedish language educator.
         
-Task: Select a high-value Swedish suffix or word pattern to teach the user.
+Task: Select a high-value Swedish suffix, prefix, or word formation rule to teach the user.
 ${userContext}
+${exclusionText}
 
-If the user context contains words with common suffixes (like -het, -skap, -ning, -else, -fri), prioritize teaching that pattern to reinforce their learning.
-Otherwise, choose one of the most common and useful Swedish suffixes (e.g., -het, -plats, -fri, -lös, -skap, -ning).
+Selection Strategy:
+1. If the user context implies a clear gap (e.g. they know verbs but no nouns), find a relevant pattern.
+2. OTHERWISE, prioritize variety. Do NOT just stick to "-ning" or "-het". 
+   Consider: 
+   - Suffixes: -skap, -dom, -is, -are, -bar, -aktig, -lös
+   - Prefixes: o-, miss-, sam-, åter-
+   - Compounds: "Noun + Noun" logic, "Verb + Noun" logic.
 
 Your goal is to write a short, engaging educational blog post about this pattern.
 
