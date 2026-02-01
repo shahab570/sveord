@@ -358,4 +358,3 @@ export function PatternSession({ onExit, initialData }: PatternSessionProps) {
         </div>
     );
 }
-```
