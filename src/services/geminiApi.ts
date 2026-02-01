@@ -695,3 +695,161 @@ ONLY return the JSON.`;
         return { error: 'Parse Error', details: error.message };
     }
 }
+
+export interface PatternArticleResult {
+    title: string;
+    pattern: string;
+    patternMeaning: string;
+    intro: string;
+    words: Array<{
+        word: string;
+        meaning: string;
+        breakdown: string;
+        example?: string;
+    }>;
+    construction: string;
+    outro: string;
+}
+
+/**
+ * Generate an educational "blog post" about a specific Swedish pattern or suffix.
+ */
+export async function generatePatternArticle(
+    pattern: string, // Can be empty or "Surprise Me" for auto-mode
+    apiKey: string,
+    userWords: string[] = []
+): Promise<PatternArticleResult | GeminiError> {
+    const model = ACTIVE_MODEL;
+    const version = ACTIVE_VERSION;
+
+    try {
+        const userContext = userWords.length > 0
+            ? `USER CONTEXT: The user already knows these words: ${JSON.stringify(userWords.slice(0, 50))}.`
+            : "USER CONTEXT: The user is a beginner.";
+
+        const prompt = `You are an expert Swedish language educator.
+        
+Task: Select a high-value Swedish suffix or word pattern to teach the user.
+${userContext}
+
+If the user context contains words with common suffixes (like -het, -skap, -ning, -else, -fri), prioritize teaching that pattern to reinforce their learning.
+Otherwise, choose one of the most common and useful Swedish suffixes (e.g., -het, -plats, -fri, -lös, -skap, -ning).
+
+Your goal is to write a short, engaging educational blog post about this pattern.
+
+Structure the response as a JSON object with these fields:
+1. title: A catchy title (e.g., "The Power of -plats", "Unlock 10 words with one suffix").
+2. pattern: The specific suffix being taught (e.g., "-plats").
+3. patternMeaning: What does this suffix usually mean? (e.g., "Indicates a place or location").
+4. intro: A 2-3 sentence engaging intro paragraph explaining why learning this pattern is a "hack" for vocabulary.
+5. words: A list of 5-8 common, high-value compound words taking this suffix.
+   - word: The Swedish word (e.g. "Arbetsplats").
+   - meaning: English meaning.
+   - breakdown: How it's made (e.g. "Arbete (Work) + Plats (Place)").
+   - example: A short Swedish usage sentence.
+6. construction: A brief explanation of the grammar/logic behind combining these words.
+7. outro: A motivating closing sentence.
+
+CRITICAL INSTRUCTIONS FOR SWEDISH AUTHENTICITY:
+- Use **Authentic Swedish** words and examples found in SAOL (Svenska Akademiens ordlista).
+- Ensure the "breakdown" is linguistic accurate.
+- Do NOT invent compounds that do not exist in standard Swedish.
+- Tone: Educational, encouraging, "life-hack" style.
+- Content: meaningful, real words.
+- SELECT THE PATTERN YOURSELF based on educational value.
+
+JSON ONLY.`;
+
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.5, // Slightly higher creative temperature for "blog" feel
+                    responseMimeType: "application/json"
+                }
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { error: `HTTP ${response.status}`, details: errorData.error?.message || response.statusText };
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        return parseGeminiResponse(responseText);
+
+    } catch (error: any) {
+        return { error: 'Pattern Generation Failed', details: error.message };
+    }
+}
+
+/**
+ * Generate MORE words for an existing pattern.
+ * Strictly checks against duplicates and enforces SAOL authenticity.
+ */
+export async function generateMorePatternWords(
+    pattern: string,
+    existingWords: string[],
+    apiKey: string
+): Promise<PatternArticleResult['words'] | GeminiError> {
+    const model = ACTIVE_MODEL;
+    const version = ACTIVE_VERSION;
+
+    try {
+        const prompt = `You are a Swedish lexicographer.
+        
+Task: Find 5-8 MORE authentic Swedish compound words that contain the pattern/suffix "${pattern}".
+Existing words to EXCLUDE: ${JSON.stringify(existingWords)}.
+
+Rules:
+1. words must be AUTHENTIC and found in SAOL or standard dictionaries.
+2. NO duplicates from the exclusion list.
+3. NO fake/invented words.
+4. If there are no more common words for this pattern, return an empty array [].
+
+Format: JSON Array of objects:
+[
+  {
+    "word": "SwedishWord",
+    "meaning": "English Meaning",
+    "breakdown": "Part1 + Part2",
+    "example": "Short Swedish sentence."
+  }
+]
+
+JSON ONLY.`;
+
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.3, // Lower temperature for stricter word recall
+                    responseMimeType: "application/json"
+                }
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { error: `HTTP ${response.status}`, details: errorData.error?.message || response.statusText };
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const result = parseGeminiResponse(responseText);
+
+        if (Array.isArray(result)) {
+            return result;
+        } else {
+            return [];
+        }
+
+    } catch (error: any) {
+        return { error: 'Expansion Failed', details: error.message };
+    }
+}

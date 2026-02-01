@@ -48,6 +48,7 @@ export class SveordDB extends Dexie {
     audio_cache!: Table<AudioCache>;
     quizzes!: Table<SavedQuiz>;
     wordUsage!: Table<WordUsage>;
+    patterns!: Table<SavedPattern>;
 
     constructor() {
         super('Sveord_v2');
@@ -65,12 +66,26 @@ export class SveordDB extends Dexie {
         this.version(5).stores({
             words: 'swedish_word, id, kelly_level, frequency_rank, sidor_rank, is_ft'
         });
+
+        this.version(6).stores({
+            patterns: '++id, pattern, created_at',
+            quizzes: '++id, type, isPracticed, createdAt, practicedAt' // Add index for practicedAt
+        });
     }
 
     async clearAllQuizzes() {
         await this.quizzes.clear();
         await this.wordUsage.clear();
+        await this.patterns.clear();
     }
+}
+
+export interface SavedPattern {
+    id?: number;
+    title: string;
+    pattern: string;
+    content: any; // PatternArticleResult stored as JSON
+    created_at: string;
 }
 
 export interface AudioCache {

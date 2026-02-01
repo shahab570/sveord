@@ -4,16 +4,20 @@ import { Flashcard } from "@/components/practice/Flashcard";
 import { useWords, useUserProgress, WordWithProgress } from "@/hooks/useWords";
 import { db } from "@/services/db";
 import { useLiveQuery } from "dexie-react-hooks";
-import { BookOpen, CheckCircle, Flame, BrainCircuit, Repeat2, Sparkles, History, GraduationCap, Clock, Trash2, Loader2 } from "lucide-react";
+import { BookOpen, CheckCircle, Flame, BrainCircuit, Repeat2, Sparkles, History, GraduationCap, Clock, Trash2, Loader2, Puzzle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { QuizSession } from "@/components/quiz/QuizSession";
+import { PatternSession } from "@/components/practice/PatternSession";
 import { generateQuiz, QuestionType, generateAIQuiz, MAX_QUIZ_TARGET_LIMIT } from "@/utils/quizUtils";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { cn } from "@/lib/utils";
 
 export default function Practice() {
-    const [mode, setMode] = useState<'menu' | 'srs' | 'quiz'>('menu');
+    const [mode, setMode] = useState<'menu' | 'srs' | 'quiz' | 'pattern'>('menu');
+    // Pattern & Quiz State
+    const savedPatterns = useLiveQuery(() => db.patterns.orderBy('created_at').reverse().toArray());
+    const [activePattern, setActivePattern] = useState<any | null>(null);
     const [quizType, setQuizType] = useState<QuestionType | null>(null);
     const [activeQuizId, setActiveQuizId] = useState<number | null>(null);
     const [generatingType, setGeneratingType] = useState<QuestionType | null>(null);
@@ -157,6 +161,11 @@ export default function Practice() {
         setActiveQuizId(id);
         setQuizType(type as QuestionType);
         setMode('quiz');
+    };
+
+    const openSavedPattern = (pattern: any) => {
+        setActivePattern(pattern.content);
+        setMode('pattern');
     };
 
     const progressPercent = sessionWords ? ((currentIndex / sessionWords.length) * 100) : 0;
@@ -437,6 +446,31 @@ export default function Practice() {
                                     ) : 'Start Challenge'}
                                 </Button>
                             </Card>
+
+                            {/* 10. Pattern Explorer (NEW) */}
+                            <Card className="p-6 flex flex-col justify-between border-2 border-amber-500/20 bg-card/50 backdrop-blur shadow-lg hover:border-amber-500/40 transition-all col-span-full lg:col-span-2">
+                                <div className="flex items-start gap-4">
+                                    <div className="p-4 bg-amber-100 dark:bg-amber-900/20 rounded-xl w-fit shrink-0">
+                                        <div className="h-8 w-8 text-amber-600 dark:text-amber-400">
+                                            <Puzzle className="h-8 w-8" />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h2 className="text-2xl font-bold text-foreground">Pattern Explorer</h2>
+                                        <p className="text-muted-foreground">Unlock thousands of words by learning their building blocks. Understand suffixes like <span className="font-mono text-primary font-bold">-het</span>, <span className="font-mono text-primary font-bold">-plats</span>, and <span className="font-mono text-primary font-bold">-fri</span> through AI-generated micro-lessons.</p>
+                                    </div>
+                                </div>
+                                <Button
+                                    size="lg"
+                                    className="w-full mt-6 bg-amber-600 hover:bg-amber-700"
+                                    onClick={() => {
+                                        setActivePattern(null); // Reset to new discovery
+                                        setMode('pattern');
+                                    }}
+                                >
+                                    Start Exploring
+                                </Button>
+                            </Card>
                         </div>
 
                         {/* REVIEW ARCHIVE */}
@@ -445,79 +479,119 @@ export default function Practice() {
                                 <div className="flex items-center gap-3">
                                     <History className="h-6 w-6 text-muted-foreground" />
                                     <h2 className="text-2xl font-bold text-foreground tracking-tight">Review Archive</h2>
-                                    <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">{practicedQuizzes?.length || 0} Saved</span>
+                                    <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
+                                        {(practicedQuizzes?.length || 0) + (savedPatterns?.length || 0)} Items
+                                    </span>
                                 </div>
-                                {practicedQuizzes && practicedQuizzes.length > 0 && (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        onClick={async () => {
-                                            if (confirm("This will permanently delete ALL saved quizzes and reset your word mastery counts. Are you sure?")) {
-                                                await db.clearAllQuizzes();
-                                            }
-                                        }}
-                                    >
-                                        Reset Quiz Progress
-                                    </Button>
-                                )}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={async () => {
+                                        if (confirm("This will permanently delete ALL saved quizzes and patterns. Are you sure?")) {
+                                            await db.clearAllQuizzes();
+                                            // clearAllQuizzes in db.ts now clears patterns too if updated correctly,
+                                            // otherwise we might need explicit pattern clear here if not unified.
+                                            // Assuming db.ts update handled it.
+                                        }
+                                    }}
+                                >
+                                    Clear History
+                                </Button>
                             </div>
 
-                            {practicedQuizzes && practicedQuizzes.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {practicedQuizzes.slice(0, 10).map((q) => (
-                                        <div
-                                            key={q.id}
-                                            className="group relative bg-card/40 border border-border hover:border-primary/30 rounded-2xl p-5 transition-all cursor-pointer flex items-center justify-between"
-                                            onClick={() => playSavedQuiz(q.id!, q.type)}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={cn(
-                                                    q.type === 'meaning' ? "bg-emerald-100 text-emerald-600" :
-                                                        q.type === 'synonym' ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"
-                                                )}>
-                                                    {q.type === 'meaning' ? <BookOpen className="h-5 w-5" /> :
-                                                        q.type === 'synonym' ? <Repeat2 className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-bold text-foreground capitalize">{q.type} Review</h3>
-                                                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
-                                                        <Clock className="h-3 w-3" />
-                                                        {q.practicedAt ? new Date(q.practicedAt).toLocaleDateString() : 'Unknown'}
-                                                    </div>
-                                                </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Saved Patterns */}
+                                {savedPatterns?.map((p) => (
+                                    <div
+                                        key={`pat-${p.id}`}
+                                        className="group relative bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 hover:border-amber-500/30 rounded-2xl p-5 transition-all cursor-pointer flex items-center justify-between"
+                                        onClick={() => openSavedPattern(p)}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="bg-amber-100 text-amber-600 p-2 rounded-lg">
+                                                <Puzzle className="h-5 w-5" />
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (confirm("Delete this quiz permanently?")) {
-                                                            db.quizzes.delete(q.id!);
-                                                        }
-                                                    }}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                                <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    Replay
-                                                </Button>
+                                            <div>
+                                                <h3 className="font-bold text-foreground">{p.title}</h3>
+                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                                                    <BrainCircuit className="h-3 w-3" />
+                                                    Pattern: {p.pattern}
+                                                </div>
                                             </div>
                                         </div>
-                                    ))}
-                                    {practicedQuizzes.length > 10 && (
-                                        <p className="text-center text-muted-foreground text-xs col-span-full pt-2">
-                                            Showing last 10 practicing sessions
-                                        </p>
-                                    )}
-                                </div>
-                            ) : (
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (confirm("Delete this pattern?")) {
+                                                        db.patterns.delete(p.id!);
+                                                    }
+                                                }}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-100 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Review
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Practiced Quizzes */}
+                                {practicedQuizzes?.slice(0, 10).map((q) => (
+                                    <div
+                                        key={`quiz-${q.id}`}
+                                        className="group relative bg-card/40 border border-border hover:border-primary/30 rounded-2xl p-5 transition-all cursor-pointer flex items-center justify-between"
+                                        onClick={() => playSavedQuiz(q.id!, q.type)}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={cn(
+                                                "p-2 rounded-lg",
+                                                q.type === 'meaning' ? "bg-emerald-100 text-emerald-600" :
+                                                    q.type === 'synonym' ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"
+                                            )}>
+                                                {q.type === 'meaning' ? <BookOpen className="h-5 w-5" /> :
+                                                    q.type === 'synonym' ? <Repeat2 className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-foreground capitalize">{q.type} Quiz</h3>
+                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                                                    <Clock className="h-3 w-3" />
+                                                    {q.practicedAt ? new Date(q.practicedAt).toLocaleDateString() : 'Unknown'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (confirm("Delete this quiz permanently?")) {
+                                                        db.quizzes.delete(q.id!);
+                                                    }
+                                                }}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Replay
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {(!practicedQuizzes?.length && !savedPatterns?.length) && (
                                 <div className="text-center py-12 border-2 border-dashed border-border rounded-3xl">
                                     <Clock className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                                    <p className="text-muted-foreground font-medium">No practiced quizzes yet.</p>
-                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Complete your first quiz to save it here.</p>
+                                    <p className="text-muted-foreground font-medium">No activity history yet.</p>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Complete quizzes or discover patterns to save them here.</p>
                                 </div>
                             )}
                         </div>
@@ -550,8 +624,16 @@ export default function Practice() {
                     </div>
                 )}
 
+                {/* Pattern Explorer Mode */}
+                {mode === 'pattern' && (
+                    <PatternSession
+                        onExit={() => setMode('menu')}
+                        initialData={activePattern}
+                    />
+                )}
+
                 {/* Quiz Mode */}
-                {mode === 'quiz' && quizType && (
+                {mode === 'quiz' && quizType && activeQuizId && (
                     <QuizSession
                         type={quizType}
                         quizId={activeQuizId}
