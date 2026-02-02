@@ -81,6 +81,18 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                             <p className="text-2xl font-bold text-foreground">{question.targetMeaning}</p>
                         </div>
                     )}
+
+                    {showFeedback && (selectedAnswer?.trim().toLowerCase() !== (typeof question.correctAnswer === 'string' ? question.correctAnswer : (question.correctAnswer as any)?.word || "").trim().toLowerCase()) && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-500 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 rounded-lg mx-auto max-w-md mt-2">
+                            <div className="flex items-center justify-center gap-2 text-green-600 dark:text-green-400 mb-1">
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span className="text-xs uppercase font-bold tracking-wide">Correct Answer</span>
+                            </div>
+                            <p className="text-2xl font-bold text-green-700 dark:text-green-300 capitalize">
+                                {typeof question.correctAnswer === 'string' ? question.correctAnswer : (question.correctAnswer as any)?.word}
+                            </p>
+                        </div>
+                    )}
                 </div>
             </CardHeader>
 
@@ -114,16 +126,19 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                         let variant: "default" | "outline" | "secondary" | "destructive" | "ghost" | "link" = "outline";
                         let icon = null;
 
-                        if (showFeedback) {
-                            const rawCorrect = question.correctAnswer;
-                            const normalizedCorrect = typeof rawCorrect === 'string'
-                                ? rawCorrect.trim().toLowerCase()
-                                : typeof rawCorrect === 'object' && rawCorrect !== null && 'word' in rawCorrect
-                                    ? (rawCorrect as any).word.trim().toLowerCase()
-                                    : String(rawCorrect || "").trim().toLowerCase();
+                        // Helper to normalize for comparison
+                        const normalize = (s: string) => s.trim().toLowerCase().replace(/[.,!?;]$/, '');
 
-                            const isOptionCorrect = optionText.trim().toLowerCase() === normalizedCorrect;
-                            const isOptionSelected = optionText.trim().toLowerCase() === (selectedAnswer || "").trim().toLowerCase();
+                        const rawCorrect = question.correctAnswer;
+                        const normalizedCorrect = typeof rawCorrect === 'string'
+                            ? normalize(rawCorrect)
+                            : typeof rawCorrect === 'object' && rawCorrect !== null && 'word' in rawCorrect
+                                ? normalize((rawCorrect as any).word)
+                                : normalize(String(rawCorrect || ""));
+
+                        if (showFeedback) {
+                            const isOptionCorrect = normalize(optionText) === normalizedCorrect;
+                            const isOptionSelected = normalize(optionText) === normalize(selectedAnswer || "");
 
                             if (isOptionCorrect) {
                                 variant = "default";
@@ -132,16 +147,9 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                                 variant = "destructive";
                                 icon = <XCircle className="w-5 h-5 ml-2 text-white" />;
                             }
-                        } else if (selectedAnswer?.trim().toLowerCase() === optionText.trim().toLowerCase()) {
+                        } else if (normalize(selectedAnswer || "") === normalize(optionText)) {
                             variant = "default";
                         }
-
-                        const rawCorrect = question.correctAnswer;
-                        const normalizedCorrect = typeof rawCorrect === 'string'
-                            ? rawCorrect.trim().toLowerCase()
-                            : typeof rawCorrect === 'object' && rawCorrect !== null && 'word' in rawCorrect
-                                ? (rawCorrect as any).word.trim().toLowerCase()
-                                : String(rawCorrect || "").trim().toLowerCase();
 
                         const isGreen = showFeedback && optionText.trim().toLowerCase() === normalizedCorrect;
 

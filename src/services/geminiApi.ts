@@ -460,21 +460,21 @@ export async function generateAIQuizData(
 
     let typeInstruction = "";
     if (type === 'meaning') {
-        typeInstruction = "For each word, provide its English meaning as the correctAnswer. Provide 3 other PLAUSIBLE but incorrect English meanings as options. Options should be similar in part-of-speech to avoid giveaways. CRITICAL: For each option (even distractors), the 'swedishWord' field MUST contain the Swedish word that actually corresponds to that English meaning. DO NOT reuse the target word for distractors.";
+        typeInstruction = "For each word, provide its English meaning as the correctAnswer. Provide 3 other PLAUSIBLE but incorrect English meanings as options. Options should be similar in part-of-speech to avoid giveaways. CRITICAL: Both the correctAnswer and ALL options MUST be in English. For each option (even distractors), the 'swedishWord' field MUST contain the Swedish word that actually corresponds to that English meaning. DO NOT reuse the target word for distractors.";
     } else if (type === 'synonym') {
-        typeInstruction = "For each word, provide a Swedish synonym as the correctAnswer. Provide 3 other common Swedish words as options. Options should be semantically related or often confused with the target word.";
+        typeInstruction = "For each word, provide a Swedish synonym as the correctAnswer. Provide 3 other common Swedish words as options. Options should be semantically related or often confused with the target word. CRITICAL: The correctAnswer and ALL options MUST be Swedish words, not English translations.";
     } else if (type === 'antonym') {
-        typeInstruction = "For each word, provide a Swedish antonym as the correctAnswer. Provide 3 other common Swedish words as options.";
+        typeInstruction = "For each word, provide a Swedish antonym as the correctAnswer. Provide 3 other common Swedish words as options. CRITICAL: The correctAnswer and ALL options MUST be Swedish words, not English translations.";
     } else if (type === 'context') {
-        typeInstruction = "For each word, create a natural Swedish sentence with a blank marked as '[[blank]]' where the word fits perfectly. Provide the target word as the answer and 3 other grammatically correct but contextually wrong Swedish words as options.";
+        typeInstruction = "For each word, create a natural Swedish sentence with a blank marked as '[[blank]]' where the word fits perfectly. Provide the target word as the answer and 3 other grammatically correct but contextually wrong Swedish words as options. CRITICAL: All options MUST be Swedish words.";
     } else if (type === 'dialogue') {
-        typeInstruction = "Create a short 4-6 turn conversation between two speakers. Include 3-5 blanks marked as [[0]], [[1]], etc. Each blank MUST correspond to one of the target words provided. For each blank, provide the correct answer and 3 smart Swedish distractor words. CRITICAL: For each turn in the dialogue, provide a 'translation' field with the English translation.";
+        typeInstruction = "Create a short 4-6 turn conversation between two speakers. Include 3-5 blanks marked as [[0]], [[1]], etc. Each blank MUST correspond to one of the target words provided. For each blank, provide the correct answer and 3 smart Swedish distractor words. CRITICAL: For each turn in the dialogue, provide a 'translation' field with the English translation. All answers and options MUST be Swedish.";
     } else if (type === 'translation') {
-        typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. Provide 3 other common Swedish words as options to test the user's ability to produce the correct Swedish term based on English.";
+        typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. Provide 3 other common Swedish words as options. CRITICAL: All options and the correctAnswer MUST be Swedish words.";
     } else if (type === 'recall') {
-        typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. This is a flashcard-style recall practice, so ensure the targetWord (English) is clear and the answer (Swedish) is accurate. Set an empty options array.";
+        typeInstruction = "For each Swedish word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. This is a flashcard-style recall practice. Set an empty options array.";
     } else if (type === 'similarity') {
-        typeInstruction = "For each word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. Provide 3 smart distractors that are ARCHITECTURALLY/STRUCTURALLY similar to the correct Swedish word (e.g., if correct is 'en', distractors could be 'än', 'ett'). Focus on words that look almost identical but have different meanings to test the user's precision.";
+        typeInstruction = "For each word, provide its English meaning as the targetWord. The correctAnswer MUST be the original Swedish word. Provide 3 smart distractors that are ARCHITECTURALLY/STRUCTURALLY similar to the correct Swedish word (e.g., if correct is 'en', distractors could be 'än', 'ett'). All options MUST be Swedish words.";
     }
 
     const prompt = `You are a Swedish language educator. Create a high-quality quiz for these words: ${JSON.stringify(wordList)}.
@@ -488,6 +488,9 @@ export async function generateAIQuizData(
     { "type": "...", "targetWord": "word", "correctAnswer": "answer", "options": [{ "word": "answer", "swedishWord": "...", "meaning": "..." }, { "word": "distractor1", ... }] }
     
     CRITICAL: The 'options' array MUST include the 'correctAnswer' as one of the choices.
+    CRITICAL: For all MCQ types (meaning, synonym, antonym, translation, similarity), the 'word' field of each option MUST be a SINGLE word (or short phrase) with NO trailing punctuation, NO brackets, and NO English translations.
+    BAD: { "word": "solsken (sunshine)" }
+    GOOD: { "word": "solsken" }
     
     Structure for 'context':
     { "type": "context", "targetWord": "word", "sentence": "Jag bor i en [[blank]].", "correctAnswer": "hus", "options": [{ "word": "bil", "swedishWord": "bil" }, { "word": "skog", "swedishWord": "skog" }, { "word": "stad", "swedishWord": "stad" }, { "word": "hus", "swedishWord": "hus" }] }

@@ -304,7 +304,45 @@ export const sanitizeQuestions = (questions: QuizQuestion[]): QuizQuestion[] => 
   return questions.map(q => {
     const sanitized = { ...q };
 
-    // Ensure all strings are strings, not objects (fixes React error #31)
+    // Common cleaning function to remove punctuation/spacing that breaks comparison
+    const clean = (s: any) => {
+      if (typeof s !== 'string') return s;
+      // Remove trailing punctuation and extra spaces, but keep internal spaces for phrases
+      return s.trim().replace(/[.,!?;]$/, '');
+    };
+
+    // 1. Sanitize Correct Answer (Must be a string for internal comparison logic)
+    if (sanitized.correctAnswer) {
+      if (typeof sanitized.correctAnswer === 'object' && sanitized.correctAnswer !== null) {
+        sanitized.correctAnswer = (sanitized.correctAnswer as any).word || (sanitized.correctAnswer as any).text || JSON.stringify(sanitized.correctAnswer);
+      }
+      sanitized.correctAnswer = clean(String(sanitized.correctAnswer));
+    }
+
+    // 2. Sanitize Options (Convert strings to objects if necessary, and clean words)
+    if (sanitized.options && Array.isArray(sanitized.options)) {
+      sanitized.options = sanitized.options.map(opt => {
+        let word = "";
+        let meaning = "";
+        let swedishWord = "";
+
+        if (typeof opt === 'string') {
+          word = opt;
+        } else if (typeof opt === 'object' && opt !== null) {
+          word = (opt as any).word || (opt as any).text || "";
+          meaning = (opt as any).meaning || "";
+          swedishWord = (opt as any).swedishWord || "";
+        }
+
+        return {
+          word: clean(word),
+          meaning: clean(meaning),
+          swedishWord: clean(swedishWord)
+        };
+      });
+    }
+
+    // 3. Dialogue special handling
     if (sanitized.type === 'dialogue') {
       if (sanitized.dialogue) {
         sanitized.dialogue = sanitized.dialogue.map(turn => ({
@@ -316,22 +354,21 @@ export const sanitizeQuestions = (questions: QuizQuestion[]): QuizQuestion[] => 
       if (sanitized.blanks) {
         sanitized.blanks = sanitized.blanks.map(blank => ({
           ...blank,
-          answer: typeof blank.answer === 'object' ? (blank.answer as any).word || (blank.answer as any).answer || JSON.stringify(blank.answer) : String(blank.answer || ""),
-          options: (blank.options || []).map(opt => typeof opt === 'object' ? (opt as any).word || (opt as any).option || JSON.stringify(opt) : String(opt || ""))
+          answer: clean(typeof blank.answer === 'object' ? (blank.answer as any).word || (blank.answer as any).answer || JSON.stringify(blank.answer) : String(blank.answer || "")),
+          options: (blank.options || []).map(opt => clean(typeof opt === 'object' ? (opt as any).word || (opt as any).option || JSON.stringify(opt) : String(opt || "")))
         }));
       }
     }
 
-    // Also sanitize MCQ options just in case
-    if (sanitized.options) {
-      sanitized.options = sanitized.options.map(opt => ({
-        ...opt,
-        word: typeof opt.word === 'object' ? (opt.word as any).word || (opt.word as any).text || JSON.stringify(opt.word) : String(opt.word || "")
-      }));
-    }
-
-    if (sanitized.correctAnswer) {
-      sanitized.correctAnswer = typeof sanitized.correctAnswer === 'object' ? (sanitized.correctAnswer as any).word || (sanitized.correctAnswer as any).text || JSON.stringify(sanitized.correctAnswer) : String(sanitized.correctAnswer);
+    // 4. Final verification: ensure correctAnswer exists IN options
+    // (If AI missed it, we manually add it or fix the closest match to prevent a "dead" question)
+    if (sanitized.correctAnswer && sanitized.options && sanitized.options.length > 0) {
+      const match = sanitized.options.find(o => o.word.toLowerCase() === sanitized.correctAnswer?.toLowerCase());
+      if (!match) {
+        // If not found, force the first option to be correct to avoid a broken UI
+        console.warn(`[Sanitize] Correct answer "${sanitized.correctAnswer}" not found in options. Syncing...`);
+        sanitized.options[0].word = sanitized.correctAnswer;
+      }
     }
 
     return sanitized;

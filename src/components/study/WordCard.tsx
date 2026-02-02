@@ -27,7 +27,19 @@ import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { cn } from "@/lib/utils";
 import { generateForms, GrammaticalForm, WordType } from "@/services/grammar";
 import { getAudioForWord, playAudioBlob } from "@/services/forvoApi";
-import { Loader2, Volume2, Download, CheckCircle2, Copy } from "lucide-react";
+import { Loader2, Volume2, Download, CheckCircle2, Copy, Trash2 } from "lucide-react";
+import { useDeleteWord } from "@/hooks/useWords";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface FormWithAudio extends GrammaticalForm {
   audioBlob?: Blob | null;
@@ -48,6 +60,7 @@ interface WordCardProps {
   onToggleRandom: () => void;
   showRandomButton?: boolean;
   listType?: "kelly" | "frequency" | "sidor" | "ft";
+  onDelete?: () => void;
 }
 
 export function WordCard({
@@ -63,8 +76,10 @@ export function WordCard({
   onToggleRandom,
   showRandomButton = true,
   listType = "frequency",
+  onDelete,
 }: WordCardProps) {
   const { upsertProgress, refreshWordData } = useUserProgress();
+  const deleteWordMutation = useDeleteWord();
   const { regenerateFieldWithInstruction, enhanceUserNote } = usePopulation();
   const [isEditingSpelling, setIsEditingSpelling] = useState(false);
   const [showBaseStory, setShowBaseStory] = useState(true);
@@ -183,6 +198,16 @@ export function WordCard({
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      await deleteWordMutation.mutateAsync(word.swedish_word);
+      toast.success(`Deleted "${word.swedish_word}" completely.`);
+      onDelete?.();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete word");
+    }
+  };
+
   const handleEnhanceNotes = async () => {
     try {
       if (!meaning) return;
@@ -244,6 +269,34 @@ export function WordCard({
                   {word.kelly_level}
                 </span>
               )}
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    className="p-1.5 text-muted-foreground/40 hover:text-destructive transition-all hover:scale-110 active:scale-95 bg-secondary/30 rounded-full border border-border/50"
+                    title="Delete card completely"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete <span className="font-bold text-foreground">"{word.swedish_word}"</span> from your collection, including all progress and notes. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete Forever
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
 

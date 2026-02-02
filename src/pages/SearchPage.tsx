@@ -201,6 +201,7 @@ export default function SearchPage() {
               isRandomMode={false}
               onToggleRandom={() => { }}
               showRandomButton={false}
+              onDelete={() => setSelectedWord(null)}
             />
           </div>
         )}

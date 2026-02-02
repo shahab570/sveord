@@ -941,6 +941,44 @@ export function useAddWord() {
   });
 }
 
+export function useDeleteWord() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (swedishWord: string) => {
+      // 1. Delete from Supabase
+      const { error } = await supabase
+        .from("words")
+        .delete()
+        .eq("swedish_word", swedishWord);
+
+      if (error) {
+        if (error.code === "42501" || error.message?.includes("row-level security")) {
+          throw new Error("You don't have permission to delete words. Admin role required.");
+        }
+        throw error;
+      }
+
+      // 2. Delete from Local DB
+      await db.words.delete(swedishWord);
+
+      // 3. Delete any associated progress
+      const progress = await db.progress.where("word_swedish").equals(swedishWord).toArray();
+      if (progress.length > 0) {
+        await db.progress.bulkDelete(progress.map(p => p.id!));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["words"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      queryClient.invalidateQueries({ queryKey: ["levelStats"] });
+      queryClient.invalidateQueries({ queryKey: ["learningPrediction"] });
+      queryClient.invalidateQueries({ queryKey: ["nextFrequencyId"] });
+      queryClient.invalidateQueries({ queryKey: ["nextSidorId"] });
+    },
+  });
+}
+
 export function useNextFrequencyId() {
   return useQuery({
     queryKey: ["nextFrequencyId"],

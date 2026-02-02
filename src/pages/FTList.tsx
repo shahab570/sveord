@@ -242,6 +242,11 @@ export default function FTList() {
                         isRandomMode={isRandomMode}
                         onToggleRandom={() => setIsRandomMode(!isRandomMode)}
                         listType="ft"
+                        onDelete={() => {
+                            if (currentIndex >= displayWords.length - 1 && currentIndex > 0) {
+                                setCurrentIndex(currentIndex - 1);
+                            }
+                        }}
                     />
                 ) : (
                     <div className="word-card text-center py-16 bg-card/30 border-dashed border-2">
