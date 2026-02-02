@@ -562,6 +562,9 @@ export default function Practice() {
                                                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
                                                     <Clock className="h-3 w-3" />
                                                     {q.practicedAt ? new Date(q.practicedAt).toLocaleDateString() : 'Unknown'}
+                                                    <div className="h-2 w-[1px] bg-border mx-1" />
+                                                    <BrainCircuit className="h-3 w-3" />
+                                                    {q.questions?.length || 0} Questions
                                                 </div>
                                             </div>
                                         </div>

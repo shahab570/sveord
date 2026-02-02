@@ -32,10 +32,12 @@ export interface UserProgress {
   srs_next_review?: string;
   srs_interval?: number;
   srs_ease?: number;
+  is_reserve?: boolean | number;
 }
 
 export interface WordWithProgress extends Word {
   progress?: UserProgress;
+  practice_count?: number;
 }
 
 export interface UploadHistoryItem {
@@ -77,7 +79,7 @@ export function useWords(filters?: {
   sidorRange?: [number, number];
   learnedOnly?: boolean;
   search?: string;
-  listType?: "kelly" | "frequency" | "sidor" | "ft";
+  listType?: "kelly" | "frequency" | "sidor" | "ft" | "reserve";
   ftOnly?: boolean;
 }) {
   const { user } = useAuth();
@@ -92,8 +94,12 @@ export function useWords(filters?: {
     } else if (filters?.sidorRange) {
       collection = db.words.where('sidor_rank').between(filters.sidorRange[0], filters.sidorRange[1], true, true);
     } else if (filters?.ftOnly || filters?.listType === "ft") {
-      // FT words might have is_ft = 1, OR they might be words redownloaded from cloud 
-      // that have NO standard list rankings.
+      // FT words
+      collection = db.words.toCollection();
+    } else if (filters?.listType === "reserve") {
+      // Reserve words are those that have is_reserve = 1 in progress table
+      // We can't efficiently filter 'words' table by 'progress' table fields with Dexie.where 
+      // without index, so we'll fetch all and filter in JS or do a separate PK query.
       collection = db.words.toCollection();
     } else {
       // Default: Search across all lists including FT - use a compound index if possible or just filter
@@ -117,6 +123,8 @@ export function useWords(filters?: {
           (w.word_data && !w.kelly_level && !w.frequency_rank && !w.sidor_rank) ||
           (w.word_data as any)?.is_ft === true // Check inside JSON too
         );
+      } else if (filters?.listType === "reserve") {
+        // We will filter by progress Map below
       }
     }
 
@@ -145,10 +153,16 @@ export function useWords(filters?: {
     const progressList = await db.progress.where('word_swedish').anyOf(swedishWords).toArray();
     const progressMap = new Map(progressList.map(p => [p.word_swedish, p]));
 
+    // Bulk fetch practice counts (wordUsage)
+    const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
+    const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
+
     for (const w of words) {
       const progress = progressMap.get(w.swedish_word);
+      const usage = usageMap.get(w.swedish_word);
 
       if (filters?.learnedOnly && !progress?.is_learned) continue;
+      if (filters?.listType === "reserve" && !progress?.is_reserve) continue;
 
       result.push({
         id: w.id || 0,
@@ -172,7 +186,8 @@ export function useWords(filters?: {
           created_at: "",
           updated_at: "",
           srs_next_review: progress.srs_next_review,
-        } : undefined
+        } : undefined,
+        practice_count: usage?.targetCount || 0
       });
     }
 
@@ -265,6 +280,7 @@ export function useUserProgress() {
       is_learned?: boolean;
       user_meaning?: string;
       custom_spelling?: string;
+      is_reserve?: boolean;
       srs_difficulty?: "easy" | "good" | "hard" | "reset";
     }) => {
       if (!user) throw new Error("Not authenticated");
@@ -375,6 +391,7 @@ export function useUserProgress() {
       const progressData: LocalUserProgress = {
         word_swedish: swedishWord,
         is_learned: data.is_learned === undefined ? (existing?.is_learned || 0) : (data.is_learned ? 1 : 0),
+        is_reserve: data.is_reserve === undefined ? (existing?.is_reserve || 0) : (data.is_reserve ? 1 : 0),
         user_meaning: data.user_meaning ?? existing?.user_meaning,
         custom_spelling: data.custom_spelling ?? existing?.custom_spelling,
         learned_date: newLearnedDate,
@@ -560,6 +577,10 @@ export function useStats() {
       ftStats: {
         total: await db.words.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).count(),
         learned: learnedWordDefs.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).length
+      },
+      reserveStats: {
+        total: await db.progress.where('is_reserve').equals(1).count(),
+        learned: await db.progress.where('is_reserve').equals(1).and(p => p.is_learned === 1).count()
       }
     };
   }, [user?.id]);

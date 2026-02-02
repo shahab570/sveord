@@ -18,6 +18,9 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  BrainCircuit,
+  Bookmark,
+  BookmarkPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePopulation } from "@/contexts/PopulationContext";
@@ -198,6 +201,20 @@ export function WordCard({
     }
   };
 
+  const handleToggleReserve = async () => {
+    try {
+      const newStatus = !word.progress?.is_reserve;
+      await upsertProgress.mutateAsync({
+        word_id: word.id,
+        swedish_word: word.swedish_word,
+        is_reserve: newStatus,
+      });
+      toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
+    } catch (error) {
+      toast.error("Failed to update Study Later status");
+    }
+  };
+
   const handleDelete = async () => {
     try {
       await deleteWordMutation.mutateAsync(word.swedish_word);
@@ -259,6 +276,34 @@ export function WordCard({
                   {word.progress?.is_learned ? "Learned" : "Mark Learned"}
                 </span>
               </button>
+
+              <button
+                onClick={handleToggleReserve}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all border shadow-sm",
+                  word.progress?.is_reserve
+                    ? "bg-amber-100 text-amber-600 border-amber-200"
+                    : "bg-secondary text-muted-foreground border-border/50 hover:border-primary/30"
+                )}
+                title={word.progress?.is_reserve ? "Remove from Study Later" : "Save for Study Later"}
+              >
+                {word.progress?.is_reserve ? (
+                  <Bookmark className="h-3.5 w-3.5 fill-current" />
+                ) : (
+                  <BookmarkPlus className="h-3.5 w-3.5" />
+                )}
+                <span className="text-[10px] font-black uppercase tracking-tight">
+                  {word.progress?.is_reserve ? "Reserved" : "Study Later"}
+                </span>
+              </button>
+              {(word.practice_count ?? 0) > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100 shadow-sm">
+                  <BrainCircuit className="h-3.5 w-3.5" />
+                  <span className="text-[10px] font-black uppercase tracking-tight">
+                    Practiced {word.practice_count} {word.practice_count === 1 ? 'time' : 'times'}
+                  </span>
+                </div>
+              )}
               {word.kelly_level && (
                 <span
                   className={cn(

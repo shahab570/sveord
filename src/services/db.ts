@@ -24,6 +24,7 @@ export interface LocalUserProgress {
     srs_next_review?: string;
     srs_interval?: number;
     srs_ease?: number;
+    is_reserve?: number;
 }
 
 export interface SavedQuiz {
@@ -70,6 +71,10 @@ export class SveordDB extends Dexie {
         this.version(6).stores({
             patterns: '++id, pattern, created_at',
             quizzes: '++id, type, isPracticed, createdAt, practicedAt' // Add index for practicedAt
+        });
+
+        this.version(7).stores({
+            progress: 'word_swedish, is_learned, srs_next_review, is_reserve'
         });
     }
 

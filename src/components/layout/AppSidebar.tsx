@@ -11,6 +11,7 @@ import {
   BrainCircuit,
   Shield,
   Sparkles,
+  Bookmark,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
   { href: "/frequency", label: "Frequency List", icon: Hash },
   { href: "/sidor", label: "Sidor List", icon: BookMarked },
   { href: "/ft", label: "FT List", icon: Sparkles },
+  { href: "/reserve", label: "Reserve", icon: Bookmark },
   { href: "/search", label: "Search", icon: Search },
   { href: "/practice", label: "SRS Mastery", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings },
