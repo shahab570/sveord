@@ -177,7 +177,13 @@ export const QuizQuestion: React.FC<QuizQuestionProps> = ({
                                             )}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                onWordClick(optionObj.swedishWord || optionText);
+                                                // For 'meaning' type, optionText is English. 
+                                                // We must prioritize optionObj.swedishWord if it exists.
+                                                // If it doesn't exist AND the type is NOT meaning, optionText IS the Swedish word.
+                                                const lookupWord = optionObj.swedishWord || (question.type !== 'meaning' ? optionText : "");
+                                                if (lookupWord) {
+                                                    onWordClick(lookupWord);
+                                                }
                                             }}
                                         >
                                             <Info className="w-4 h-4" />

@@ -460,7 +460,7 @@ export async function generateAIQuizData(
 
     let typeInstruction = "";
     if (type === 'meaning') {
-        typeInstruction = "For each word, provide its English meaning as the correctAnswer. Provide 3 other PLAUSIBLE but incorrect English meanings as options. Options should be similar in part-of-speech to avoid giveaways.";
+        typeInstruction = "For each word, provide its English meaning as the correctAnswer. Provide 3 other PLAUSIBLE but incorrect English meanings as options. Options should be similar in part-of-speech to avoid giveaways. CRITICAL: For each option (even distractors), the 'swedishWord' field MUST contain the Swedish word that actually corresponds to that English meaning. DO NOT reuse the target word for distractors.";
     } else if (type === 'synonym') {
         typeInstruction = "For each word, provide a Swedish synonym as the correctAnswer. Provide 3 other common Swedish words as options. Options should be semantically related or often confused with the target word.";
     } else if (type === 'antonym') {
