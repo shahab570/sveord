@@ -282,13 +282,13 @@ export function WordCard({
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all border shadow-sm",
                   word.progress?.is_reserve
-                    ? "bg-amber-100 text-amber-600 border-amber-200"
+                    ? "bg-amber-500 text-white border-amber-500"
                     : "bg-secondary text-muted-foreground border-border/50 hover:border-primary/30"
                 )}
                 title={word.progress?.is_reserve ? "Remove from Study Later" : "Save for Study Later"}
               >
                 {word.progress?.is_reserve ? (
-                  <Bookmark className="h-3.5 w-3.5 fill-current" />
+                  <Bookmark className="h-3.5 w-3.5 fill-current text-white" />
                 ) : (
                   <BookmarkPlus className="h-3.5 w-3.5" />
                 )}

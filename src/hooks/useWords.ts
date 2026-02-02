@@ -186,6 +186,7 @@ export function useWords(filters?: {
           created_at: "",
           updated_at: "",
           srs_next_review: progress.srs_next_review,
+          is_reserve: !!progress.is_reserve,
         } : undefined,
         practice_count: usage?.targetCount || 0
       });
@@ -847,6 +848,7 @@ export function useTodaysLearnedWords() {
             created_at: "",
             updated_at: "",
             srs_next_review: p.srs_next_review,
+            is_reserve: !!p.is_reserve,
           },
         });
       }
