@@ -274,7 +274,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <h2 className="text-lg font-semibold text-foreground">
-                      Overall Progress
+                      Anki Overall Progress
                     </h2>
                     <p className="text-sm text-muted-foreground">
                       {totalLearned} of {totalWords} words learned
@@ -286,6 +286,77 @@ export default function Dashboard() {
                 </span>
               </div>
               <Progress value={progressPercent} className="h-3" />
+            </div>
+          )}
+        </div>
+
+        {/* Study Later & Combined Stats */}
+        <div className="animate-fade-in" style={{ animationDelay: "125ms" }}>
+          {statsLoading ? (
+            <Skeleton className="h-28 w-full rounded-2xl" />
+          ) : stats && stats.reserveStats && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="word-card">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-amber-500/10 rounded-xl">
+                      <Clock className="h-6 w-6 text-amber-500" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">
+                        Study Later
+                      </h2>
+                      <p className="text-sm text-muted-foreground">
+                        Words marked for later
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-3xl font-bold text-amber-500">
+                    {stats.reserveStats.total}
+                  </span>
+                </div>
+              </div>
+
+              <div className="word-card">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-indigo-500/10 rounded-xl">
+                      <CheckCircle className="h-6 w-6 text-indigo-500" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">
+                        Encountered Words
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        Learned or marked for later
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-3xl font-bold text-indigo-500">
+                    {stats.learnedWords + stats.reserveStats.total - stats.reserveStats.learned}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs mb-1.5">
+                  <span className="text-muted-foreground">Exposure Percentage</span>
+                  <span className="font-bold text-indigo-500">
+                    {(totalWords > 0
+                      ? ((stats.learnedWords + stats.reserveStats.total - stats.reserveStats.learned) / totalWords) * 100
+                      : 0
+                    ).toFixed(1)}%
+                  </span>
+                </div>
+
+                <Progress
+                  value={
+                    totalWords > 0
+                      ? ((stats.learnedWords + stats.reserveStats.total - stats.reserveStats.learned) / totalWords) * 100
+                      : 0
+                  }
+                  className="h-2 bg-indigo-100 dark:bg-indigo-950"
+                  indicatorClassName="bg-indigo-500"
+                />
+              </div>
             </div>
           )}
         </div>
