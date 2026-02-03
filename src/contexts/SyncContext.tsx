@@ -11,6 +11,7 @@ interface SyncContextType {
     syncProgress: () => Promise<void>;
     syncMissingStories: () => Promise<void>;
     forceRefresh: () => Promise<void>;
+    pushLocalToCloud: () => Promise<void>;
 }
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
@@ -47,10 +48,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                     const progressRecords: any[] = [];
                     const wordUpdates: LocalWord[] = [];
 
+                    // Optimization: Bulk fetch local progress to preserve local-only fields (SRS, Reserve)
+                    // since Supabase might not have these columns or they might be missing
+                    const swedishWords = progress.map((p: any) => {
+                        const wd = Array.isArray(p.words) ? p.words[0] : p.words;
+                        return wd?.swedish_word;
+                    }).filter(Boolean);
+
+                    const localProgressList = await db.progress.where('word_swedish').anyOf(swedishWords).toArray();
+                    const localProgressMap = new Map(localProgressList.map(item => [item.word_swedish, item]));
+
                     for (const row of progress) {
                         const p = row as any;
                         const wordData = Array.isArray(p.words) ? p.words[0] : p.words;
                         if (!wordData) continue;
+
+                        const existingProgress = localProgressMap.get(wordData.swedish_word);
 
                         progressRecords.push({
                             word_swedish: wordData.swedish_word,
@@ -59,6 +72,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                             custom_spelling: p.custom_spelling || undefined,
                             learned_date: p.learned_date || undefined,
                             last_synced_at: new Date().toISOString(),
+                            // Robust Sync: Prefer remote value if it exists, otherwise preserve local value
+                            // This prevents wiping local state for fields not yet in Supabase (like is_reserve or SRS)
+                            is_reserve: p.is_reserve !== undefined ? (p.is_reserve ? 1 : 0) : (existingProgress?.is_reserve || 0),
+                            srs_next_review: p.srs_next_review || existingProgress?.srs_next_review,
+                            srs_interval: p.srs_interval || existingProgress?.srs_interval,
+                            srs_ease: p.srs_ease || existingProgress?.srs_ease,
                         });
 
                         // Ensure we have this word in our local database too!
@@ -247,7 +266,86 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user]);
 
-    // Initial sync on mount
+    const pushLocalToCloud = useCallback(async () => {
+        if (!user || syncLockRef.current) return;
+        setSyncing(true);
+        const toastId = toast.loading("Checking for local data to backup...");
+        try {
+            // 1. Get all local progress
+            const allLocalProgress = await db.progress.toArray();
+
+            // 2. Identify words that need backup (Reserve, Learned, SRS)
+            // We want to ensure specific local states are reflected in cloud
+            const meaningfulProgress = allLocalProgress.filter(p =>
+                p.is_reserve === 1 ||
+                p.is_learned === 1 ||
+                (p.srs_interval && p.srs_interval > 0)
+            );
+
+            if (meaningfulProgress.length === 0) {
+                toast.dismiss(toastId);
+                toast.info("No local progress found to push.");
+                return;
+            }
+
+            toast.loading(`Backing up ${meaningfulProgress.length} items to cloud...`, { id: toastId });
+
+            const CHUNK_SIZE = 100;
+            let successCount = 0;
+
+            for (let i = 0; i < meaningfulProgress.length; i += CHUNK_SIZE) {
+                const chunk = meaningfulProgress.slice(i, i + CHUNK_SIZE);
+
+                // We need word IDs for Supabase
+                const swedishWords = chunk.map(p => p.word_swedish);
+                const { data: cloudWords, error: wordError } = await supabase
+                    .from('words')
+                    .select('id, swedish_word')
+                    .in('swedish_word', swedishWords);
+
+                if (wordError) throw wordError;
+
+                const cloudWordMap = new Map(cloudWords?.map(cw => [cw.swedish_word, cw.id]));
+
+                const updates = chunk.map(p => {
+                    const wordId = cloudWordMap.get(p.word_swedish);
+                    if (!wordId) return null; // Skip if word doesn't exist in cloud (rare)
+
+                    return {
+                        user_id: user.id,
+                        word_id: wordId,
+                        is_learned: p.is_learned === 1,
+                        is_reserve: p.is_reserve === 1,
+                        srs_next_review: p.srs_next_review || null,
+                        srs_interval: p.srs_interval || 0,
+                        srs_ease: p.srs_ease || 2.5,
+                        user_meaning: p.user_meaning || null,
+                        custom_spelling: p.custom_spelling || null,
+                        updated_at: new Date().toISOString(),
+                        learned_date: p.learned_date || null
+                    };
+                }).filter(Boolean);
+
+                if (updates.length > 0) {
+                    const { error } = await supabase
+                        .from('user_progress')
+                        .upsert(updates as any, { onConflict: 'user_id,word_id', ignoreDuplicates: false });
+
+                    if (error) throw error;
+                    successCount += updates.length;
+                }
+            }
+
+            toast.success(`Successfully backed up ${successCount} items to cloud!`, { id: toastId });
+            setLastSyncTime(new Date());
+
+        } catch (error: any) {
+            console.error('Push backup failed:', error);
+            toast.error(`Backup failed: ${error.message}`, { id: toastId });
+        } finally {
+            setSyncing(false);
+        }
+    }, [user]);
     useEffect(() => {
         const checkAndSync = async () => {
             if (!user) return;
@@ -273,7 +371,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }, [user?.id, syncAll, syncProgress]);
 
     return (
-        <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress, syncMissingStories, forceRefresh }}>
+        <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress, syncMissingStories, forceRefresh, pushLocalToCloud }}>
             {children}
         </SyncContext.Provider>
     );

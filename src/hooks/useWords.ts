@@ -426,6 +426,8 @@ export function useUserProgress() {
           user_meaning: progressData.user_meaning,
           custom_spelling: progressData.custom_spelling,
           learned_date: progressData.learned_date,
+          // Support for Study Later / Reserve tab
+          is_reserve: !!progressData.is_reserve,
           // Note: Support for SRS columns in Supabase might need a migration if they don't exist
           // For now we'll store them if possible, but prioritize local IndexedDB for SRS logic
         };
@@ -473,6 +475,8 @@ export function useUserProgress() {
       if (error) throw error;
       if (!remoteWord) return;
 
+      const existing = await db.words.get(swedishWord);
+
       const word: LocalWord = {
         id: remoteWord.id,
         swedish_word: remoteWord.swedish_word,
@@ -481,7 +485,8 @@ export function useUserProgress() {
         frequency_rank: remoteWord.frequency_rank || undefined,
         sidor_rank: remoteWord.sidor_rank || undefined,
         word_data: remoteWord.word_data as any,
-        last_synced_at: new Date().toISOString()
+        last_synced_at: new Date().toISOString(),
+        is_ft: ((remoteWord.word_data as any)?.is_ft) ? 1 : existing?.is_ft
       };
 
       await db.words.put(word);

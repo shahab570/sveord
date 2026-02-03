@@ -7,9 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Plus, Loader2, BookOpen } from "lucide-react";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { toast } from "sonner";
-import { useCaptureWord } from "@/hooks/useCaptureWord";
+import { useCaptureWord, CaptureResult } from "@/hooks/useCaptureWord";
 import { db } from "@/services/db";
 import { History, RotateCcw, Search } from "lucide-react";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function FTList() {
     const [newWord, setNewWord] = useState("");
@@ -19,6 +29,9 @@ export default function FTList() {
     const [showRecovery, setShowRecovery] = useState(false);
     const [discoveredWords, setDiscoveredWords] = useState<string[]>([]);
     const [isScanning, setIsScanning] = useState(false);
+
+    // Confirmation State
+    const [confirmData, setConfirmData] = useState<{ baseForm: string; inputWord: string } | null>(null);
 
     const { apiKeys } = useApiKeys();
     const { captureWord, isCapturing } = useCaptureWord();
@@ -41,12 +54,31 @@ export default function FTList() {
         if (!newWord.trim()) return;
 
         const result = await captureWord(newWord);
-        if (result) {
-            toast.success(`Successfully added "${result.swedish_word}" to FT List!`);
+
+        if (result.status === 'success' && result.word) {
+            toast.success(`Successfully added "${result.word.swedish_word}" to FT List!`);
             setNewWord("");
-            // If it was in our discovered list, remove it
-            setDiscoveredWords(prev => prev.filter(w => w !== result.swedish_word));
+            setDiscoveredWords(prev => prev.filter(w => w !== result.word!.swedish_word));
+        } else if (result.status === 'confirmation_needed') {
+            setConfirmData({
+                baseForm: result.baseForm!,
+                inputWord: newWord
+            });
         }
+        // Error is handled in hook
+    };
+
+    const handleConfirmAdd = async () => {
+        if (!confirmData) return;
+
+        const result = await captureWord(confirmData.inputWord, true); // Force add
+
+        if (result.status === 'success' && result.word) {
+            toast.success(`Successfully linked "${result.word.swedish_word}" to FT List!`);
+            setNewWord("");
+            setDiscoveredWords(prev => prev.filter(w => w !== result.word!.swedish_word));
+        }
+        setConfirmData(null);
     };
 
     const handleScanRecovery = async () => {
@@ -82,7 +114,7 @@ export default function FTList() {
 
     const handleRecoverWord = async (word: string) => {
         const result = await captureWord(word);
-        if (result) {
+        if (result.status === 'success') {
             toast.success(`Recovered "${word}"!`);
             setDiscoveredWords(prev => prev.filter(w => w !== word));
         }
@@ -263,6 +295,24 @@ export default function FTList() {
                     </div>
                 )}
             </div>
-        </AppLayout>
+
+            <AlertDialog open={!!confirmData} onOpenChange={(open) => !open && setConfirmData(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Similar Word Found</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            The base form <strong>"{confirmData?.baseForm}"</strong> already exists in your main database (Kelly/Sidor list).
+                            <br /><br />
+                            Normally we just redirect you to it, but since you typed <strong>"{confirmData?.inputWord}"</strong>,
+                            do you want to explicitly add it to your FT List anyway?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setConfirmData(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmAdd}>Yes, Add to FT List</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </AppLayout >
     );
 }

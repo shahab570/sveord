@@ -118,7 +118,11 @@ export type Database = {
           custom_spelling: string | null
           id: string
           is_learned: boolean | null
+          is_reserve: boolean | null
           learned_date: string | null
+          srs_ease: number | null
+          srs_interval: number | null
+          srs_next_review: string | null
           updated_at: string | null
           user_id: string
           user_meaning: string | null
@@ -129,7 +133,11 @@ export type Database = {
           custom_spelling?: string | null
           id?: string
           is_learned?: boolean | null
+          is_reserve?: boolean | null
           learned_date?: string | null
+          srs_ease?: number | null
+          srs_interval?: number | null
+          srs_next_review?: string | null
           updated_at?: string | null
           user_id: string
           user_meaning?: string | null
@@ -140,7 +148,11 @@ export type Database = {
           custom_spelling?: string | null
           id?: string
           is_learned?: boolean | null
+          is_reserve?: boolean | null
           learned_date?: string | null
+          srs_ease?: number | null
+          srs_interval?: number | null
+          srs_next_review?: string | null
           updated_at?: string | null
           user_id?: string
           user_meaning?: string | null

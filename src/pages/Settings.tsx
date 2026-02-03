@@ -49,7 +49,7 @@ export default function Settings() {
   const { user } = useAuth();
   const { resetProgress } = useUserProgress();
   const { history } = useUploadHistory();
-  const { isSyncing, lastSyncTime, syncAll, syncMissingStories, forceRefresh } = useSync();
+  const { isSyncing, lastSyncTime, syncAll, syncMissingStories, forceRefresh, pushLocalToCloud } = useSync();
   const addWord = useAddWord();
 
   const [importProgress, setImportProgress] = useState(0);
@@ -254,7 +254,6 @@ export default function Settings() {
           </p>
         </section>
 
-        {/* Data Recovery */}
         <section className="word-card space-y-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-100 rounded-lg">
@@ -265,19 +264,40 @@ export default function Settings() {
               <p className="text-sm text-muted-foreground">Restore missing list data from the cloud</p>
             </div>
           </div>
-          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
-            <p className="text-sm text-amber-700 mb-3">
-              If your Kelly or Sidor list counts seem low, use this button to redownload your full data from Supabase.
-            </p>
-            <Button
-              variant="outline"
-              onClick={forceRefresh}
-              disabled={isSyncing}
-              className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-100"
-            >
-              <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-              Force Refresh (Restore All)
-            </Button>
+          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-4">
+            <div>
+              <p className="text-sm text-amber-700 mb-3">
+                If your Kelly or Sidor list counts seem low, use this button to redownload your full data from Supabase.
+              </p>
+              <Button
+                variant="outline"
+                onClick={forceRefresh}
+                disabled={isSyncing}
+                className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-100 w-full md:w-auto"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+                Force Refresh (Download All)
+              </Button>
+            </div>
+
+            <div className="border-t border-amber-200 pt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Cloud className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-bold text-blue-800">New: Cloud Repair</span>
+              </div>
+              <p className="text-xs text-blue-700 mb-3">
+                Use this if your "Study Later" list is missing on other devices or if you just migrated your database. This will safely push your local progress to the cloud.
+              </p>
+              <Button
+                variant="outline"
+                onClick={pushLocalToCloud}
+                disabled={isSyncing}
+                className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 w-full md:w-auto"
+              >
+                <Cloud className="h-4 w-4" />
+                Push Local Backup to Cloud
+              </Button>
+            </div>
           </div>
         </section>
 

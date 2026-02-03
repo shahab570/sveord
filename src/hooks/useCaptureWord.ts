@@ -7,13 +7,18 @@ import { toast } from "sonner";
 import { WordWithProgress } from "./useWords";
 import { useQueryClient } from "@tanstack/react-query";
 
+export type CaptureResult =
+    | { status: 'success'; word: WordWithProgress }
+    | { status: 'confirmation_needed'; baseForm: string; existingWord: WordWithProgress }
+    | { status: 'error'; message: string };
+
 export function useCaptureWord() {
     const { apiKeys } = useApiKeys();
     const [isCapturing, setIsCapturing] = useState(false);
     const queryClient = useQueryClient();
 
-    const captureWord = async (swedishWord: string): Promise<WordWithProgress | null> => {
-        if (!swedishWord.trim()) return null;
+    const captureWord = async (swedishWord: string, force: boolean = false): Promise<CaptureResult> => {
+        if (!swedishWord.trim()) return { status: 'error', message: "Empty word" };
 
         const cleanedWord = swedishWord.trim().toLowerCase();
 
@@ -21,22 +26,25 @@ export function useCaptureWord() {
         const existingOriginal = await db.words.get(cleanedWord);
         if (existingOriginal && existingOriginal.word_data?.populated_at) {
             return {
-                ...existingOriginal,
-                id: existingOriginal.id || 0,
-                kelly_level: existingOriginal.kelly_level || null,
-                kelly_source_id: existingOriginal.kelly_source_id || null,
-                frequency_rank: existingOriginal.frequency_rank || null,
-                sidor_rank: existingOriginal.sidor_rank || null,
-                sidor_source_id: null,
-                created_at: "",
-                word_data: existingOriginal.word_data as any,
-                progress: undefined
-            } as WordWithProgress;
+                status: 'success',
+                word: {
+                    ...existingOriginal,
+                    id: existingOriginal.id || 0,
+                    kelly_level: existingOriginal.kelly_level || null,
+                    kelly_source_id: existingOriginal.kelly_source_id || null,
+                    frequency_rank: existingOriginal.frequency_rank || null,
+                    sidor_rank: existingOriginal.sidor_rank || null,
+                    sidor_source_id: null,
+                    created_at: "",
+                    word_data: existingOriginal.word_data as any,
+                    progress: undefined
+                } as unknown as WordWithProgress
+            };
         }
 
         if (!apiKeys.geminiApiKey) {
             toast.error("Please add a Gemini API Key in Settings to capture words.");
-            return null;
+            return { status: 'error', message: "No API Key" };
         }
 
         setIsCapturing(true);
@@ -46,27 +54,68 @@ export function useCaptureWord() {
 
             if ('error' in result) {
                 toast.error(`Generation failed: ${result.error}`);
-                return null;
+                return { status: 'error', message: result.error || "Generation failed" };
             }
 
             const baseForm = (result.baseForm || cleanedWord).trim().toLowerCase();
 
-            // 3. Check if base form already exists in DB (maybe it's in Kelly/Frequency/Sidor!)
+            // 3. Check if base form already exists in DB
             const existingBase = await db.words.get(baseForm);
             if (existingBase) {
-                console.log(`Base form "${baseForm}" already exists for "${cleanedWord}". Redirecting...`);
-                return {
+                // WARN CONDITION: Not a base form, but base exists
+                if (!force && baseForm !== cleanedWord) {
+                    return {
+                        status: 'confirmation_needed',
+                        baseForm,
+                        existingWord: {
+                            ...existingBase,
+                            id: existingBase.id || 0,
+                            kelly_level: existingBase.kelly_level || null,
+                            kelly_source_id: existingBase.kelly_source_id || null,
+                            frequency_rank: existingBase.frequency_rank || null,
+                            sidor_rank: existingBase.sidor_rank || null,
+                            sidor_source_id: null,
+                            created_at: "",
+                            word_data: existingBase.word_data as any,
+                            progress: undefined
+                        } as unknown as WordWithProgress
+                    };
+                }
+
+                console.log(`Base form "${baseForm}" already exists. ensuring it is marked as FT...`);
+
+                // Update local
+                const updatedLocal = {
                     ...existingBase,
-                    id: existingBase.id || 0,
-                    kelly_level: existingBase.kelly_level || null,
-                    kelly_source_id: existingBase.kelly_source_id || null,
-                    frequency_rank: existingBase.frequency_rank || null,
-                    sidor_rank: existingBase.sidor_rank || null,
-                    sidor_source_id: null,
-                    created_at: "",
-                    word_data: existingBase.word_data as any,
-                    progress: undefined
-                } as WordWithProgress;
+                    is_ft: 1, // Force into FT list
+                    last_synced_at: new Date().toISOString()
+                };
+                await db.words.put(updatedLocal as any);
+
+                // Update Cloud (Merge is_ft: true)
+                // We do this optimistically without waiting for it to block UI
+                if (existingBase.id) {
+                    supabase.from('words')
+                        .select('word_data')
+                        .eq('id', existingBase.id)
+                        .single()
+                        .then(async ({ data }) => {
+                            if (data?.word_data) {
+                                const newWordData = { ...(data.word_data as any), is_ft: true };
+                                await supabase.from('words').update({ word_data: newWordData }).eq('id', existingBase.id);
+                            }
+                        });
+                }
+
+                return {
+                    status: 'success',
+                    word: {
+                        ...updatedLocal,
+                        sidor_source_id: null,
+                        created_at: "",
+                        progress: undefined
+                    } as unknown as WordWithProgress
+                };
             }
 
             // 4. If not exists, save the base form as a new FT word
@@ -100,13 +149,24 @@ export function useCaptureWord() {
                     cloudId = remoteWord.id;
                     console.log(`Saved "${baseForm}" to cloud with ID: ${cloudId}`);
                 } else if (remoteError?.code === '23505') {
-                    // Unique constraint violation - word might have just been added by someone else or another tab
+                    // Unique constraint violation - word exists
+                    // We MUST fetch it and update it to have is_ft: true
                     const { data: existingRemote } = await supabase
                         .from('words')
-                        .select('id')
+                        .select('id, word_data')
                         .eq('swedish_word', baseForm)
                         .single();
-                    cloudId = existingRemote?.id;
+
+                    if (existingRemote) {
+                        cloudId = existingRemote.id;
+                        // Checking if we need to patch word_data to include is_ft
+                        const currentData = existingRemote.word_data as any;
+                        if (!currentData?.is_ft) {
+                            console.log("Merging is_ft into existing cloud word...");
+                            const newWordData = { ...currentData, is_ft: true };
+                            await supabase.from('words').update({ word_data: newWordData }).eq('id', cloudId);
+                        }
+                    }
                 }
             } catch (err) {
                 console.error("Cloud persistence failed, falling back to local only:", err);
@@ -128,20 +188,23 @@ export function useCaptureWord() {
             queryClient.invalidateQueries({ queryKey: ["levelStats"] });
 
             return {
-                ...wordToSave,
-                id: 0,
-                kelly_level: null,
-                kelly_source_id: null,
-                frequency_rank: null,
-                sidor_rank: null,
-                sidor_source_id: null,
-                created_at: new Date().toISOString(),
-                progress: undefined
-            } as WordWithProgress;
-        } catch (error) {
+                status: 'success',
+                word: {
+                    ...wordToSave,
+                    id: 0,
+                    kelly_level: null,
+                    kelly_source_id: null,
+                    frequency_rank: null,
+                    sidor_rank: null,
+                    sidor_source_id: null,
+                    created_at: new Date().toISOString(),
+                    progress: undefined
+                } as unknown as WordWithProgress
+            };
+        } catch (error: any) {
             console.error("Capture failed:", error);
             toast.error("An unexpected error occurred during capture.");
-            return null;
+            return { status: 'error', message: error.message || "Unknown error" };
         } finally {
             setIsCapturing(false);
         }
