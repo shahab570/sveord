@@ -21,6 +21,85 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WordCard } from "@/components/study/WordCard";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { db } from "@/services/db";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, AlertTriangle } from "lucide-react";
+import { useEffect } from "react";
+
+function FixConflictsButton() {
+  const [fixing, setFixing] = useState(false);
+  const [count, setCount] = useState<number | null>(null);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Check for conflicts on mount
+  useEffect(() => {
+    db.progress.filter(p => !!p.is_learned && !!p.is_reserve).count().then(setCount);
+  }, []);
+
+  const handleFix = async () => {
+    if (!user) return;
+    setFixing(true);
+    try {
+      // 1. Find conflicts
+      const conflicts = await db.progress.filter(p => !!p.is_learned && !!p.is_reserve).toArray();
+
+      if (conflicts.length === 0) {
+        alert("No overlapping words found!");
+        setCount(0);
+        setFixing(false);
+        return;
+      }
+
+      // 2. Fix Locally (is_learned = 0, keep is_reserve = 1)
+      const updates = conflicts.map(p => ({ ...p, is_learned: 0 }));
+      await db.progress.bulkPut(updates);
+
+      // 3. Fix Remotely
+      // We do this one by one or batch if possible. For safety, one by one by word_id composite
+      let fixedCount = 0;
+      for (const p of conflicts) {
+        const { error } = await supabase
+          .from("user_progress")
+          .update({ is_learned: false, is_reserve: true }) // Explicitly enforce state
+          .eq("user_id", user.id)
+          .eq("word_id", p.word_id);
+
+        if (!error) fixedCount++;
+      }
+
+      // 4. Invalidate queries to refresh UI
+      await queryClient.invalidateQueries({ queryKey: ["stats"] });
+      // Invalidate the unified hook as well
+      await queryClient.invalidateQueries();
+
+      // Force reload to be sure due to stats hook complexity
+      window.location.reload();
+
+      alert(`Fixed ${fixedCount} words! They are now only in 'Study Later'.`);
+      setCount(0);
+    } catch (e) {
+      console.error(e);
+      alert("Error fixing conflicts. Check console.");
+    } finally {
+      setFixing(false);
+    }
+  };
+
+  if (count === null || count === 0) return null;
+
+  return (
+    <button
+      onClick={handleFix}
+      disabled={fixing}
+      className="absolute top-4 right-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-red-500/10 text-red-600 border border-red-200 rounded-full text-xs font-bold hover:bg-red-500/20 transition-colors"
+    >
+      {fixing ? <Loader2 className="h-3 w-3 animate-spin" /> : <AlertTriangle className="h-3 w-3" />}
+      Fix {count} Conflicts
+    </button>
+  );
+}
 
 export default function Dashboard() {
   const { user, profile } = useAuth();
@@ -60,6 +139,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
           {/* Welcome Card & Velocity */}
           <div className="md:col-span-2 relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-secondary/20 border border-border p-6 shadow-sm">
+            <FixConflictsButton />
             <div className="relative z-10 flex flex-col h-full justify-between">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
