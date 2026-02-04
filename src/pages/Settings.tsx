@@ -74,11 +74,7 @@ export default function Settings() {
   // Process data in batches for performance
   type WordUpsertRow = {
     swedish_word: string;
-    kelly_level?: string | null;
-    kelly_source_id?: number | null;
-    frequency_rank?: number | null;
-    sidor_source_id?: number | null;
-    sidor_rank?: number | null;
+    word_data?: any;
   };
 
   const handleUpdateProfile = async () => {
@@ -126,7 +122,6 @@ export default function Settings() {
       .upsert(batch, { onConflict: "swedish_word", count: "exact" });
 
     if (error) {
-      // Throw so imports fail loudly (otherwise ordering can't be fixed because kelly_source_id never gets stored).
       throw error;
     }
 
@@ -251,7 +246,7 @@ export default function Settings() {
             </Dialog>
           </div>
           <p className="text-sm text-muted-foreground">
-            Manually add new words to Kelly List, Frequency List, or both.
+            Add new words to the dictionary.
           </p>
         </section>
 
@@ -268,7 +263,7 @@ export default function Settings() {
           <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-4">
             <div>
               <p className="text-sm text-amber-700 mb-3">
-                If your Kelly or Sidor list counts seem low, use this button to redownload your full data from Supabase.
+                If your word counts seem low, use this button to redownload your full data from Supabase.
               </p>
               <Button
                 variant="outline"

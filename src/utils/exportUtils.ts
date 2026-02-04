@@ -1,5 +1,5 @@
 import { db } from "@/services/db";
-import { CEFR_LEVELS, FREQUENCY_LEVELS, SIDOR_LEVELS } from "@/hooks/useWords";
+import { CEFR_LEVELS } from "@/hooks/useWords";
 
 // Since we are running in browser context, we can use the db instance directly which is synced.
 // However, the user wants ALL worlds including ones potentially not yet visited if using lazy loading?
@@ -9,18 +9,9 @@ import { CEFR_LEVELS, FREQUENCY_LEVELS, SIDOR_LEVELS } from "@/hooks/useWords";
 
 import { supabase } from "@/integrations/supabase/client";
 
+// Simple level determination based on word_data
 function determineLevel(word: any) {
-    if (word.kelly_level && CEFR_LEVELS.includes(word.kelly_level as any)) return word.kelly_level;
-    if (word.frequency_rank) {
-        for (const level of FREQUENCY_LEVELS) {
-            if (word.frequency_rank >= level.range[0] && word.frequency_rank <= level.range[1]) return level.label;
-        }
-    }
-    if (word.sidor_rank) {
-        for (const level of SIDOR_LEVELS) {
-            if (word.sidor_rank >= level.range[0] && word.sidor_rank <= level.range[1]) return level.label;
-        }
-    }
+    if (word.word_data?.cefr_level) return word.word_data.cefr_level;
     return "Unknown";
 }
 
@@ -108,9 +99,6 @@ export async function exportUnifiedList() {
             id: w.id,
             swedish_word: swedish,
             word_data: w.word_data,
-            kelly_level: w.kelly_level,
-            frequency_rank: w.frequency_rank,
-            sidor_rank: w.sidor_rank,
             is_learned: prog?.is_learned ? true : false,
             is_reserve: prog?.is_reserve ? true : false,
             is_encountered: (prog?.is_learned || prog?.is_reserve) ? true : false,
@@ -124,9 +112,6 @@ export async function exportUnifiedList() {
         if (map.has(lowerKey)) {
             const existing = map.get(lowerKey);
             // Merge strategy
-            existing.kelly_level = existing.kelly_level || wordObj.kelly_level;
-            existing.frequency_rank = existing.frequency_rank || wordObj.frequency_rank;
-            existing.sidor_rank = existing.sidor_rank || wordObj.sidor_rank;
             existing.word_data = existing.word_data || wordObj.word_data;
 
             existing.is_learned = existing.is_learned || wordObj.is_learned;

@@ -51,27 +51,7 @@ export interface UploadHistoryItem {
 }
 
 // CEFR levels for categorization
-export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
-
-// Frequency ranges mapped to CEFR-like levels
-export const FREQUENCY_LEVELS = [
-  { label: "A1", value: "A1", range: [1, 1500] as [number, number], description: "Most common (1-1500)" },
-  { label: "A2", value: "A2", range: [1501, 3000] as [number, number], description: "Common (1501-3000)" },
-  { label: "B1", value: "B1", range: [3001, 5000] as [number, number], description: "Intermediate (3001-5000)" },
-  { label: "B2", value: "B2", range: [5001, 7000] as [number, number], description: "Upper intermediate (5001-7000)" },
-  { label: "C1", value: "C1", range: [7001, 9000] as [number, number], description: "Advanced (7001-9000)" },
-  { label: "C2", value: "C2", range: [9001, 99999] as [number, number], description: "Proficient (9001+)" },
-];
-
-// Sidor ranges mapped to CEFR-like levels (600 words per level)
-export const SIDOR_LEVELS = [
-  { label: "A1", value: "A1", range: [1, 600] as [number, number], description: "Beginner (1-600)" },
-  { label: "A2", value: "A2", range: [601, 1200] as [number, number], description: "Elementary (601-1200)" },
-  { label: "B1", value: "B1", range: [1201, 1800] as [number, number], description: "Intermediate (1201-1800)" },
-  { label: "B2", value: "B2", range: [1801, 2400] as [number, number], description: "Upper intermediate (1801-2400)" },
-  { label: "C1", value: "C1", range: [2401, 3000] as [number, number], description: "Advanced (2401-3000)" },
-  { label: "C2", value: "C2", range: [3001, 99999] as [number, number], description: "Proficient (3001+)" },
-];
+export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2", "D1"] as const;
 
 export function useWords(filters?: {
   kellyLevel?: string;
@@ -275,26 +255,17 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") 
         stats[level] = { total, learned };
       }
     } else if (listType === "frequency") {
-      for (const freqLevel of FREQUENCY_LEVELS) {
-        const total = await db.words.where('frequency_rank').between(freqLevel.range[0], freqLevel.range[1], true, true).count();
-
-        const learned = learnedWords.filter(w =>
-          w.frequency_rank && w.frequency_rank >= freqLevel.range[0] && w.frequency_rank <= freqLevel.range[1]
-        ).length;
-
-        stats[freqLevel.label] = { total, learned };
-      }
+      // TODO: Implement frequency stats based on word_data CEFR levels
+      // For now, return empty stats
+      CEFR_LEVELS.forEach(level => {
+        stats[level] = { total: 0, learned: 0 };
+      });
     } else if (listType === "sidor") {
-      // Sidor list
-      for (const sidorLevel of SIDOR_LEVELS) {
-        const total = await db.words.where('sidor_rank').between(sidorLevel.range[0], sidorLevel.range[1], true, true).count();
-
-        const learned = learnedWords.filter(w =>
-          w.sidor_rank && w.sidor_rank >= sidorLevel.range[0] && w.sidor_rank <= sidorLevel.range[1]
-        ).length;
-
-        stats[sidorLevel.label] = { total, learned };
-      }
+      // TODO: Implement sidor stats based on word_data CEFR levels  
+      // For now, return empty stats
+      CEFR_LEVELS.forEach(level => {
+        stats[level] = { total: 0, learned: 0 };
+      });
     } else {
       // FT list
       const total = await db.words.where('is_ft').equals(1).count();
@@ -571,55 +542,29 @@ export function useStats() {
     CEFR_LEVELS.forEach(l => kellyStats[l] = { total: 0, learned: 0 });
 
     const frequencyStats: Record<string, { total: number; learned: number }> = {};
-    FREQUENCY_LEVELS.forEach(l => frequencyStats[l.label] = { total: 0, learned: 0 });
+    CEFR_LEVELS.forEach(l => frequencyStats[l] = { total: 0, learned: 0 });
 
     const sidorStats: Record<string, { total: number; learned: number }> = {};
-    SIDOR_LEVELS.forEach(l => sidorStats[l.label] = { total: 0, learned: 0 });
+    CEFR_LEVELS.forEach(l => sidorStats[l] = { total: 0, learned: 0 });
 
-    // 1. Calculate totals (this still requires counting all words, but we can do it efficiently)
-    // We can't avoid 3 full scans for totals unless we cache them, but they are just counts.
-    // Optimization: Run these in parallel
+    // 1. Calculate totals based on word_data CEFR levels
     await Promise.all([
       ...CEFR_LEVELS.map(async level => {
+        // For now, just count Kelly levels (legacy)
         const count = await db.words.where('kelly_level').equals(level).count();
         if (kellyStats[level]) kellyStats[level].total = count;
       }),
-      ...FREQUENCY_LEVELS.map(async l => {
-        const count = await db.words.where('frequency_rank').between(l.range[0], l.range[1], true, true).count();
-        if (frequencyStats[l.label]) frequencyStats[l.label].total = count;
-      }),
-      ...SIDOR_LEVELS.map(async l => {
-        const count = await db.words.where('sidor_rank').between(l.range[0], l.range[1], true, true).count();
-        if (sidorStats[l.label]) sidorStats[l.label].total = count;
-      })
+      // TODO: Implement frequency and sidor stats based on word_data
     ]);
 
     // 2. Aggregate learned counts from the bulk-fetched definitions
     for (const w of learnedWordDefs) {
-      // Kelly
+      // Kelly (legacy)
       if (w.kelly_level && kellyStats[w.kelly_level]) {
         kellyStats[w.kelly_level].learned++;
       }
 
-      // Frequency
-      if (w.frequency_rank) {
-        for (const l of FREQUENCY_LEVELS) {
-          if (w.frequency_rank >= l.range[0] && w.frequency_rank <= l.range[1]) {
-            frequencyStats[l.label].learned++;
-            break;
-          }
-        }
-      }
-
-      // Sidor
-      if (w.sidor_rank) {
-        for (const l of SIDOR_LEVELS) {
-          if (w.sidor_rank >= l.range[0] && w.sidor_rank <= l.range[1]) {
-            sidorStats[l.label].learned++;
-            break;
-          }
-        }
-      }
+      // TODO: Implement frequency and sidor aggregation based on word_data
     }
 
     return {

@@ -2,7 +2,6 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   BarChart3,
-  Search,
   Settings,
   LogOut,
   Hash,
@@ -17,10 +16,8 @@ import {
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
-  { href: "/dictionary", label: "Unified Dictionary", icon: Book },
-  { href: "/reserve", label: "Queue", icon: Bookmark },
-  { href: "/search", label: "Search", icon: Search },
-  { href: "/practice", label: "SRS Mastery", icon: BrainCircuit },
+  { href: "/dictionary", label: "Dictionary", icon: Book },
+  { href: "/practice", label: "Practice", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

@@ -4,13 +4,8 @@ import { WordData } from '@/types/word';
 export interface LocalWord {
     id: number; // Primary Key
     swedish_word: string;
-    kelly_level?: string;
-    kelly_source_id?: number;
-    frequency_rank?: number;
-    sidor_rank?: number;
     word_data?: WordData;
     last_synced_at?: string;
-    is_ft?: number;
 }
 
 export interface LocalUserProgress {
@@ -57,7 +52,7 @@ export class SveordDB extends Dexie {
     constructor() {
         super('Sveord_v3');
         this.version(8).stores({
-            words: 'id, swedish_word, kelly_level, frequency_rank, sidor_rank, is_ft',
+            words: 'id, swedish_word',
             progress: '++id, user_id, word_id, word_swedish, is_learned, srs_next_review, is_reserve',
             audio_cache: 'word',
             quizzes: '++id, type, isPracticed, createdAt, practicedAt',

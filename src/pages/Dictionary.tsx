@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useWords, useAddWord } from "@/hooks/useWords";
 import { determineUnifiedLevel } from "@/utils/levelUtils";
-import { Book, Search, Filter, CheckCircle, Bookmark, Plus, Loader2 } from "lucide-react";
+import { Book, Search, Filter, CheckCircle, Bookmark, Plus, Loader2, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button"; // Assuming you have this
 import { Badge } from "@/components/ui/badge"; // Assuming you have this
@@ -10,14 +10,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { WordCard } from "@/components/study/WordCard";
 import { toast } from "sonner";
+import { useApiKeys } from "@/hooks/useApiKeys";
+import { generateFTWordContent as generateWordContent } from "@/services/geminiApi";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
-const CEFR_TABS = ["All", "A1", "A2", "B1", "B2", "C1", "C2", "Unknown"];
+const CEFR_TABS = ["All", "A1", "A2", "B1", "B2", "C1", "C2", "D1"];
 
 export default function Dictionary() {
     const words = useWords();
     const addWord = useAddWord();
+    const { apiKeys } = useApiKeys();
+    const queryClient = useQueryClient();
     const isLoading = words === undefined || addWord.isPending;
     const isAdding = addWord.isPending;
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState("All");
@@ -27,6 +34,9 @@ export default function Dictionary() {
         if (!searchTerm.trim()) return;
         const wordToAdd = searchTerm.trim().toLowerCase();
 
+        // Prevent multiple rapid submissions
+        if (isGenerating || isAdding) return;
+
         // 1. Check local duplicate (fast fail)
         if (words?.some(w => w.swedish_word.toLowerCase() === wordToAdd)) {
             toast.error(`"${wordToAdd}" already exists in the dictionary!`);
@@ -34,13 +44,167 @@ export default function Dictionary() {
             return;
         }
 
+        // 2. Remote check: If exists in Supabase, load it locally and show
         try {
-            await addWord.mutateAsync({ swedish_word: wordToAdd });
-            toast.success(`Added "${wordToAdd}" to dictionary!`);
-            // Automatically select/open the new word card
-            setSelectedWordKey(wordToAdd);
-        } catch (error: any) {
-            toast.error(error.message || "Failed to add word");
+            const { data: remoteExisting } = await supabase
+                .from('words')
+                .select('*')
+                .eq('swedish_word', wordToAdd)
+                .limit(1)
+                .maybeSingle();
+
+            if (remoteExisting) {
+                const { db } = await import('@/services/db');
+                await db.words.put({
+                    id: remoteExisting.id,
+                    swedish_word: remoteExisting.swedish_word,
+                    kelly_level: remoteExisting.kelly_level || undefined,
+                    kelly_source_id: remoteExisting.kelly_source_id || undefined,
+                    frequency_rank: remoteExisting.frequency_rank || undefined,
+                    sidor_rank: remoteExisting.sidor_rank || undefined,
+                    word_data: remoteExisting.word_data as any,
+                    last_synced_at: new Date().toISOString(),
+                });
+                toast.success(`"${wordToAdd}" already exists. Loaded it locally.`);
+                setActiveTab("All");
+                setSelectedWordKey(wordToAdd);
+                queryClient.invalidateQueries({ queryKey: ["words"] });
+                return;
+            }
+        } catch (e) {
+            // Ignore remote check errors and continue to generation/add
+        }
+
+        // If Gemini API is available, generate word card first
+        if (apiKeys?.geminiApiKey) {
+            setIsGenerating(true);
+            try {
+                toast.info(`Generating word card for "${wordToAdd}"...`);
+                console.log('Starting Gemini API call for:', wordToAdd);
+                
+                // Generate word content using Gemini
+                const generatedContent = await generateWordContent(wordToAdd, apiKeys.geminiApiKey);
+                console.log('Gemini API response:', generatedContent);
+                
+                if ('error' in generatedContent) {
+                    console.error('Gemini API error:', generatedContent.error);
+                    throw new Error(generatedContent.error);
+                }
+
+                console.log('Creating word data...');
+                // Create word data with D1 level
+                const wordData = {
+                    meanings: generatedContent.meanings || [],
+                    examples: generatedContent.examples || [],
+                    synonyms: generatedContent.synonyms || [],
+                    antonyms: generatedContent.antonyms || [],
+                    partOfSpeech: generatedContent.partOfSpeech,
+                    gender: generatedContent.gender,
+                    inflectionExplanation: generatedContent.inflectionExplanation,
+                    grammaticalForms: generatedContent.grammaticalForms || [],
+                    cefr_level: "D1" // Set D1 level
+                };
+                console.log('Word data created:', wordData);
+
+                console.log('Starting database operations...');
+                // Upsert to avoid duplicate errors
+                const { data: insertedWord, error: upsertError } = await supabase
+                    .from('words')
+                    .upsert(
+                        { swedish_word: wordToAdd, word_data: wordData },
+                        { onConflict: 'swedish_word', ignoreDuplicates: true }
+                    )
+                    .select()
+                    .maybeSingle();
+                
+                if (upsertError) {
+                    // Graceful handling: no spam logging
+                    toast.error(upsertError.message || 'Insert failed');
+                    return;
+                }
+                
+                // If upsert ignored due to duplicate, insertedWord may be null -> fetch existing
+                let finalWord = insertedWord;
+                if (!finalWord) {
+                    const { data: existingWord } = await supabase
+                        .from('words')
+                        .select('*')
+                        .eq('swedish_word', wordToAdd)
+                        .limit(1)
+                        .maybeSingle();
+                    finalWord = existingWord || null;
+                }
+                
+                const upsertedWord = finalWord;
+
+                // Also update local database immediately
+                const { db } = await import('@/services/db');
+                const wordDataForDb = {
+                    ...wordData,
+                    word_type: 'generated',
+                    populated_at: new Date().toISOString()
+                };
+                if (upsertedWord) {
+                    await db.words.put({
+                        id: upsertedWord.id,
+                        swedish_word: wordToAdd,
+                        word_data: wordDataForDb,
+                        last_synced_at: new Date().toISOString()
+                    });
+                }
+
+                toast.success(`Generated and added "${wordToAdd}" to D1 level!`);
+                setActiveTab("All");
+                setSelectedWordKey(wordToAdd);
+                
+                // Refresh the words list by invalidating queries
+                queryClient.invalidateQueries({ queryKey: ["words"] });
+                
+                // Small delay to ensure data is updated
+                setTimeout(() => {
+                    setSelectedWordKey(wordToAdd);
+                }, 500);
+                
+            } catch (error: any) {
+                console.error('Word generation failed:', error);
+                toast.error(error.message || `Failed to generate word card for "${wordToAdd}"`);
+                
+                // Fallback to basic add if generation fails
+                try {
+                    await addWord.mutateAsync({ swedish_word: wordToAdd });
+                    toast.success(`Added "${wordToAdd}" to dictionary (basic mode)`);
+                    setSelectedWordKey(wordToAdd);
+                } catch (fallbackError: any) {
+                    toast.error(fallbackError.message || "Failed to add word");
+                }
+            } finally {
+                setIsGenerating(false);
+            }
+        } else {
+            // Fallback to basic add if no Gemini API
+            try {
+                // Try remote check first to avoid duplicate errors
+                const { data: remoteExisting } = await supabase
+                    .from('words')
+                    .select('id')
+                    .eq('swedish_word', wordToAdd)
+                    .limit(1)
+                    .maybeSingle();
+                if (remoteExisting) {
+                    const { db } = await import('@/services/db');
+                    await db.words.put({
+                        id: remoteExisting.id,
+                        swedish_word: wordToAdd,
+                        last_synced_at: new Date().toISOString()
+                    } as any);
+                } else {
+                    await addWord.mutateAsync({ swedish_word: wordToAdd });
+                }
+                toast.success(`Added "${wordToAdd}" to dictionary!`);
+                setSelectedWordKey(wordToAdd);
+            } catch (error: any) {
+                toast.error(error.message || "Failed to add word");
+            }
         }
     };
 
@@ -52,7 +216,6 @@ export default function Dictionary() {
         if (!searchTerm.trim()) return [];
 
         let result = words
-            .filter(w => !w.is_ft && w.is_ft !== 1 && !(w as any).is_ft) // Explicitly filter out FT words
             .map(w => ({
                 ...w,
                 unified_level: determineUnifiedLevel(w)
@@ -62,7 +225,7 @@ export default function Dictionary() {
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             result = result.filter(w =>
-                w.swedish_word.toLowerCase().startsWith(term) // Strict start-of-word matching
+                w.swedish_word.toLowerCase().includes(term)
             );
         }
 
@@ -71,9 +234,9 @@ export default function Dictionary() {
             result = result.filter(w => w.unified_level === activeTab);
         }
 
-        // Sort: Level (A1->C2) then Alphabetical
+        // Sort: Level (A1->C2->D1) then Alphabetical
         result.sort((a, b) => {
-            const levelOrder: Record<string, number> = { "A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6, "Unknown": 7 };
+            const levelOrder: Record<string, number> = { "A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6, "D1": 7, "Unknown": 8 };
             const la = levelOrder[a.unified_level] || 99;
             const lb = levelOrder[b.unified_level] || 99;
 
@@ -125,10 +288,12 @@ export default function Dictionary() {
                         <Button
                             onClick={handleAddWord}
                             className="h-14 w-14 rounded-2xl shrink-0"
-                            disabled={isAdding}
-                            title="Add to dictionary"
+                            disabled={isAdding || isGenerating}
+                            title={apiKeys?.geminiApiKey ? "Generate word card with AI" : "Add to dictionary"}
                         >
-                            {isAdding ? <Loader2 className="h-6 w-6 animate-spin" /> : <Plus className="h-6 w-6" />}
+                            {isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : 
+                             isAdding ? <Loader2 className="h-6 w-6 animate-spin" /> : 
+                             apiKeys?.geminiApiKey ? <Sparkles className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
                         </Button>
                     )}
                 </div>
@@ -169,9 +334,11 @@ export default function Dictionary() {
                         <p className="text-lg">No words found for "{searchTerm}"</p>
                         {/* Optional: Add Word Button is already visible in search bar, maybe reiterate here? */}
                         <div className="mt-4">
-                            <Button variant="outline" onClick={handleAddWord} disabled={isAdding}>
-                                {isAdding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                                Add "{searchTerm}" to Dictionary
+                            <Button variant="outline" onClick={handleAddWord} disabled={isAdding || isGenerating}>
+                                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
+                                 isAdding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> :
+                                 apiKeys?.geminiApiKey ? <Sparkles className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                                {apiKeys?.geminiApiKey ? `Generate "${searchTerm}" with AI` : `Add "${searchTerm}" to Dictionary`}
                             </Button>
                         </div>
                     </div>
@@ -197,18 +364,22 @@ export default function Dictionary() {
                                             <span className="text-lg font-bold tracking-tight">{word.swedish_word}</span>
                                             {word.progress?.is_learned && <CheckCircle className="h-4 w-4 text-green-500" />}
                                             {word.progress?.is_reserve && <Bookmark className="h-4 w-4 text-amber-500 fill-amber-500" />}
+                                            {word.unified_level === 'D1' && <Sparkles className="h-4 w-4 text-purple-500" />}
                                         </div>
                                         <div className="text-sm text-muted-foreground line-clamp-1">
                                             {word.word_data?.meanings?.map((m: any) => m.english).join(", ") || "No translation"}
                                         </div>
                                     </div>
-                                    <span className={`text-xs font-bold px-3 py-1 rounded-full border ${word.unified_level.startsWith('A') ? 'bg-green-500/10 text-green-600 border-green-500/20' :
-                                        word.unified_level.startsWith('B') ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' :
+                                    {word.unified_level && word.unified_level !== 'Unknown' && (
+                                        <span className={`text-xs font-bold px-3 py-1 rounded-full border ${word.unified_level.startsWith('A') ? 'bg-green-500/10 text-green-600 border-green-500/20' :
+                                            word.unified_level.startsWith('B') ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' :
                                             word.unified_level.startsWith('C') ? 'bg-purple-500/10 text-purple-600 border-purple-500/20' :
-                                                'bg-gray-100 text-gray-500'
-                                        }`}>
-                                        {word.unified_level}
-                                    </span>
+                                            word.unified_level === 'D1' ? 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-purple-600 border-purple-500/20' :
+                                            'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                                            }`}>
+                                            {word.unified_level}
+                                        </span>
+                                    )}
                                 </div>
                             ))}
                         </div>

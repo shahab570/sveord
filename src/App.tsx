@@ -19,13 +19,7 @@ const PendingApproval = lazyRetry(() => import("./pages/PendingApproval"), "Pend
 const AdminDashboard = lazyRetry(() => import("./pages/AdminDashboard"), "AdminDashboard");
 const Dashboard = lazyRetry(() => import("./pages/Dashboard"), "Dashboard");
 const Dictionary = lazyRetry(() => import("./pages/Dictionary"), "Dictionary");
-const KellyList = lazyRetry(() => import("./pages/KellyList"), "KellyList");
-const FrequencyList = lazyRetry(() => import("./pages/FrequencyList"), "FrequencyList");
-const SidorList = lazyRetry(() => import("./pages/SidorList"), "SidorList");
-const SearchPage = lazyRetry(() => import("./pages/SearchPage"), "SearchPage");
 const Practice = lazyRetry(() => import("./pages/Practice"), "Practice");
-const FTList = lazyRetry(() => import("./pages/FTList"), "FTList");
-const ReserveList = lazyRetry(() => import("./pages/ReserveList"), "ReserveList");
 const Settings = lazyRetry(() => import("./pages/Settings"), "Settings");
 const NotFound = lazyRetry(() => import("./pages/NotFound"), "NotFound");
 
@@ -65,12 +59,6 @@ const App = () => (
                   <Route element={<ProtectedRoute />}>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/dictionary" element={<Dictionary />} />
-                    <Route path="/kelly" element={<KellyList />} />
-                    <Route path="/frequency" element={<FrequencyList />} />
-                    <Route path="/sidor" element={<SidorList />} />
-                    <Route path="/ft" element={<FTList />} />
-                    <Route path="/reserve" element={<ReserveList />} />
-                    <Route path="/search" element={<SearchPage />} />
                     <Route path="/practice" element={<Practice />} />
                     <Route path="/settings" element={<Settings />} />
                   </Route>
