@@ -27,120 +27,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 
-function FixConflictsBanner() {
-  const [fixing, setFixing] = useState(false);
-  const [count, setCount] = useState<number | null>(null);
-  const [examples, setExamples] = useState<string[]>([]);
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
 
-  // Check for conflicts on mount AND get examples
-  useEffect(() => {
-    const checkConflicts = async () => {
-      const conflicts = await db.progress.filter(p => !!p.is_learned && !!p.is_reserve).toArray();
-      setCount(conflicts.length);
-      const uniqueNames = Array.from(new Set(conflicts.map(p => p.word_swedish)));
-      setExamples(uniqueNames.slice(0, 5));
-    };
-    checkConflicts();
-  }, []);
-
-  const handleFix = async (mode: 'learned' | 'reserve') => {
-    if (!user) return;
-    setFixing(true);
-    try {
-      // 1. Find conflicts again to be safe
-      const conflicts = await db.progress.filter(p => !!p.is_learned && !!p.is_reserve).toArray();
-
-      if (conflicts.length === 0) {
-        alert("No overlapping words found!");
-        setCount(0);
-        setFixing(false);
-        return;
-      }
-
-      // Determine updates based on mode
-      const isLearnedVal = mode === 'learned' ? 1 : 0;
-      const isReserveVal = mode === 'reserve' ? 1 : 0;
-      const isReserveBool = mode === 'reserve';
-
-      // 2. Fix Locally
-      const updates = conflicts.map(p => ({
-        ...p,
-        is_learned: isLearnedVal,
-        is_reserve: isReserveVal
-      }));
-      await db.progress.bulkPut(updates);
-
-      // 3. Fix Remotely
-      let fixedCount = 0;
-      for (const p of conflicts) {
-        const { error } = await supabase
-          .from("user_progress")
-          .update({ is_learned: !!isLearnedVal, is_reserve: isReserveBool })
-          .eq("user_id", user.id)
-          .eq("word_id", p.word_id);
-
-        if (!error) fixedCount++;
-      }
-
-      // 4. Invalidate queries to refresh UI
-      await queryClient.invalidateQueries();
-
-      const actionText = mode === 'learned' ? "marked as Learned" : "moved to Queue";
-      alert(`Fixed ${fixedCount} words! They are now strictly ${actionText}.`);
-      setCount(0);
-      window.location.reload();
-    } catch (e) {
-      console.error(e);
-      alert("Error fixing conflicts. Check console.");
-    } finally {
-      setFixing(false);
-    }
-  };
-
-  if (count === null || count === 0) return null;
-
-  return (
-    <div className="md:col-span-3 mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
-      <div className="flex gap-3">
-        <div className="p-2 bg-amber-100 rounded-full h-fit">
-          <AlertTriangle className="h-5 w-5 text-amber-600" />
-        </div>
-        <div>
-          <h3 className="font-bold text-amber-900">Data Conflict Detected</h3>
-          <p className="text-sm text-amber-700">
-            Found <span className="font-bold">{count} words</span> marked as both "Learned" and "Study Later".
-          </p>
-          <p className="text-xs text-amber-600 mt-1">
-            Examples: {examples.join(", ")} {count > 5 && "..."}
-          </p>
-          <p className="text-xs text-amber-600 mt-1 italic">
-            Per your request, we will move these strictly to "Study Later".
-          </p>
-        </div>
-      </div>
-      <div className="flex flex-col sm:flex-row gap-2">
-        <button
-          onClick={() => handleFix('learned')}
-          disabled={fixing}
-          className="whitespace-nowrap px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
-        >
-          {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-          Mark all Learned
-        </button>
-        <button
-          onClick={() => handleFix('reserve')}
-          disabled={fixing}
-          className="whitespace-nowrap px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
-        >
-          {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bookmark className="h-4 w-4" />}
-          Move all to Queue
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export default function Dashboard() {
   const { user, profile } = useAuth();
@@ -179,7 +66,6 @@ export default function Dashboard() {
         {/* 1. Hero / Welcome / Velocity */}
         {/* Main Grid */}
         <div className="space-y-6">
-          <FixConflictsBanner />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
             {/* Welcome Card & Velocity */}
