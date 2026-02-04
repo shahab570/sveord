@@ -990,30 +990,49 @@ export function useAddWord() {
       sidor_rank?: number;
       sidor_source_id?: number;
     }) => {
+      // 1. Try to INSERT
+      const cleanWord = data.swedish_word.toLowerCase().trim();
       const { data: inserted, error } = await supabase.from("words").insert({
-        swedish_word: data.swedish_word.toLowerCase().trim(),
+        swedish_word: cleanWord,
         kelly_level: data.kelly_level || null,
         frequency_rank: data.frequency_rank || null,
         sidor_rank: data.sidor_rank || null,
         sidor_source_id: data.sidor_source_id || null,
       }).select("id").single();
 
+      let wordId: number;
+
       if (error) {
-        // Provide user-friendly error message for RLS policy violations
-        if (error.code === "42501" || error.message?.includes("row-level security")) {
-          throw new Error("You don't have permission to add words. Admin role required.");
+        // Handle DUPLICATE (409) - Word exists globally but not locally?
+        if (error.code === "23505" || error.code === "409") { // Postgres unique violation or HTTP conflict
+          console.log("Word exists globally, fetching...");
+          const { data: existing, error: fetchError } = await supabase
+            .from("words")
+            .select("id")
+            .eq("swedish_word", cleanWord)
+            .single();
+
+          if (fetchError || !existing) throw error; // Rethrow original if we can't find it
+          wordId = existing.id;
         }
-        throw error;
+        // Handle PERMISSIONS
+        else if (error.code === "42501" || error.message?.includes("row-level security")) {
+          throw new Error("You don't have permission to add words. Admin role required.");
+        } else {
+          throw error;
+        }
+      } else {
+        wordId = inserted.id;
       }
 
-      // Also add to local DB immediately for instant access
+      // 2. Add/Update local DB to ensure we have it
       await db.words.put({
-        id: inserted.id,
-        swedish_word: data.swedish_word.toLowerCase().trim(),
+        id: wordId,
+        swedish_word: cleanWord,
         kelly_level: data.kelly_level || undefined,
         frequency_rank: data.frequency_rank || undefined,
         sidor_rank: data.sidor_rank || undefined,
-        kelly_source_id: undefined, // Add missing optional fields if needed by LocalWord
+        kelly_source_id: undefined,
         last_synced_at: new Date().toISOString()
       });
     },
