@@ -9,12 +9,14 @@ import {
     BrainCircuit,
     Shield,
     Book,
+    Bookmark, // Import added
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
     { href: "/dictionary", label: "Dictionary", icon: Book },
+    { href: "/reserve", label: "Queue", icon: Bookmark },
     { href: "/practice", label: "SRS", icon: BrainCircuit },
     { href: "/search", label: "Search", icon: Search },
 ];

@@ -18,6 +18,7 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/dictionary", label: "Unified Dictionary", icon: Book },
+  { href: "/reserve", label: "Queue", icon: Bookmark },
   { href: "/search", label: "Search", icon: Search },
   { href: "/practice", label: "SRS Mastery", icon: BrainCircuit },
   { href: "/settings", label: "Settings", icon: Settings },
