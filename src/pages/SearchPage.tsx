@@ -238,56 +238,58 @@ export default function SearchPage() {
                 ))}
               </div>
             ) : words && words.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Kelly */}
-                <div className="border border-emerald-500/20 rounded-2xl p-4 bg-emerald-50/10 flex flex-col h-[600px] shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-500/10">
-                    <GraduationCap className="h-5 w-5 text-emerald-600" />
-                    <h3 className="text-lg font-bold text-emerald-800">Kelly List</h3>
-                    <span className="ml-auto bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">{kellyWords.length}</span>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Kelly */}
+                  <div className="border border-emerald-500/20 rounded-2xl p-4 bg-emerald-50/10 flex flex-col h-[600px] shadow-sm">
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-500/10">
+                      <GraduationCap className="h-5 w-5 text-emerald-600" />
+                      <h3 className="text-lg font-bold text-emerald-800">Kelly List</h3>
+                      <span className="ml-auto bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">{kellyWords.length}</span>
+                    </div>
+                    <VirtualList
+                      items={kellyWords}
+                      height="100%"
+                      itemHeight={90}
+                      getItemKey={(index) => kellyWords[index].swedish_word}
+                      renderItem={(word) => <div className="pr-1 pb-3">{renderWordItem(word, "kelly")}</div>}
+                    />
                   </div>
-                  <VirtualList
-                    items={kellyWords}
-                    height="100%"
-                    itemHeight={64}
-                    getItemKey={(index) => kellyWords[index].swedish_word}
-                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "kelly")}</div>}
-                  />
+
+                  {/* Frequency */}
+                  <div className="border border-blue-500/20 rounded-2xl p-4 bg-blue-50/10 flex flex-col h-[600px] shadow-sm">
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/10">
+                      <Hash className="h-5 w-5 text-blue-600" />
+                      <h3 className="text-lg font-bold text-blue-800">Frequency List</h3>
+                      <span className="ml-auto bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{frequencyWords.length}</span>
+                    </div>
+                    <VirtualList
+                      items={frequencyWords}
+                      height="100%"
+                      itemHeight={90}
+                      getItemKey={(index) => frequencyWords[index].swedish_word}
+                      renderItem={(word) => <div className="pr-1 pb-3">{renderWordItem(word, "frequency")}</div>}
+                    />
+                  </div>
+
+                  {/* Sidor */}
+                  <div className="border border-purple-500/20 rounded-2xl p-4 bg-purple-50/10 flex flex-col h-[600px] shadow-sm">
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-500/10">
+                      <BookMarked className="h-5 w-5 text-purple-600" />
+                      <h3 className="text-lg font-bold text-purple-800">Sidor List</h3>
+                      <span className="ml-auto bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">{sidorWords.length}</span>
+                    </div>
+                    <VirtualList
+                      items={sidorWords}
+                      height="100%"
+                      itemHeight={90}
+                      getItemKey={(index) => sidorWords[index].swedish_word}
+                      renderItem={(word) => <div className="pr-1 pb-3">{renderWordItem(word, "sidor")}</div>}
+                    />
+                  </div>
                 </div>
 
-                {/* Frequency */}
-                <div className="border border-blue-500/20 rounded-2xl p-4 bg-blue-50/10 flex flex-col h-[600px] shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/10">
-                    <Hash className="h-5 w-5 text-blue-600" />
-                    <h3 className="text-lg font-bold text-blue-800">Frequency List</h3>
-                    <span className="ml-auto bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{frequencyWords.length}</span>
-                  </div>
-                  <VirtualList
-                    items={frequencyWords}
-                    height="100%"
-                    itemHeight={64}
-                    getItemKey={(index) => frequencyWords[index].swedish_word}
-                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "frequency")}</div>}
-                  />
-                </div>
-
-                {/* Sidor */}
-                <div className="border border-purple-500/20 rounded-2xl p-4 bg-purple-50/10 flex flex-col h-[600px] shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-500/10">
-                    <BookMarked className="h-5 w-5 text-purple-600" />
-                    <h3 className="text-lg font-bold text-purple-800">Sidor List</h3>
-                    <span className="ml-auto bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">{sidorWords.length}</span>
-                  </div>
-                  <VirtualList
-                    items={sidorWords}
-                    height="100%"
-                    itemHeight={64}
-                    getItemKey={(index) => sidorWords[index].swedish_word}
-                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "sidor")}</div>}
-                  />
-                </div>
-
-                {/* FT List */}
+                {/* FT List (Row 2) */}
                 <div className="border border-indigo-500/20 rounded-2xl p-4 bg-indigo-50/10 flex flex-col h-[600px] shadow-sm">
                   <div className="flex items-center gap-2 mb-4 pb-3 border-b border-indigo-500/10">
                     <Sparkles className="h-5 w-5 text-indigo-600" />
@@ -297,9 +299,13 @@ export default function SearchPage() {
                   <VirtualList
                     items={ftWords}
                     height="100%"
-                    itemHeight={64}
+                    itemHeight={90}
                     getItemKey={(index) => ftWords[index].swedish_word}
-                    renderItem={(word) => <div className="pr-1 pb-2">{renderWordItem(word, "ft")}</div>}
+                    renderItem={(word) => (
+                      <div className="max-w-4xl mx-auto pr-1 pb-3">
+                        {renderWordItem(word, "ft")}
+                      </div>
+                    )}
                   />
                 </div>
               </div>
