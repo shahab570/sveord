@@ -200,9 +200,12 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
             const newExplanations = { ...explanations, [currentIndex]: explanation || "ERROR" };
             setExplanations(newExplanations);
 
-            // Persist to indexedDB
+            // Persist to indexedDB and Cloud
             if (activeQuizId) {
-                await db.quizzes.update(activeQuizId, { explanations: newExplanations });
+                // await db.quizzes.update(activeQuizId, { explanations: newExplanations });
+                // Use the new sync utility
+                const { updateQuizExplanations } = await import('@/utils/quizUtils');
+                await updateQuizExplanations(activeQuizId, newExplanations);
             }
 
             // Persist discovered working model back to Supabase settings so it works "first shot" next time

@@ -80,50 +80,73 @@ export default function SearchPage() {
     if (!debouncedSearch.trim()) return;
 
     const result = await captureWord(debouncedSearch);
-    if (result) {
-      toast.success(`Successfully added "${result.swedish_word}" to FT List!`);
-      // Since words list in SearchPage is live, it will refresh automatically
+
+    if (result.status === 'success') {
+      toast.success(`Successfully added "${result.word.swedish_word}" to FT List!`);
+    } else if (result.status === 'confirmation_needed') {
+      // Ideally we should show a confirmation dialog here, but for now we'll just notify
+      toast.info(`Found base form "${result.baseForm}". Please try adding that instead.`);
+    } else if (result.status === 'error') {
+      toast.error(result.message);
     }
   };
 
   const renderWordItem = (word: WordWithProgress, listType: "kelly" | "frequency" | "sidor" | "ft") => {
     const isLearned = word.progress?.is_learned;
+    const isReserve = word.progress?.is_reserve;
 
-    const learnedClasses = listType === "kelly"
-      ? "bg-emerald-100 border-l-4 border-l-emerald-600 border-y border-r border-emerald-200 shadow-md"
-      : listType === "frequency"
-        ? "bg-blue-100 border-l-4 border-l-blue-600 border-y border-r border-blue-200 shadow-md"
-        : listType === "sidor"
-          ? "bg-purple-100 border-l-4 border-l-purple-600 border-y border-r border-purple-200 shadow-md"
-          : "bg-indigo-100 border-l-4 border-l-indigo-600 border-y border-r border-indigo-200 shadow-md";
+    // Learned takes precedence over Reserve for styling if both are true (though usually mutual exclusive in intent, logic allows both)
+    // If Learned -> Green
+    // If Reserve & !Learned -> Amber
 
-    const unlearnedBg = listType === "kelly"
-      ? "bg-emerald-50/30 border border-emerald-100 hover:border-emerald-300"
-      : listType === "frequency"
-        ? "bg-blue-50/30 border border-blue-100 hover:border-blue-300"
-        : listType === "sidor"
-          ? "bg-purple-50/30 border border-purple-100 hover:border-purple-300"
-          : "bg-indigo-50/30 border border-indigo-100 hover:border-indigo-300";
+    let containerClasses = "";
+
+    if (isLearned) {
+      containerClasses = listType === "kelly"
+        ? "bg-emerald-100 border-l-4 border-l-emerald-600 border-y border-r border-emerald-200 shadow-md"
+        : listType === "frequency"
+          ? "bg-blue-100 border-l-4 border-l-blue-600 border-y border-r border-blue-200 shadow-md"
+          : listType === "sidor"
+            ? "bg-purple-100 border-l-4 border-l-purple-600 border-y border-r border-purple-200 shadow-md"
+            : "bg-indigo-100 border-l-4 border-l-indigo-600 border-y border-r border-indigo-200 shadow-md";
+    } else if (isReserve) {
+      containerClasses = "bg-amber-100 border-l-4 border-l-amber-500 border-y border-r border-amber-200 shadow-md";
+    } else {
+      // Unlearned / Normal
+      containerClasses = listType === "kelly"
+        ? "bg-emerald-50/30 border border-emerald-100 hover:border-emerald-300"
+        : listType === "frequency"
+          ? "bg-blue-50/30 border border-blue-100 hover:border-blue-300"
+          : listType === "sidor"
+            ? "bg-purple-50/30 border border-purple-100 hover:border-purple-300"
+            : "bg-indigo-50/30 border border-indigo-100 hover:border-indigo-300";
+    }
 
     return (
       <button
         onClick={() => setSelectedWord(word)}
-        className={`w-full flex items-center justify-between p-4 rounded-lg transition-all text-left mb-2 group ${isLearned ? learnedClasses : unlearnedBg
-          } hover:translate-x-1`}
+        className={`w-full flex items-center justify-between p-4 rounded-lg transition-all text-left mb-2 group ${containerClasses} hover:translate-x-1`}
       >
         <div className="flex items-center gap-3">
-          <div
-            className={`w-3 h-3 rounded-full flex-shrink-0 ${isLearned
-              ? "bg-success ring-2 ring-white shadow-sm scale-110"
-              : "bg-muted-foreground/30"
-              }`}
-          />
+          {isReserve && !isLearned ? (
+            <div className="w-3 h-3 rounded-full flex-shrink-0 flex items-center justify-center">
+              <BookMarked className="h-4 w-4 text-amber-600 fill-amber-600" />
+            </div>
+          ) : (
+            <div
+              className={`w-3 h-3 rounded-full flex-shrink-0 ${isLearned
+                ? "bg-success ring-2 ring-white shadow-sm scale-110"
+                : "bg-muted-foreground/30"
+                }`}
+            />
+          )}
+
           <div className="flex flex-col">
-            <span className={`text-base text-foreground ${isLearned ? 'font-black tracking-tight text-lg' : 'font-medium'}`}>
+            <span className={`text-base text-foreground ${isLearned || isReserve ? 'font-black tracking-tight text-lg' : 'font-medium'}`}>
               {word.swedish_word}
             </span>
             {(word.progress?.user_meaning || word.word_data?.meanings?.[0]?.english) && (
-              <span className={`text-xs truncate max-w-[150px] ${isLearned ? 'text-foreground/80 font-medium' : 'text-muted-foreground'}`}>
+              <span className={`text-xs truncate max-w-[150px] ${isLearned || isReserve ? 'text-foreground/80 font-medium' : 'text-muted-foreground'}`}>
                 {stripMarkdown(word.progress?.user_meaning || word.word_data?.meanings?.[0]?.english || "")}
               </span>
             )}
@@ -132,17 +155,17 @@ export default function SearchPage() {
 
         <div className="flex items-center gap-2">
           {listType === "frequency" && word.frequency_rank && (
-            <span className={`text-xs font-mono font-bold ${isLearned ? 'text-blue-800' : 'text-blue-600'}`}>
+            <span className={`text-xs font-mono font-bold ${isLearned ? 'text-blue-800' : isReserve ? 'text-amber-800' : 'text-blue-600'}`}>
               #{word.frequency_rank}
             </span>
           )}
           {listType === "sidor" && word.sidor_rank && (
-            <span className={`text-xs font-mono font-bold ${isLearned ? 'text-purple-800' : 'text-purple-600'}`}>
+            <span className={`text-xs font-mono font-bold ${isLearned ? 'text-purple-800' : isReserve ? 'text-amber-800' : 'text-purple-600'}`}>
               #{word.sidor_rank}
             </span>
           )}
           {listType === "kelly" && word.kelly_level && (
-            <span className={`${getLevelBadgeClass(word.kelly_level)} ${isLearned ? 'ring-1 ring-black/10 shadow-sm' : ''}`}>
+            <span className={`${getLevelBadgeClass(word.kelly_level)} ${isLearned || isReserve ? 'ring-1 ring-black/10 shadow-sm' : ''}`}>
               {word.kelly_level}
             </span>
           )}

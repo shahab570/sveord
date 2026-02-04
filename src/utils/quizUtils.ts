@@ -295,10 +295,61 @@ export const generateQuiz = async (
 };
 
 export const markQuizPracticed = async (id: number) => {
+  const practicedAt = new Date().toISOString();
+
+  // 1. Update Local
   await db.quizzes.update(id, {
     isPracticed: 1,
-    practicedAt: new Date().toISOString()
+    practicedAt
   });
+
+  // 2. Sync to Cloud
+  try {
+    // Get the quiz from local DB to verify type/questions if needed, 
+    // but mainly we need to find the corresponding record in Supabase.
+    // Since we don't store the remote ID locally, we have to match by created_at + type 
+    // OR we can just insert a new record if it was a local-only quiz (but that creates dupes).
+    // BETTER APPROACH: match by created_at (with some tolerance) since that's our sync anchor.
+
+    // However, looking at saveQuizToCloud, we just insert. We probably need a more robust sync ID eventually.
+    // For now, let's try to update the most recent matching un-practiced quiz, 
+    // or just rely on the fact that the dashboard lists them by type/date.
+
+    // Actually, simpler: just let the user know it's done. 
+    // But to truly sync, we need to find the record.
+    // Let's query Supabase for a quiz created around the same time by this user.
+
+    const localQuiz = await db.quizzes.get(id);
+    if (!localQuiz) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Find match in cloud (fuzzy match time within 5 seconds to account for save delays)
+    const time = new Date(localQuiz.createdAt).getTime();
+    const rangeStart = new Date(time - 5000).toISOString();
+    const rangeEnd = new Date(time + 5000).toISOString();
+
+    const { data: matches } = await supabase
+      .from('saved_quizzes')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('type', localQuiz.type)
+      .gte('created_at', rangeStart)
+      .lte('created_at', rangeEnd)
+      .eq('is_practiced', false) // Only update if not already marked
+      .limit(1);
+
+    if (matches && matches.length > 0) {
+      await supabase.from('saved_quizzes').update({
+        is_practiced: true,
+        // practiced_at column might need to be added to supabase table schema if not exists,
+        // but for now we rely on is_practiced boolean.
+      }).eq('id', matches[0].id);
+    }
+  } catch (e) {
+    console.error("Failed to sync practiced state to cloud:", e);
+  }
 };
 
 
@@ -471,5 +522,44 @@ const saveQuizToCloud = async (localId: number, type: string, questions: QuizQue
     });
   } catch (e) {
     console.error("Failed to backup quiz to cloud:", e);
+  }
+};
+
+export const updateQuizExplanations = async (id: number, explanations: Record<number, string>) => {
+  // 1. Update Local
+  await db.quizzes.update(id, { explanations });
+
+  // 2. Sync to Cloud
+  try {
+    const localQuiz = await db.quizzes.get(id);
+    if (!localQuiz) return;
+
+    // Cloud sync logic similar to markQuizPracticed
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const time = new Date(localQuiz.createdAt).getTime();
+    const rangeStart = new Date(time - 5000).toISOString();
+    const rangeEnd = new Date(time + 5000).toISOString();
+
+    const { data: matches } = await supabase
+      .from('saved_quizzes')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('type', localQuiz.type)
+      .gte('created_at', rangeStart)
+      .lte('created_at', rangeEnd)
+      .limit(1);
+
+    if (matches && matches.length > 0) {
+      // We need to fetch existing explanations first to merge if needed, 
+      // but usually the local state is the source of truth for the session.
+      // Supabase stores JSONB, so we can just update the field.
+      await supabase.from('saved_quizzes').update({
+        explanations: explanations as any
+      }).eq('id', matches[0].id);
+    }
+  } catch (e) {
+    console.error("Failed to sync explanations to cloud:", e);
   }
 };
