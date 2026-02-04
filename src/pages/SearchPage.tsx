@@ -4,7 +4,7 @@ import { WordCard } from "@/components/study/WordCard";
 import { useWords, WordWithProgress } from "@/hooks/useWords";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, BookOpen, GraduationCap, Hash, BookMarked, Sparkles, Plus, Loader2 } from "lucide-react";
+import { Search, BookOpen, GraduationCap, Hash, BookMarked, Sparkles, Plus, Loader2, ChevronDown } from "lucide-react";
 import { VirtualList } from "@/components/common/VirtualList";
 import { useCaptureWord } from "@/hooks/useCaptureWord";
 import { useApiKeys } from "@/hooks/useApiKeys";
@@ -239,6 +239,18 @@ export default function SearchPage() {
               </div>
             ) : words && words.length > 0 ? (
               <div className="space-y-6">
+                {/* FT List Notification Button */}
+                {ftWords.length > 0 && (
+                  <button
+                    onClick={() => document.getElementById('ft-list-section')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-3 rounded-xl shadow-md flex items-center justify-center gap-2 hover:scale-[1.01] transition-transform animate-in fade-in slide-in-from-top-2"
+                  >
+                    <Sparkles className="h-5 w-5 fill-white/20" />
+                    <span className="font-bold">Found {ftWords.length} words in FT List</span>
+                    <ChevronDown className="h-5 w-5 opacity-80" />
+                  </button>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Kelly */}
                   <div className="border border-emerald-500/20 rounded-2xl p-4 bg-emerald-50/10 flex flex-col h-[600px] shadow-sm">
@@ -289,25 +301,27 @@ export default function SearchPage() {
                   </div>
                 </div>
 
-                {/* FT List (Row 2) */}
-                <div className="border border-indigo-500/20 rounded-2xl p-4 bg-indigo-50/10 flex flex-col h-[600px] shadow-sm">
-                  <div className="flex items-center gap-2 mb-4 pb-3 border-b border-indigo-500/10">
-                    <Sparkles className="h-5 w-5 text-indigo-600" />
-                    <h3 className="text-lg font-bold text-indigo-800">FT List</h3>
-                    <span className="ml-auto bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-bold">{ftWords.length}</span>
+                {/* FT List (Row 2) - Only show if has items */}
+                {ftWords.length > 0 && (
+                  <div id="ft-list-section" className="border border-indigo-500/20 rounded-2xl p-4 bg-indigo-50/10 flex flex-col h-[600px] shadow-sm scroll-mt-24">
+                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-indigo-500/10">
+                      <Sparkles className="h-5 w-5 text-indigo-600" />
+                      <h3 className="text-lg font-bold text-indigo-800">FT List</h3>
+                      <span className="ml-auto bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-bold">{ftWords.length}</span>
+                    </div>
+                    <VirtualList
+                      items={ftWords}
+                      height="100%"
+                      itemHeight={90}
+                      getItemKey={(index) => ftWords[index].swedish_word}
+                      renderItem={(word) => (
+                        <div className="max-w-4xl mx-auto pr-1 pb-3">
+                          {renderWordItem(word, "ft")}
+                        </div>
+                      )}
+                    />
                   </div>
-                  <VirtualList
-                    items={ftWords}
-                    height="100%"
-                    itemHeight={90}
-                    getItemKey={(index) => ftWords[index].swedish_word}
-                    renderItem={(word) => (
-                      <div className="max-w-4xl mx-auto pr-1 pb-3">
-                        {renderWordItem(word, "ft")}
-                      </div>
-                    )}
-                  />
-                </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-20 bg-card border border-dashed border-border rounded-3xl flex flex-col items-center gap-6">
