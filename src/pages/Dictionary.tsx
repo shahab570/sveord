@@ -77,24 +77,24 @@ export default function Dictionary() {
                 </div>
 
                 {/* Centered Search Bar */}
-                <div className="max-w-md mx-auto w-full relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="max-w-xl mx-auto w-full relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <Input
                         placeholder="Search swedish words..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 text-center"
+                        className="pl-12 h-14 text-lg text-center shadow-sm rounded-2xl border-2 focus-visible:ring-primary/20"
                     />
                 </div>
 
                 {/* Level Tabs */}
-                <div className="flex flex-wrap gap-2 pb-2 border-b border-border overflow-x-auto">
+                <div className="flex flex-wrap gap-2 pb-2 border-b border-border overflow-x-auto justify-center">
                     {CEFR_TABS.map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${activeTab === tab
-                                ? 'bg-primary text-primary-foreground'
+                            className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${activeTab === tab
+                                ? 'bg-primary text-primary-foreground shadow-sm scale-105'
                                 : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground'
                                 }`}
                         >
@@ -105,37 +105,37 @@ export default function Dictionary() {
 
                 {/* Content */}
                 {isLoading ? (
-                    <div className="space-y-2">
-                        {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+                    <div className="space-y-4">
+                        {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
                     </div>
                 ) : (
-                    <div className="space-y-4">
-                        <div className="text-xs text-muted-foreground font-medium">
-                            Showing {filteredWords.length} words
+                    <div className="space-y-6">
+                        <div className="text-center text-sm text-muted-foreground font-medium">
+                            Showing {Math.min(filteredWords.length, 50)} of {filteredWords.length} words
                         </div>
 
                         {/* Virtualized list replacement / Simple map for now (up to limit) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {filteredWords.slice(0, 100).map((word) => ( // Pagination limit for performance safeguard
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                            {filteredWords.slice(0, 50).map((word) => ( // Strict limit to 50 per user request "dont need to see this many"
                                 <div
                                     key={word.id}
-                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer group ${word.progress?.is_learned ? 'bg-green-500/5 border-green-500/20' :
+                                    className={`flex items-center justify-between p-5 rounded-xl border transition-all cursor-pointer group hover:scale-[1.01] hover:shadow-md ${word.progress?.is_learned ? 'bg-green-500/5 border-green-500/20' :
                                         word.progress?.is_reserve ? 'bg-amber-500/5 border-amber-500/20' :
-                                            'bg-card border-border hover:shadow-sm'
+                                            'bg-card border-border'
                                         }`}
                                     onClick={() => setSelectedWordKey(word.swedish_word)}
                                 >
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-semibold">{word.swedish_word}</span>
-                                            {word.progress?.is_learned && <CheckCircle className="h-3 w-3 text-green-500" />}
-                                            {word.progress?.is_reserve && <Bookmark className="h-3 w-3 text-amber-500 fill-amber-500" />}
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <span className="text-lg font-bold tracking-tight">{word.swedish_word}</span>
+                                            {word.progress?.is_learned && <CheckCircle className="h-4 w-4 text-green-500" />}
+                                            {word.progress?.is_reserve && <Bookmark className="h-4 w-4 text-amber-500 fill-amber-500" />}
                                         </div>
-                                        <div className="text-xs text-muted-foreground line-clamp-1">
+                                        <div className="text-sm text-muted-foreground line-clamp-1">
                                             {word.word_data?.meanings?.map((m: any) => m.english).join(", ") || "No translation"}
                                         </div>
                                     </div>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${word.unified_level.startsWith('A') ? 'bg-green-500/10 text-green-600 border-green-500/20' :
+                                    <span className={`text-xs font-bold px-3 py-1 rounded-full border ${word.unified_level.startsWith('A') ? 'bg-green-500/10 text-green-600 border-green-500/20' :
                                         word.unified_level.startsWith('B') ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' :
                                             word.unified_level.startsWith('C') ? 'bg-purple-500/10 text-purple-600 border-purple-500/20' :
                                                 'bg-gray-100 text-gray-500'

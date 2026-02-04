@@ -73,19 +73,23 @@ export function useUnifiedStats(): DashboardStats {
         const validWordIds = new Set(validWords.map(w => w.id));
 
         // Filter progress events from today AND ensure they belong to valid words
-        const learnedToday = allProgress.filter(p =>
-            p.is_learned &&
-            p.learned_date &&
-            p.learned_date >= todayStart &&
-            validWordIds.has(p.word_id)
-        ).length;
+        const learnedTodayCount = new Set(
+            allProgress.filter(p =>
+                p.is_learned &&
+                p.learned_date &&
+                p.learned_date >= todayStart &&
+                validWordIds.has(p.word_id)
+            ).map(p => p.word_id)
+        ).size;
 
-        const reservedToday = allProgress.filter(p =>
-            p.is_reserve &&
-            p.reserved_at &&
-            p.reserved_at >= todayStart &&
-            validWordIds.has(p.word_id)
-        ).length;
+        const reservedTodayCount = new Set(
+            allProgress.filter(p =>
+                p.is_reserve &&
+                p.reserved_at &&
+                p.reserved_at >= todayStart &&
+                validWordIds.has(p.word_id)
+            ).map(p => p.word_id)
+        ).size;
 
         // 4. Format Output
         const cefrProgress: any = {};
@@ -106,8 +110,8 @@ export function useUnifiedStats(): DashboardStats {
                 completionPercent: totalUnique > 0 ? Math.round((totalMastered / totalUnique) * 100) : 0
             },
             velocity: {
-                learnedToday,
-                reservedToday
+                learnedToday: learnedTodayCount,
+                reservedToday: reservedTodayCount
             },
             hasData: totalUnique > 0
         };
