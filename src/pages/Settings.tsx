@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { db } from "@/services/db";
 import {
   Settings as SettingsIcon,
   Trash2,
@@ -296,6 +297,64 @@ export default function Settings() {
               >
                 <Cloud className="h-4 w-4" />
                 Push Local Backup to Cloud
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section className="word-card space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Database Integrity</h2>
+              <p className="text-sm text-muted-foreground">Fix inconsistent data states (e.g., words marked as both learned and reserved).</p>
+            </div>
+          </div>
+          <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+            <p className="text-sm text-red-800 mb-4">
+              If you suspect your data is out of sync or notice conflicts, run this tool. It will check for words that are in invalid states and let you resolve them.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  const conflicts = await db.progress.filter(p => !!p.is_learned && !!p.is_reserve).toArray();
+                  if (conflicts.length === 0) {
+                    toast.success("No conflicts found! Your database is healthy.");
+                    return;
+                  }
+                  // Re-use logic or navigate to dashboard? 
+                  // Better to handle it right here to be "immediate".
+                  const result = window.confirm(
+                    `Found ${conflicts.length} words marked as both 'Learned' and 'Study Later'.\n\nClick OK to mark them all as LEARNED (remove from Queue).\nClick Cancel to move them all to QUEUE (unlearn).`
+                  );
+
+                  const isLearnedVal = result ? 1 : 0;
+                  const isReserveVal = result ? 0 : 1;
+                  const actionText = result ? "marked as Learned" : "moved to Queue";
+
+                  // Fix Local
+                  const updates = conflicts.map(p => ({ ...p, is_learned: isLearnedVal, is_reserve: isReserveVal }));
+                  await db.progress.bulkPut(updates);
+
+                  // Fix Remote
+                  for (const p of conflicts) {
+                    await supabase.from("user_progress").update({
+                      is_learned: !!isLearnedVal,
+                      is_reserve: !!isReserveVal
+                    }).eq("user_id", user?.id).eq("word_id", p.word_id);
+                  }
+
+                  toast.success(`Fixed ${conflicts.length} conflicts! They are now ${actionText}.`);
+                  // Invalidate to refresh Dashboard if needed
+                  // queryClient via hook if available, or just reload to be safe and lazy
+                  setTimeout(() => window.location.reload(), 1000);
+                }}
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Scan & Fix Conflicts
               </Button>
             </div>
           </div>
