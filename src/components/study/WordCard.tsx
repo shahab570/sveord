@@ -216,6 +216,23 @@ export function WordCard({
     }
   }, [word.swedish_word, wordData?.word_type, !!wordData?.inflectionExplanation]);
 
+  // Keyboard Navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if editing text
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === "ArrowLeft" && hasPrevious) {
+        onPrevious?.();
+      } else if (e.key === "ArrowRight" && hasNext) {
+        onNext?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [hasPrevious, hasNext, onPrevious, onNext]);
+
   const handleRegenerate = async (field: 'explanation' | 'meanings', instruction: string) => {
     setIsRegenerating(field);
     try {
