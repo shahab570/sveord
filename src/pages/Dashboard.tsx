@@ -39,7 +39,8 @@ function FixConflictsBanner() {
     const checkConflicts = async () => {
       const conflicts = await db.progress.filter(p => !!p.is_learned && !!p.is_reserve).toArray();
       setCount(conflicts.length);
-      setExamples(conflicts.slice(0, 5).map(p => p.word_swedish));
+      const uniqueNames = Array.from(new Set(conflicts.map(p => p.word_swedish)));
+      setExamples(uniqueNames.slice(0, 5));
     };
     checkConflicts();
   }, []);
