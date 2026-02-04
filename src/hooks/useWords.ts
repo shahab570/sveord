@@ -592,12 +592,12 @@ export function useStats() {
         learned: learnedWordDefs.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).length
       },
       reserveStats: {
-        total: (await db.progress.filter(p => !!p.is_reserve).toArray()).length,
-        learned: (await db.progress.filter(p => !!p.is_reserve && !!p.is_learned).toArray()).length
+        total: new Set((await db.progress.filter(p => !!p.is_reserve).toArray()).map(p => p.word_id)).size,
+        learned: new Set((await db.progress.filter(p => !!p.is_reserve && !!p.is_learned).toArray()).map(p => p.word_id)).size
       },
       encounteredStats: {
-        total: totalWords + (await db.progress.filter(p => !!p.is_reserve).toArray()).length,
-        learned: learnedWords + (await db.progress.filter(p => !!p.is_reserve).toArray()).length
+        total: totalWords + new Set((await db.progress.filter(p => !!p.is_reserve).toArray()).map(p => p.word_id)).size,
+        learned: learnedWords + new Set((await db.progress.filter(p => !!p.is_reserve).toArray()).map(p => p.word_id)).size
       }
     };
   }, [user?.id]);
@@ -620,7 +620,8 @@ export function useDetailedStats() {
     const allReserved = await db.progress.filter(p => !!p.is_reserve).toArray();
 
     // Reserve stats
-    const reservedToday = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= localStartOfToday).length;
+    const reservedTodayItems = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= localStartOfToday);
+    const reservedToday = new Set(reservedTodayItems.map(p => p.word_id)).size;
 
     const allLearned = await db.progress.filter(p => !!p.is_learned).toArray();
 
@@ -668,10 +669,14 @@ export function useDetailedStats() {
       const dTime = d.getTime();
       const nextDTime = nextD.getTime();
 
-      const allLearnedTodayCount = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= dTime && new Date(p.learned_date).getTime() < nextDTime).length;
-      const kellyCount = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= dTime && new Date(p.learned_date).getTime() < nextDTime && learnedKellyIds.has(p.word_id)).length;
+      const allLearnedToday = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= dTime && new Date(p.learned_date).getTime() < nextDTime);
+      const allLearnedTodayCount = new Set(allLearnedToday.map(p => p.word_id)).size;
 
-      const reservedCount = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= dTime && new Date(p.reserved_at).getTime() < nextDTime).length;
+      const kellyProgress = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= dTime && new Date(p.learned_date).getTime() < nextDTime && learnedKellyIds.has(p.word_id));
+      const kellyCount = new Set(kellyProgress.map(p => p.word_id)).size;
+
+      const reservedProgress = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= dTime && new Date(p.reserved_at).getTime() < nextDTime);
+      const reservedCount = new Set(reservedProgress.map(p => p.word_id)).size;
 
       dailyCounts.push({
         date: d.toISOString().split("T")[0],
