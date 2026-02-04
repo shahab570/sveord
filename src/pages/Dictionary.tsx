@@ -1,23 +1,48 @@
 import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useWords } from "@/hooks/useWords";
+import { useWords, useAddWord } from "@/hooks/useWords";
 import { determineUnifiedLevel } from "@/utils/levelUtils";
-import { Book, Search, Filter, CheckCircle, Bookmark } from "lucide-react";
+import { Book, Search, Filter, CheckCircle, Bookmark, Plus, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button"; // Assuming you have this
 import { Badge } from "@/components/ui/badge"; // Assuming you have this
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { WordCard } from "@/components/study/WordCard";
+import { toast } from "sonner";
 
 const CEFR_TABS = ["All", "Queue", "A1", "A2", "B1", "B2", "C1", "C2", "Unknown"];
 
 export default function Dictionary() {
     const words = useWords();
-    const isLoading = words === undefined;
+    const addWord = useAddWord();
+    const isLoading = words === undefined || addWord.isPending;
+    const isAdding = addWord.isPending;
+
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState("All");
     const [selectedWordKey, setSelectedWordKey] = useState<string | null>(null);
+
+    const handleAddWord = async () => {
+        if (!searchTerm.trim()) return;
+        const wordToAdd = searchTerm.trim().toLowerCase();
+
+        // 1. Check local duplicate (fast fail)
+        if (words?.some(w => w.swedish_word.toLowerCase() === wordToAdd)) {
+            toast.error(`"${wordToAdd}" already exists in the dictionary!`);
+            setSelectedWordKey(words.find(w => w.swedish_word.toLowerCase() === wordToAdd)?.swedish_word || null);
+            return;
+        }
+
+        try {
+            await addWord.mutateAsync({ swedish_word: wordToAdd });
+            toast.success(`Added "${wordToAdd}" to dictionary!`);
+            // Automatically select/open the new word card
+            setSelectedWordKey(wordToAdd);
+        } catch (error: any) {
+            toast.error(error.message || "Failed to add word");
+        }
+    };
 
     // Filter and Sort Words
     const filteredWords = useMemo(() => {
@@ -82,15 +107,32 @@ export default function Dictionary() {
                 </div>
 
                 {/* Centered Search Bar */}
-                <div className="max-w-xl mx-auto w-full relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                        placeholder="Search swedish words..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-12 h-14 text-lg text-center shadow-sm rounded-2xl border-2 focus-visible:ring-primary/20"
-                        autoFocus
-                    />
+                <div className="max-w-xl mx-auto w-full relative flex gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                            placeholder="Search swedish words..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-12 h-14 text-lg text-center shadow-sm rounded-2xl border-2 focus-visible:ring-primary/20"
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && searchTerm.trim() && filteredWords.length === 0) {
+                                    handleAddWord();
+                                }
+                            }}
+                        />
+                    </div>
+                    {searchTerm.trim().length > 0 && !words?.some(w => w.swedish_word.toLowerCase() === searchTerm.toLowerCase()) && (
+                        <Button
+                            onClick={handleAddWord}
+                            className="h-14 w-14 rounded-2xl shrink-0"
+                            disabled={isAdding}
+                            title="Add to dictionary"
+                        >
+                            {isAdding ? <Loader2 className="h-6 w-6 animate-spin" /> : <Plus className="h-6 w-6" />}
+                        </Button>
+                    )}
                 </div>
 
                 {/* Level Tabs */}
