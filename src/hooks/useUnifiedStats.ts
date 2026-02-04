@@ -68,10 +68,24 @@ export function useUnifiedStats(): DashboardStats {
         // 3. Calculate Daily Velocity
         const todayStart = startOfDay(new Date()).toISOString();
 
-        // Filter progress events from today
-        // Note: 'learned_date' tracks when it was learned. 'reserved_at' tracks when reserved.
-        const learnedToday = allProgress.filter(p => p.is_learned && p.learned_date && p.learned_date >= todayStart).length;
-        const reservedToday = allProgress.filter(p => p.is_reserve && p.reserved_at && p.reserved_at >= todayStart).length;
+        // Valid Word IDs Set for O(1) membership check
+        // This ensures we only count words that are actually in our "Unified Dictionary" (e.g., excluding FT, excluded orphans)
+        const validWordIds = new Set(validWords.map(w => w.id));
+
+        // Filter progress events from today AND ensure they belong to valid words
+        const learnedToday = allProgress.filter(p =>
+            p.is_learned &&
+            p.learned_date &&
+            p.learned_date >= todayStart &&
+            validWordIds.has(p.word_id)
+        ).length;
+
+        const reservedToday = allProgress.filter(p =>
+            p.is_reserve &&
+            p.reserved_at &&
+            p.reserved_at >= todayStart &&
+            validWordIds.has(p.word_id)
+        ).length;
 
         // 4. Format Output
         const cefrProgress: any = {};

@@ -22,42 +22,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WordCard } from "@/components/study/WordCard";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-function ExportButton() {
-  const [isExporting, setIsExporting] = useState(false);
-
-  const handleExport = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-
-    import('@/utils/exportUtils').then(async (mod) => {
-      try {
-        const count = await mod.exportUnifiedList();
-        alert(`Success! Exported ${count} unique words.`);
-      } catch (e) {
-        alert("Export failed. See console.");
-        console.error(e);
-      } finally {
-        setIsExporting(false);
-      }
-    });
-  };
-
-  return (
-    <button
-      onClick={handleExport}
-      disabled={isExporting}
-      className={`absolute top-4 right-4 z-20 p-2 rounded-full border border-border/50 text-muted-foreground transition-all ${isExporting ? 'bg-background/80 cursor-not-allowed opacity-50' : 'bg-background/50 hover:bg-background/80'}`}
-      title="Export Unified List"
-    >
-      <div className="flex items-center gap-1.5 px-1">
-        <span className="text-[10px] font-medium uppercase tracking-wider">
-          {isExporting ? 'Exporting...' : 'Export List'}
-        </span>
-      </div>
-    </button>
-  );
-}
-
 export default function Dashboard() {
   const { user, profile } = useAuth();
   const displayName = profile?.first_name || user?.user_metadata?.first_name || 'Shahab';
@@ -132,7 +96,6 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            <ExportButton />
           </div>
 
           {/* Proficiency Overview (Mastered vs To Study) */}
