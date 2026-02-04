@@ -11,6 +11,7 @@ import { useApiKeys } from "@/hooks/useApiKeys";
 import { db } from "@/services/db";
 import { toast } from "sonner";
 import { stripMarkdown } from "@/utils/markdownUtils";
+// VirtualList is already imported above
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -239,89 +240,135 @@ export default function SearchPage() {
               </div>
             ) : words && words.length > 0 ? (
               <div className="space-y-6">
-                {/* FT List Notification Button */}
-                {ftWords.length > 0 && (
-                  <button
-                    onClick={() => document.getElementById('ft-list-section')?.scrollIntoView({ behavior: 'smooth' })}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-3 rounded-xl shadow-md flex items-center justify-center gap-2 hover:scale-[1.01] transition-transform animate-in fade-in slide-in-from-top-2"
-                  >
-                    <Sparkles className="h-5 w-5 fill-white/20" />
-                    <span className="font-bold">Found {ftWords.length} words in FT List</span>
-                    <ChevronDown className="h-5 w-5 opacity-80" />
-                  </button>
-                )}
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Kelly */}
-                  <div className="border border-emerald-500/20 rounded-2xl p-4 bg-emerald-50/10 flex flex-col h-[600px] shadow-sm">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-500/10">
-                      <GraduationCap className="h-5 w-5 text-emerald-600" />
-                      <h3 className="text-lg font-bold text-emerald-800">Kelly List</h3>
-                      <span className="ml-auto bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">{kellyWords.length}</span>
+                {/* Results Grid - 4 Columns */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 h-[calc(100vh-220px)] min-h-[500px]">
+                  {/* Kelly List */}
+                  <div className="flex flex-col bg-card/50 backdrop-blur-sm rounded-xl border border-border overflow-hidden h-full shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 border-b bg-secondary/30 flex justify-between items-center shrink-0">
+                      <div className="flex items-center gap-2">
+                        <GraduationCap className="h-4 w-4 text-emerald-500" />
+                        <h2 className="font-semibold text-sm">Kelly List</h2>
+                      </div>
+                      <span className="text-xs bg-background px-2 py-0.5 rounded-full border text-muted-foreground font-medium">
+                        {kellyWords.length}
+                      </span>
                     </div>
-                    <VirtualList
-                      items={kellyWords}
-                      height="100%"
-                      itemHeight={90}
-                      getItemKey={(index) => kellyWords[index].swedish_word}
-                      renderItem={(word) => <div className="pr-1 pb-3">{renderWordItem(word, "kelly")}</div>}
-                    />
+                    <div className="flex-1 min-h-0">
+                      <VirtualList
+                        items={kellyWords}
+                        height="100%"
+                        itemHeight={70}
+                        renderItem={(word) => (
+                          <div className="px-2 py-2">
+                            <WordCard
+                              word={word}
+                              compact
+                              hideActions
+                              className="bg-background/80 hover:bg-background transition-colors text-sm"
+                            />
+                          </div>
+                        )}
+                      />
+                    </div>
                   </div>
 
-                  {/* Frequency */}
-                  <div className="border border-blue-500/20 rounded-2xl p-4 bg-blue-50/10 flex flex-col h-[600px] shadow-sm">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-blue-500/10">
-                      <Hash className="h-5 w-5 text-blue-600" />
-                      <h3 className="text-lg font-bold text-blue-800">Frequency List</h3>
-                      <span className="ml-auto bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">{frequencyWords.length}</span>
+                  {/* Frequency List */}
+                  <div className="flex flex-col bg-card/50 backdrop-blur-sm rounded-xl border border-border overflow-hidden h-full shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 border-b bg-secondary/30 flex justify-between items-center shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Hash className="h-4 w-4 text-blue-500" />
+                        <h2 className="font-semibold text-sm">Frequency</h2>
+                      </div>
+                      <span className="text-xs bg-background px-2 py-0.5 rounded-full border text-muted-foreground font-medium">
+                        {frequencyWords.length}
+                      </span>
                     </div>
-                    <VirtualList
-                      items={frequencyWords}
-                      height="100%"
-                      itemHeight={90}
-                      getItemKey={(index) => frequencyWords[index].swedish_word}
-                      renderItem={(word) => <div className="pr-1 pb-3">{renderWordItem(word, "frequency")}</div>}
-                    />
+                    <div className="flex-1 min-h-0">
+                      <VirtualList
+                        items={frequencyWords}
+                        height="100%"
+                        itemHeight={70}
+                        renderItem={(word) => (
+                          <div className="px-2 py-2">
+                            <WordCard
+                              word={word}
+                              compact
+                              hideActions
+                              className="bg-background/80 hover:bg-background transition-colors text-sm"
+                            />
+                          </div>
+                        )}
+                      />
+                    </div>
                   </div>
 
-                  {/* Sidor */}
-                  <div className="border border-purple-500/20 rounded-2xl p-4 bg-purple-50/10 flex flex-col h-[600px] shadow-sm">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-500/10">
-                      <BookMarked className="h-5 w-5 text-purple-600" />
-                      <h3 className="text-lg font-bold text-purple-800">Sidor List</h3>
-                      <span className="ml-auto bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-bold">{sidorWords.length}</span>
+                  {/* Sidor List */}
+                  <div className="flex flex-col bg-card/50 backdrop-blur-sm rounded-xl border border-border overflow-hidden h-full shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 border-b bg-secondary/30 flex justify-between items-center shrink-0">
+                      <div className="flex items-center gap-2">
+                        <BookMarked className="h-4 w-4 text-purple-500" />
+                        <h2 className="font-semibold text-sm">Sidor List</h2>
+                      </div>
+                      <span className="text-xs bg-background px-2 py-0.5 rounded-full border text-muted-foreground font-medium">
+                        {sidorWords.length}
+                      </span>
                     </div>
-                    <VirtualList
-                      items={sidorWords}
-                      height="100%"
-                      itemHeight={90}
-                      getItemKey={(index) => sidorWords[index].swedish_word}
-                      renderItem={(word) => <div className="pr-1 pb-3">{renderWordItem(word, "sidor")}</div>}
-                    />
+                    <div className="flex-1 min-h-0">
+                      <VirtualList
+                        items={sidorWords}
+                        height="100%"
+                        itemHeight={70}
+                        renderItem={(word) => (
+                          <div className="px-2 py-2">
+                            <WordCard
+                              word={word}
+                              compact
+                              hideActions
+                              className="bg-background/80 hover:bg-background transition-colors text-sm"
+                            />
+                          </div>
+                        )}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* FT List (Row 2) - Only show if has items */}
-                {ftWords.length > 0 && (
-                  <div id="ft-list-section" className="border border-indigo-500/20 rounded-2xl p-4 bg-indigo-50/10 flex flex-col h-[600px] shadow-sm scroll-mt-24">
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-indigo-500/10">
-                      <Sparkles className="h-5 w-5 text-indigo-600" />
-                      <h3 className="text-lg font-bold text-indigo-800">FT List</h3>
-                      <span className="ml-auto bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-bold">{ftWords.length}</span>
+                  {/* FT List */}
+                  <div className="flex flex-col bg-card/50 backdrop-blur-sm rounded-xl border border-border overflow-hidden h-full shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 border-b bg-secondary/30 flex justify-between items-center shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-indigo-500" />
+                        <h2 className="font-semibold text-sm">FT List</h2>
+                      </div>
+                      <span className="text-xs bg-background px-2 py-0.5 rounded-full border text-muted-foreground font-medium">
+                        {ftWords.length}
+                      </span>
                     </div>
-                    <VirtualList
-                      items={ftWords}
-                      height="100%"
-                      itemHeight={90}
-                      getItemKey={(index) => ftWords[index].swedish_word}
-                      renderItem={(word) => (
-                        <div className="max-w-4xl mx-auto pr-1 pb-3">
-                          {renderWordItem(word, "ft")}
+                    <div className="flex-1 min-h-0">
+                      {ftWords.length > 0 ? (
+                        <VirtualList
+                          items={ftWords}
+                          height="100%"
+                          itemHeight={70}
+                          renderItem={(word) => (
+                            <div className="px-2 py-2">
+                              <WordCard
+                                word={word}
+                                compact
+                                hideActions
+                                className="bg-background/80 hover:bg-background transition-colors text-sm"
+                              />
+                            </div>
+                          )}
+                        />
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                          <Sparkles className="h-8 w-8 mb-2 opacity-20" />
+                          <p className="text-xs">No results in FT List</p>
                         </div>
                       )}
-                    />
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             ) : (
               <div className="text-center py-20 bg-card border border-dashed border-border rounded-3xl flex flex-col items-center gap-6">

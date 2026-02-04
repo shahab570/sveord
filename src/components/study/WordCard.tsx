@@ -52,34 +52,41 @@ interface FormWithAudio extends GrammaticalForm {
 
 interface WordCardProps {
   word: WordWithProgress;
-  onPrevious: () => void;
-  onNext: () => void;
-  hasPrevious: boolean;
-  hasNext: boolean;
-  currentIndex: number;
-  totalCount: number;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  hasPrevious?: boolean;
+  hasNext?: boolean;
+  currentIndex?: number;
+  totalCount?: number;
   learnedCount?: number;
-  isRandomMode: boolean;
-  onToggleRandom: () => void;
+  isRandomMode?: boolean;
+  onToggleRandom?: () => void;
   showRandomButton?: boolean;
   listType?: "kelly" | "frequency" | "sidor" | "ft";
   onDelete?: () => void;
+  // New props for Search/Compact view
+  compact?: boolean;
+  hideActions?: boolean;
+  className?: string; // Allow custom styling injection
 }
 
 export function WordCard({
   word,
   onPrevious,
   onNext,
-  hasPrevious,
-  hasNext,
-  currentIndex,
-  totalCount,
+  hasPrevious = false,
+  hasNext = false,
+  currentIndex = 0,
+  totalCount = 0,
   learnedCount = 0,
-  isRandomMode,
+  isRandomMode = false,
   onToggleRandom,
   showRandomButton = true,
   listType = "frequency",
   onDelete,
+  compact = false,
+  hideActions = false,
+  className,
 }: WordCardProps) {
   const { upsertProgress, refreshWordData } = useUserProgress();
   const deleteWordMutation = useDeleteWord();
@@ -98,6 +105,54 @@ export function WordCard({
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [forms, setForms] = useState<FormWithAudio[]>([]);
+
+  // Compact Mode Rendering
+  if (compact) {
+    const isLearned = !!word.progress?.is_learned;
+    const isReserve = !!word.progress?.is_reserve;
+
+    const handleToggleReserve = async () => {
+      try {
+        const newStatus = !word.progress?.is_reserve;
+        await upsertProgress.mutateAsync({
+          word_id: word.id,
+          swedish_word: word.swedish_word,
+          is_reserve: newStatus,
+          reserved_at: newStatus ? new Date().toISOString() : undefined
+        });
+        toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
+      } catch (error) {
+        toast.error("Failed to update Study Later status");
+      }
+    };
+
+    return (
+      <div
+        onClick={() => setShowExplanationInput(!showExplanationInput)} // Simple toggle or expand. utilizing existing state for now but maybe just static?
+        className={cn(
+          "group relative flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer hover:shadow-sm h-full",
+          isLearned ? "bg-green-500/5 border-green-500/20" : isReserve ? "bg-amber-500/5 border-amber-500/20" : "bg-card border-border",
+          className
+        )}
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className={cn("w-2 h-2 rounded-full shrink-0", isLearned ? "bg-green-500" : isReserve ? "bg-amber-500" : "bg-muted")} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h4 className="font-semibold text-sm truncate">{word.swedish_word}</h4>
+              {word.word_data?.word_type && <span className="text-[10px] bg-secondary px-1 py-0.5 rounded text-muted-foreground">{word.word_data.word_type}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground truncate" title={word.word_data?.meanings?.[0]?.english}>{word.word_data?.meanings?.[0]?.english}</p>
+          </div>
+        </div>
+        {!hideActions && (
+          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => { e.stopPropagation(); handleToggleReserve(); }}>
+            <Bookmark className={cn("h-3 w-3", isReserve && "fill-amber-500 text-amber-500")} />
+          </Button>
+        )}
+      </div>
+    );
+  }
   const [isFetchingAudio, setIsFetchingAudio] = useState(false);
 
   // Live query to ensure deep reactivity when word_data changes (AI generation)
@@ -208,6 +263,7 @@ export function WordCard({
         word_id: word.id,
         swedish_word: word.swedish_word,
         is_reserve: newStatus,
+        reserved_at: newStatus ? new Date().toISOString() : undefined
       });
       toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
     } catch (error) {

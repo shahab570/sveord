@@ -18,6 +18,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Sparkles,
+  Search,
+  Library,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
@@ -63,411 +65,145 @@ export default function Dashboard() {
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
-        {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/10 shadow-sm animate-fade-in">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 md:p-12 items-center">
-            <div className="space-y-4 relative z-10">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background/50 border border-primary/20 backdrop-blur-sm">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>
-                <span className="text-xs font-medium text-primary">Ready to learn</span>
-              </div>
+        {/* Combined Compact Header & Stats */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 animate-fade-in">
 
-              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground lg:leading-[1.1]">
-                Välkommen tillbaka, <br />
-                <span className="text-primary">{displayName}!</span>
-              </h1>
-
-              <p className="text-lg text-muted-foreground max-w-md leading-relaxed">
-                Your daily vocabulary journey continues. You're making great progress towards fluency!
-              </p>
-
-              <div className="flex flex-wrap gap-3 pt-2">
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background border shadow-sm">
-                  <Flame className="h-5 w-5 text-orange-500 fill-orange-500" />
-                  <span className="font-bold">{detailedStats?.learnedToday || 0}</span>
-                  <span className="text-sm text-muted-foreground">words today</span>
+          {/* Welcome & Daily Snapshot (Span 8) */}
+          <div className="lg:col-span-8 space-y-4">
+            {/* Hero Banner (Super Compact) */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary/10 to-background border border-border p-5 flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-4 z-10">
+                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                  <Flame className="h-5 w-5 text-primary" />
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background border shadow-sm">
-                  <Target className="h-5 w-5 text-blue-500" />
-                  <span className="font-bold">{stats?.learnedWords || 0}</span>
-                  <span className="text-sm text-muted-foreground">total</span>
+                <div>
+                  <h1 className="text-lg font-bold text-foreground">
+                    Hej, <span className="text-primary">{displayName}</span>!
+                  </h1>
+                  <p className="text-xs text-muted-foreground">Keep up the streak!</p>
                 </div>
               </div>
+
+              {/* Daily Mini-Stats */}
+              <div className="flex gap-3 z-10">
+                <div className="flex flex-col items-end">
+                  <span className="text-lg font-bold text-orange-500 leading-none">{detailedStats?.learnedToday || 0}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Learned</span>
+                </div>
+                <div className="w-px bg-border h-8 mx-1"></div>
+                <div className="flex flex-col items-start">
+                  <span className="text-lg font-bold text-amber-500 leading-none">{detailedStats?.reservedToday || 0}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Reserved</span>
+                </div>
+              </div>
+
+              {/* Decor */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl translate-x-10 -translate-y-10" />
             </div>
 
-            <div className="relative flex justify-center md:justify-end">
-              <div className="relative z-10 w-full max-w-[320px] aspect-square">
-                <img
-                  src="/reading_illustration.png"
-                  alt="Reading illustration"
-                  className="w-full h-full object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
-                />
+            {/* Main Chart Card */}
+            <div className="bg-card rounded-2xl border border-border p-4 shadow-sm h-[280px] flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" /> Daily Activity
+                </h2>
+                <div className="flex gap-3 text-[10px] font-medium">
+                  <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-primary" /> Learned</span>
+                  <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Reserved</span>
+                </div>
               </div>
-              {/* Decorative background blobs */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-tr from-primary/20 to-transparent rounded-full blur-3xl -z-10 opacity-60" />
+              <div className="flex-1 w-full min-h-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={detailedStats?.dailyCounts || []} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.5} />
+                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(val) => val.split('-')[2]} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "12px", padding: "8px" }}
+                      labelFormatter={(val) => new Date(val).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    />
+                    <Line type="monotone" dataKey="learned" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="reserved" stroke="#f59e0b" strokeWidth={2} strokeDasharray="3 3" dot={false} activeDot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Today's Progress Highlight */}
-        <div className="animate-fade-in" style={{ animationDelay: "50ms" }}>
-          {detailedLoading ? (
-            <Skeleton className="h-24 w-full rounded-2xl" />
-          ) : (
-            <div className="word-card gold-highlight">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-accent/30 rounded-xl">
-                    <Flame className="h-6 w-6 text-accent-foreground" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      Today's Progress
-                    </h2>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                      <span className="flex items-center gap-1">
-                        <GraduationCap className="h-4 w-4" />
-                        Kelly: {detailedStats?.kellyToday || 0}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Hash className="h-4 w-4" />
-                        Frequency: {detailedStats?.frequencyToday || 0}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <BookMarked className="h-4 w-4" />
-                        Sidor: {detailedStats?.sidorToday || 0}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Sparkles className="h-4 w-4" />
-                        FT: {detailedStats?.ftToday || 0}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <span className="text-4xl font-bold text-foreground">
-                  {detailedStats?.learnedToday || 0}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 🎯 B1 Goal Tracker */}
-        <div className="animate-fade-in" style={{ animationDelay: "60ms" }}>
-          {b1GoalLoading ? (
-            <Skeleton className="h-48 w-full rounded-2xl" />
-          ) : b1Goal && (
-            <div className={`word-card border-l-4 ${b1Goal.isOnTrack ? 'border-l-green-500' : 'border-l-amber-500'}`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-xl ${b1Goal.isOnTrack ? 'bg-green-500/10' : 'bg-amber-500/10'}`}>
-                    <Flag className={`h-6 w-6 ${b1Goal.isOnTrack ? 'text-green-500' : 'text-amber-500'}`} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      🎯 B1 Goal: April 1st
-                      {b1Goal.isOnTrack ? (
-                        <span className="flex items-center gap-1 text-sm font-medium text-green-500">
-                          <CheckCircle className="h-4 w-4" /> On Track
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-sm font-medium text-amber-500">
-                          <AlertTriangle className="h-4 w-4" /> Behind
-                        </span>
-                      )}
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      Complete A1 + A2 + B1 across all lists
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-3xl font-bold text-foreground">
-                    {b1Goal.progressPercent.toFixed(1)}%
-                  </span>
-                  <p className="text-xs text-muted-foreground">
-                    {b1Goal.learnedB1Words} / {b1Goal.totalB1Words} words
-                  </p>
-                </div>
-              </div>
-
-              <Progress value={b1Goal.progressPercent} className="h-3 mb-4" />
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-3 bg-secondary/50 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-foreground">{b1Goal.daysUntilDeadline}</p>
-                  <p className="text-xs text-muted-foreground">Days Left</p>
-                </div>
-                <div className="p-3 bg-secondary/50 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-foreground">{b1Goal.remainingB1Words}</p>
-                  <p className="text-xs text-muted-foreground">Words Left</p>
-                </div>
-                <div className="p-3 bg-secondary/50 rounded-lg text-center">
-                  <p className={`text-2xl font-bold ${b1Goal.isOnTrack ? 'text-green-500' : 'text-amber-500'}`}>
-                    {b1Goal.requiredWordsPerDay}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Need/Day</p>
-                </div>
-                <div className="p-3 bg-secondary/50 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-primary">{b1Goal.currentPace}</p>
-                  <p className="text-xs text-muted-foreground">Current Pace</p>
-                </div>
-              </div>
-
-              {!b1Goal.isOnTrack && b1Goal.projectedCompletionDate && (
-                <p className="text-sm text-muted-foreground mt-4 text-center">
-                  At current pace, you'll finish by <span className="font-medium text-foreground">
-                    {new Date(b1Goal.projectedCompletionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span> — {b1Goal.daysNeededAtCurrentPace && b1Goal.daysNeededAtCurrentPace - b1Goal.daysUntilDeadline} days after deadline
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Learning Prediction Card */}
-        <div className="animate-fade-in" style={{ animationDelay: "75ms" }}>
-          {predictionLoading ? (
-            <Skeleton className="h-24 w-full rounded-2xl" />
-          ) : prediction && prediction.avgWordsPerDay > 0 ? (
-            <div className="word-card border-l-4 border-l-primary">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-xl">
-                    <Clock className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      Learning Prediction
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      At {prediction.avgWordsPerDay} words/day, you'll finish all {prediction.remainingWords} remaining words
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-2xl font-bold text-primary">
-                    {prediction.estimatedCompletionDate ? new Date(prediction.estimatedCompletionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "—"}
-                  </span>
-                  <p className="text-xs text-muted-foreground">
-                    ~{prediction.daysRemaining} days remaining
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        {/* Overall Progress Card */}
-        <div className="animate-fade-in" style={{ animationDelay: "100ms" }}>
-          {statsLoading ? (
-            <Skeleton className="h-28 w-full rounded-2xl" />
-          ) : (
-            <div className="word-card">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-primary/10 rounded-xl">
-                    <TrendingUp className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      Anki Overall Progress
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      {totalLearned} of {totalWords} words learned
-                    </p>
-                  </div>
-                </div>
-                <span className="text-3xl font-bold text-primary">
-                  {progressPercent.toFixed(1)}%
-                </span>
-              </div>
-              <Progress value={progressPercent} className="h-3" />
-            </div>
-          )}
-        </div>
-
-        {/* Study Later & Combined Stats */}
-        <div className="animate-fade-in" style={{ animationDelay: "125ms" }}>
-          {statsLoading ? (
-            <Skeleton className="h-28 w-full rounded-2xl" />
-          ) : stats && stats.reserveStats && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="word-card">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-amber-500/10 rounded-xl">
-                      <Clock className="h-6 w-6 text-amber-500" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-foreground">
-                        Study Later
-                      </h2>
-                      <p className="text-sm text-muted-foreground">
-                        Words marked for later
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-3xl font-bold text-amber-500">
-                    {stats.reserveStats.total}
-                  </span>
-                </div>
-              </div>
-
-              <div className="word-card">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-indigo-500/10 rounded-xl">
-                      <CheckCircle className="h-6 w-6 text-indigo-500" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-foreground">
-                        Encountered Words
-                      </h2>
-                      <p className="text-xs text-muted-foreground">
-                        Learned or marked for later
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-3xl font-bold text-indigo-500">
-                    {stats.learnedWords + stats.reserveStats.total - stats.reserveStats.learned}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center text-xs mb-1.5">
-                  <span className="text-muted-foreground">Exposure Percentage</span>
-                  <span className="font-bold text-indigo-500">
-                    {(totalWords > 0
-                      ? ((stats.learnedWords + stats.reserveStats.total - stats.reserveStats.learned) / totalWords) * 100
-                      : 0
-                    ).toFixed(1)}%
-                  </span>
-                </div>
-
-                <Progress
-                  value={
-                    totalWords > 0
-                      ? ((stats.learnedWords + stats.reserveStats.total - stats.reserveStats.learned) / totalWords) * 100
-                      : 0
-                  }
-                  className="h-2 bg-indigo-100 dark:bg-indigo-950"
-                  indicatorClassName="bg-indigo-500"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Kelly Level Progress */}
-        <div className="animate-fade-in" style={{ animationDelay: "150ms" }}>
-          {statsLoading ? (
-            <Skeleton className="h-40 w-full rounded-2xl" />
-          ) : stats && (
-            <div className="word-card">
-              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <GraduationCap className="h-5 w-5 text-primary" />
-                Kelly List Progress by CEFR Level
+          {/* Right Column: Lists & Goals (Span 4) */}
+          <div className="lg:col-span-4 space-y-4">
+            {/* Combined Lists Progress Card */}
+            <div className="group bg-card rounded-2xl border border-border p-4 shadow-sm hover:shadow-md transition-all">
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Library className="h-4 w-4 text-muted-foreground" /> Lists Overview
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => {
-                  const levelStats = stats.kellyStats[level];
-                  const percent = levelStats.total > 0 ? (levelStats.learned / levelStats.total) * 100 : 0;
-                  return (
-                    <div key={level} className="p-4 bg-secondary/50 rounded-xl border border-border">
-                      <div className="text-center">
-                        <span className={`level-badge-${level.toLowerCase()}`}>{level}</span>
-                        <p className="text-2xl font-bold mt-3 text-foreground">{levelStats.learned}</p>
-                        <p className="text-xs text-muted-foreground">of {levelStats.total} ({percent.toFixed(1)}%)</p>
-                        <Progress value={percent} className="h-1.5 mt-2" />
-                      </div>
+              <div className="space-y-3">
+                {/* Kelly */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-emerald-600 flex items-center gap-1"><GraduationCap className="h-3 w-3" />Kelly</span>
+                    <span className="text-muted-foreground">{(stats?.kellyStats as any)?.total?.learned || 0}/{(stats?.kellyStats as any)?.total?.total || 0}</span>
+                  </div>
+                  <Progress value={((stats?.kellyStats as any)?.total?.total || 0) > 0 ? (((stats?.kellyStats as any)?.total?.learned || 0) / ((stats?.kellyStats as any)?.total?.total || 1)) * 100 : 0} className="h-1.5 bg-emerald-500/10" indicatorClassName="bg-emerald-500" />
+                </div>
+                {/* Frequency */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-blue-600 flex items-center gap-1"><Hash className="h-3 w-3" />Frequency</span>
+                    <span className="text-muted-foreground">{(stats?.frequencyStats as any)?.total?.learned || 0}/{(stats?.frequencyStats as any)?.total?.total || 0}</span>
+                  </div>
+                  <Progress value={((stats?.frequencyStats as any)?.total?.total || 0) > 0 ? (((stats?.frequencyStats as any)?.total?.learned || 0) / ((stats?.frequencyStats as any)?.total?.total || 1)) * 100 : 0} className="h-1.5 bg-blue-500/10" indicatorClassName="bg-blue-500" />
+                </div>
+                {/* Sidor */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-purple-600 flex items-center gap-1"><BookMarked className="h-3 w-3" />Sidor</span>
+                    <span className="text-muted-foreground">{(stats?.sidorStats as any)?.total?.learned || 0}/{(stats?.sidorStats as any)?.total?.total || 0}</span>
+                  </div>
+                  <Progress value={((stats?.sidorStats as any)?.total?.total || 0) > 0 ? (((stats?.sidorStats as any)?.total?.learned || 0) / ((stats?.sidorStats as any)?.total?.total || 1)) * 100 : 0} className="h-1.5 bg-purple-500/10" indicatorClassName="bg-purple-500" />
+                </div>
+                {/* FT List (Only if active) */}
+                {stats?.ftStats.total! > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-medium text-indigo-600 flex items-center gap-1"><Sparkles className="h-3 w-3" />FT List</span>
+                      <span className="text-muted-foreground">{stats?.ftStats.learned}/{stats?.ftStats.total}</span>
                     </div>
-                  );
-                })}
+                    <Progress value={(stats?.ftStats.learned! / stats?.ftStats.total!) * 100} className="h-1.5 bg-indigo-500/10" indicatorClassName="bg-indigo-500" />
+                  </div>
+                )}
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Frequency Level Progress */}
-        <div className="animate-fade-in" style={{ animationDelay: "200ms" }}>
-          {statsLoading ? (
-            <Skeleton className="h-40 w-full rounded-2xl" />
-          ) : stats && stats.frequencyStats && (
-            <div className="word-card">
-              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Hash className="h-5 w-5 text-primary" />
-                Frequency List Progress
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {FREQUENCY_LEVELS.map((freqLevel) => {
-                  const levelStats = stats.frequencyStats[freqLevel.label] || { total: 0, learned: 0 };
-                  const percent = levelStats.total > 0 ? (levelStats.learned / levelStats.total) * 100 : 0;
-                  return (
-                    <div key={freqLevel.label} className="p-4 bg-secondary/50 rounded-xl border border-border">
-                      <div className="text-center">
-                        <span className={`level-badge-${freqLevel.label.toLowerCase()}`}>{freqLevel.label}</span>
-                        <p className="text-2xl font-bold mt-3 text-foreground">{levelStats.learned}</p>
-                        <p className="text-xs text-muted-foreground">of {levelStats.total} ({percent.toFixed(1)}%)</p>
-                        <Progress value={percent} className="h-1.5 mt-2" />
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* B1 Goal Mini-Card */}
+            {b1Goal && (
+              <div className={`rounded-2xl border p-4 shadow-sm relative overflow-hidden ${b1Goal.isOnTrack ? 'bg-green-500/5 border-green-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wide opacity-80">B1 Goal</h3>
+                    <p className="text-lg font-bold">{b1Goal.progressPercent.toFixed(1)}% <span className="text-[10px] font-normal opacity-70">Complete</span></p>
+                  </div>
+                  {b1Goal.isOnTrack ? <CheckCircle className="h-5 w-5 text-green-500" /> : <AlertTriangle className="h-5 w-5 text-amber-500" />}
+                </div>
+                <div className="text-[10px] text-muted-foreground flex justify-between">
+                  <span>Deadline: Apr 1</span>
+                  <span>{b1Goal.remainingB1Words} words left</span>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
 
-        {/* Sidor Level Progress */}
-        <div className="animate-fade-in" style={{ animationDelay: "225ms" }}>
-          {statsLoading ? (
-            <Skeleton className="h-40 w-full rounded-2xl" />
-          ) : stats && stats.sidorStats && (
-            <div className="word-card">
-              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <BookMarked className="h-5 w-5 text-primary" />
-                Sidor List Progress
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {SIDOR_LEVELS.map((sidorLevel) => {
-                  const levelStats = stats.sidorStats[sidorLevel.label] || { total: 0, learned: 0 };
-                  const percent = levelStats.total > 0 ? (levelStats.learned / levelStats.total) * 100 : 0;
-                  return (
-                    <div key={sidorLevel.label} className="p-4 bg-secondary/50 rounded-xl border border-border">
-                      <div className="text-center">
-                        <span className={`level-badge-${sidorLevel.label.toLowerCase()}`}>{sidorLevel.label}</span>
-                        <p className="text-2xl font-bold mt-3 text-foreground">{levelStats.learned}</p>
-                        <p className="text-xs text-muted-foreground">of {levelStats.total} ({percent.toFixed(1)}%)</p>
-                        <Progress value={percent} className="h-1.5 mt-2" />
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Total Progress & Study Later Mini-Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-border bg-card p-3 flex flex-col justify-center items-center text-center shadow-sm">
+                <span className="text-sm font-medium text-foreground">{progressPercent.toFixed(1)}%</span>
+                <span className="text-[10px] text-muted-foreground">Total Learned</span>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-3 flex flex-col justify-center items-center text-center shadow-sm">
+                <span className="text-sm font-medium text-amber-500">{stats?.reserveStats.total || 0}</span>
+                <span className="text-[10px] text-muted-foreground">Study Later</span>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* FT List Progress */}
-        <div className="animate-fade-in" style={{ animationDelay: "235ms" }}>
-          {statsLoading ? (
-            <Skeleton className="h-32 w-full rounded-2xl" />
-          ) : stats && stats.ftStats && (
-            <div className="word-card">
-              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                FT List Progress
-              </h2>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Words mastered in your custom list</span>
-                <span className="text-sm font-bold">{stats.ftStats.learned} / {stats.ftStats.total}</span>
-              </div>
-              <Progress value={stats.ftStats.total > 0 ? (stats.ftStats.learned / stats.ftStats.total) * 100 : 0} className="h-2" />
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Today's Review Section */}

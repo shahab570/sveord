@@ -25,6 +25,7 @@ export interface LocalUserProgress {
     srs_interval?: number;
     srs_ease?: number;
     is_reserve?: number;
+    reserved_at?: string;
 }
 
 export interface SavedQuiz {

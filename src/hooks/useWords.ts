@@ -282,6 +282,7 @@ export function useUserProgress() {
       user_meaning?: string;
       custom_spelling?: string;
       is_reserve?: boolean;
+      reserved_at?: string;
       srs_difficulty?: "easy" | "good" | "hard" | "reset";
     }) => {
       if (!user) throw new Error("Not authenticated");
@@ -393,6 +394,7 @@ export function useUserProgress() {
         word_swedish: swedishWord,
         is_learned: data.is_learned === undefined ? (existing?.is_learned || 0) : (data.is_learned ? 1 : 0),
         is_reserve: data.is_reserve === undefined ? (existing?.is_reserve || 0) : (data.is_reserve ? 1 : 0),
+        reserved_at: data.reserved_at || existing?.reserved_at,
         user_meaning: data.user_meaning ?? existing?.user_meaning,
         custom_spelling: data.custom_spelling ?? existing?.custom_spelling,
         learned_date: newLearnedDate,
@@ -577,9 +579,27 @@ export function useStats() {
     return {
       totalWords,
       learnedWords,
-      kellyStats,
-      frequencyStats,
-      sidorStats,
+      kellyStats: {
+        ...kellyStats,
+        total: Object.values(kellyStats).reduce((acc, curr) => ({
+          total: acc.total + curr.total,
+          learned: acc.learned + curr.learned
+        }), { total: 0, learned: 0 })
+      },
+      frequencyStats: {
+        ...frequencyStats,
+        total: Object.values(frequencyStats).reduce((acc, curr) => ({
+          total: acc.total + curr.total,
+          learned: acc.learned + curr.learned
+        }), { total: 0, learned: 0 })
+      },
+      sidorStats: {
+        ...sidorStats,
+        total: Object.values(sidorStats).reduce((acc, curr) => ({
+          total: acc.total + curr.total,
+          learned: acc.learned + curr.learned
+        }), { total: 0, learned: 0 })
+      },
       ftStats: {
         total: await db.words.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).count(),
         learned: learnedWordDefs.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).length
@@ -606,6 +626,11 @@ export function useDetailedStats() {
     const monthAgo = new Date(today);
     monthAgo.setMonth(monthAgo.getMonth() - 1);
 
+    const allReserved = await db.progress.filter(p => !!p.is_reserve).toArray();
+
+    // Reserve stats
+    const reservedToday = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= localStartOfToday).length;
+
     const allLearned = await db.progress.filter(p => !!p.is_learned).toArray();
 
     const learnedTodayItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= localStartOfToday);
@@ -631,8 +656,8 @@ export function useDetailedStats() {
       }
     }
 
-    // Daily counts for chart
-    const dailyCounts: { date: string; count: number }[] = [];
+    // Daily counts for chart (Learned vs Reserved)
+    const dailyCounts: { date: string; learned: number; reserved: number }[] = [];
     let maxDaily = 0;
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
@@ -640,16 +665,24 @@ export function useDetailedStats() {
       const nextD = new Date(d);
       nextD.setDate(nextD.getDate() + 1);
 
-      const count = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= d && new Date(p.learned_date) < nextD).length;
-      if (count > maxDaily) maxDaily = count;
+      const learnedCount = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= d && new Date(p.learned_date) < nextD).length;
+
+      // For reserved, we use reserved_at. If it's old data without reserved_at, it won't show up here, which is correct (can't guess).
+      const reservedCount = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at) >= d && new Date(p.reserved_at) < nextD).length;
+
+      if (learnedCount > maxDaily) maxDaily = learnedCount;
+      if (reservedCount > maxDaily) maxDaily = reservedCount;
+
       dailyCounts.push({
         date: d.toISOString().split("T")[0],
-        count,
+        learned: learnedCount,
+        reserved: reservedCount
       });
     }
 
     return {
       learnedToday,
+      reservedToday,
       kellyToday,
       frequencyToday,
       sidorToday,
