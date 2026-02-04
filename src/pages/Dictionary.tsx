@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useWords } from "@/hooks/useWords";
 import { determineUnifiedLevel } from "@/utils/levelUtils";
-import { Book, Search, Filter } from "lucide-react";
+import { Book, Search, Filter, CheckCircle, Bookmark } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button"; // Assuming you have this
 import { Badge } from "@/components/ui/badge"; // Assuming you have this
@@ -117,11 +117,18 @@ export default function Dictionary() {
                             {filteredWords.slice(0, 100).map((word) => ( // Pagination limit for performance safeguard
                                 <div
                                     key={word.id}
-                                    className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:shadow-sm transition-all cursor-pointer group"
+                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer group ${word.progress?.is_learned ? 'bg-green-500/5 border-green-500/20' :
+                                            word.progress?.is_reserve ? 'bg-amber-500/5 border-amber-500/20' :
+                                                'bg-card border-border hover:shadow-sm'
+                                        }`}
                                     onClick={() => setSelectedWordKey(word.swedish_word)}
                                 >
                                     <div>
-                                        <div className="font-semibold">{word.swedish_word}</div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold">{word.swedish_word}</span>
+                                            {word.progress?.is_learned && <CheckCircle className="h-3 w-3 text-green-500" />}
+                                            {word.progress?.is_reserve && <Bookmark className="h-3 w-3 text-amber-500 fill-amber-500" />}
+                                        </div>
                                         <div className="text-xs text-muted-foreground line-clamp-1">
                                             {word.word_data?.meanings?.map((m: any) => m.english).join(", ") || "No translation"}
                                         </div>
