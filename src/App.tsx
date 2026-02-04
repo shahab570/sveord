@@ -18,6 +18,7 @@ const Auth = lazyRetry(() => import("./pages/Auth"), "Auth");
 const PendingApproval = lazyRetry(() => import("./pages/PendingApproval"), "PendingApproval");
 const AdminDashboard = lazyRetry(() => import("./pages/AdminDashboard"), "AdminDashboard");
 const Dashboard = lazyRetry(() => import("./pages/Dashboard"), "Dashboard");
+const Dictionary = lazyRetry(() => import("./pages/Dictionary"), "Dictionary");
 const KellyList = lazyRetry(() => import("./pages/KellyList"), "KellyList");
 const FrequencyList = lazyRetry(() => import("./pages/FrequencyList"), "FrequencyList");
 const SidorList = lazyRetry(() => import("./pages/SidorList"), "SidorList");
@@ -63,6 +64,7 @@ const App = () => (
 
                   <Route element={<ProtectedRoute />}>
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/dictionary" element={<Dictionary />} />
                     <Route path="/kelly" element={<KellyList />} />
                     <Route path="/frequency" element={<FrequencyList />} />
                     <Route path="/sidor" element={<SidorList />} />

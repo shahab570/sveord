@@ -12,10 +12,12 @@ import {
   Shield,
   Sparkles,
   Bookmark,
+  Book,
 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+  { href: "/dictionary", label: "Unified Dictionary", icon: Book },
   { href: "/kelly", label: "Kelly List", icon: GraduationCap },
   { href: "/frequency", label: "Frequency List", icon: Hash },
   { href: "/sidor", label: "Sidor List", icon: BookMarked },
