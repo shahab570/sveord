@@ -111,6 +111,27 @@ export default function Dashboard() {
 
               {/* Decor */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl translate-x-10 -translate-y-10" />
+
+              {/* Export Button Absolute */}
+              <button
+                onClick={async () => {
+                  import('@/utils/exportUtils').then(async (mod) => {
+                    try {
+                      const count = await mod.exportUnifiedList();
+                      alert(`Success! Exported ${count} unique words.`);
+                    } catch (e) {
+                      alert("Export failed. See console.");
+                      console.error(e);
+                    }
+                  })
+                }}
+                className="absolute top-4 right-4 z-20 p-2 bg-background/50 hover:bg-background/80 rounded-full border border-border/50 text-muted-foreground transition-all"
+                title="Export Unified List"
+              >
+                <div className="flex items-center gap-1.5 px-1">
+                  <span className="text-[10px] font-medium uppercase tracking-wider">Export List</span>
+                </div>
+              </button>
             </div>
 
             {/* Daily Activity Graph (3 Lines) */}
