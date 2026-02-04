@@ -45,7 +45,7 @@ function FixConflictsBanner() {
     checkConflicts();
   }, []);
 
-  const handleFix = async () => {
+  const handleFix = async (mode: 'learned' | 'reserve') => {
     if (!user) return;
     setFixing(true);
     try {
@@ -59,8 +59,17 @@ function FixConflictsBanner() {
         return;
       }
 
-      // 2. Fix Locally (is_learned = 0, keep is_reserve = 1)
-      const updates = conflicts.map(p => ({ ...p, is_learned: 0 }));
+      // Determine updates based on mode
+      const isLearnedVal = mode === 'learned' ? 1 : 0;
+      const isReserveVal = mode === 'reserve' ? 1 : 0;
+      const isReserveBool = mode === 'reserve';
+
+      // 2. Fix Locally
+      const updates = conflicts.map(p => ({
+        ...p,
+        is_learned: isLearnedVal,
+        is_reserve: isReserveVal
+      }));
       await db.progress.bulkPut(updates);
 
       // 3. Fix Remotely
@@ -68,7 +77,7 @@ function FixConflictsBanner() {
       for (const p of conflicts) {
         const { error } = await supabase
           .from("user_progress")
-          .update({ is_learned: false, is_reserve: true })
+          .update({ is_learned: !!isLearnedVal, is_reserve: isReserveBool })
           .eq("user_id", user.id)
           .eq("word_id", p.word_id);
 
@@ -77,9 +86,11 @@ function FixConflictsBanner() {
 
       // 4. Invalidate queries to refresh UI
       await queryClient.invalidateQueries();
-      window.location.reload();
-      alert(`Fixed ${fixedCount} words! They are now only in 'Study Later'.`);
+
+      const actionText = mode === 'learned' ? "marked as Learned" : "moved to Queue";
+      alert(`Fixed ${fixedCount} words! They are now strictly ${actionText}.`);
       setCount(0);
+      window.location.reload();
     } catch (e) {
       console.error(e);
       alert("Error fixing conflicts. Check console.");
@@ -109,14 +120,24 @@ function FixConflictsBanner() {
           </p>
         </div>
       </div>
-      <button
-        onClick={handleFix}
-        disabled={fixing}
-        className="whitespace-nowrap px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
-      >
-        {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-        Fix All Conflicts
-      </button>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <button
+          onClick={() => handleFix('learned')}
+          disabled={fixing}
+          className="whitespace-nowrap px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
+        >
+          {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+          Mark all Learned
+        </button>
+        <button
+          onClick={() => handleFix('reserve')}
+          disabled={fixing}
+          className="whitespace-nowrap px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
+        >
+          {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bookmark className="h-4 w-4" />}
+          Move all to Queue
+        </button>
+      </div>
     </div>
   );
 }
