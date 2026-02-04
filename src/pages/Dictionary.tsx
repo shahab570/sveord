@@ -23,17 +23,18 @@ export default function Dictionary() {
     const filteredWords = useMemo(() => {
         if (!words) return [];
 
-        let result = words.map(w => ({
-            ...w,
-            unified_level: determineUnifiedLevel(w)
-        }));
+        let result = words
+            .filter(w => !w.is_ft && w.is_ft !== 1 && !(w as any).is_ft) // Explicitly filter out FT words
+            .map(w => ({
+                ...w,
+                unified_level: determineUnifiedLevel(w)
+            }));
 
-        // Filter by Search
+        // Filter by Search (Strict Swedish Only)
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             result = result.filter(w =>
-                w.swedish_word.toLowerCase().includes(term) ||
-                w.word_data?.meanings?.some((m: any) => m.english.toLowerCase().includes(term))
+                w.swedish_word.toLowerCase().startsWith(term) // Strict start-of-word matching
             );
         }
 
@@ -64,25 +65,26 @@ export default function Dictionary() {
 
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
+                    <div className="flex-1">
                         <h1 className="text-2xl font-bold flex items-center gap-2">
                             <Book className="h-6 w-6 text-primary" />
                             Unified Dictionary
                         </h1>
                         <p className="text-muted-foreground text-sm">
-                            All words consolidated into a single list, sorted by difficulty (A1-C2).
+                            Dashboard for all {filteredWords.length} words (A1-C2).
                         </p>
                     </div>
+                </div>
 
-                    <div className="relative w-full md:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search words..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9"
-                        />
-                    </div>
+                {/* Centered Search Bar */}
+                <div className="max-w-md mx-auto w-full relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search swedish words..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-9 text-center"
+                    />
                 </div>
 
                 {/* Level Tabs */}
@@ -118,8 +120,8 @@ export default function Dictionary() {
                                 <div
                                     key={word.id}
                                     className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer group ${word.progress?.is_learned ? 'bg-green-500/5 border-green-500/20' :
-                                            word.progress?.is_reserve ? 'bg-amber-500/5 border-amber-500/20' :
-                                                'bg-card border-border hover:shadow-sm'
+                                        word.progress?.is_reserve ? 'bg-amber-500/5 border-amber-500/20' :
+                                            'bg-card border-border hover:shadow-sm'
                                         }`}
                                     onClick={() => setSelectedWordKey(word.swedish_word)}
                                 >

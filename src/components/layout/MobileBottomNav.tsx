@@ -8,14 +8,14 @@ import {
     BookMarked,
     BrainCircuit,
     Shield,
+    Book,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+    { href: "/dictionary", label: "Dictionary", icon: Book },
     { href: "/practice", label: "SRS", icon: BrainCircuit },
-    { href: "/frequency", label: "Freq", icon: Hash },
-    { href: "/sidor", label: "Sidor", icon: BookMarked },
     { href: "/search", label: "Search", icon: Search },
 ];
 
