@@ -21,17 +21,18 @@ import { useApiKeys } from '@/hooks/useApiKeys';
 interface QuizSessionProps {
     type: QuestionType;
     onExit: () => void;
-    quizId?: number | null; // Optional: load existing quiz
+    quizId?: number | null; // Optional: load existing quiz from DB
+    quizData?: { questions: IQuizQuestion[], explanations?: Record<number, string> } | null; // Optional: direct data
 }
 
-export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: initialQuizId }) => {
+export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: initialQuizId, quizData }) => {
     const { user } = useAuth();
     const words = useWords({ learnedOnly: true });
     const { apiKeys, saveGeminiApiKey } = useApiKeys();
     const wordsLoading = words === undefined;
 
     const [activeQuizId, setActiveQuizId] = useState<number | null>(initialQuizId || null);
-    const [questions, setQuestions] = useState<IQuizQuestion[]>([]);
+    const [questions, setQuestions] = useState<IQuizQuestion[]>(quizData?.questions || []);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [score, setScore] = useState(0);
     const [isFinished, setIsFinished] = useState(false);
@@ -41,7 +42,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
     // Persisted session answers and explanations
     const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
     const [multiDialogueAnswers, setMultiDialogueAnswers] = useState<Record<number, Record<number, string>>>({});
-    const [explanations, setExplanations] = useState<Record<number, string>>({});
+    const [explanations, setExplanations] = useState<Record<number, string>>(quizData?.explanations || {});
     const [revealedDialogueIndex, setRevealedDialogueIndex] = useState<number | null>(null);
     const [isExplaining, setIsExplaining] = useState(false);
 
@@ -61,7 +62,7 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
         if (selectedWordKey && matchedWord === null && !isCapturingWord) {
             console.log(`Word "${selectedWordKey}" not found in local DB, capturing...`);
             captureWord(selectedWordKey).then(result => {
-                if (result) setCapturedWord(result);
+                if (result.status === 'success') setCapturedWord(result.word);
             });
         }
     }, [selectedWordKey, matchedWord, isCapturingWord, captureWord]);
@@ -71,6 +72,12 @@ export const QuizSession: React.FC<QuizSessionProps> = ({ type, onExit, quizId: 
 
     useEffect(() => {
         const loadQuiz = async () => {
+            if (quizData) {
+                setQuestions(sanitizeQuestions(quizData.questions));
+                if (quizData.explanations) setExplanations(quizData.explanations);
+                return;
+            }
+
             if (activeQuizId) {
                 const savedQuiz = await db.quizzes.get(activeQuizId);
                 if (savedQuiz) {

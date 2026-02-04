@@ -222,6 +222,39 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_quizzes: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          questions: Json
+          explanations: Json | null
+          is_practiced: boolean | null
+          created_at: string
+          practiced_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          questions: Json
+          explanations?: Json | null
+          is_practiced?: boolean | null
+          created_at?: string
+          practiced_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          questions?: Json
+          explanations?: Json | null
+          is_practiced?: boolean | null
+          created_at?: string
+          practiced_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

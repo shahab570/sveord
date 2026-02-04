@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Flashcard } from "@/components/practice/Flashcard";
 import { useWords, useUserProgress, WordWithProgress } from "@/hooks/useWords";
@@ -13,6 +13,8 @@ import { generateQuiz, QuestionType, generateAIQuiz, MAX_QUIZ_TARGET_LIMIT } fro
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { cn } from "@/lib/utils";
 
+import { supabase } from "@/integrations/supabase/client";
+
 export default function Practice() {
     const [mode, setMode] = useState<'menu' | 'srs' | 'quiz' | 'pattern'>('menu');
     // Pattern & Quiz State
@@ -20,7 +22,22 @@ export default function Practice() {
     const [activePattern, setActivePattern] = useState<any | null>(null);
     const [quizType, setQuizType] = useState<QuestionType | null>(null);
     const [activeQuizId, setActiveQuizId] = useState<number | null>(null);
+    const [activeQuizData, setActiveQuizData] = useState<any | null>(null);
     const [generatingType, setGeneratingType] = useState<QuestionType | null>(null);
+
+    // Cloud Quizzes
+    const [cloudQuizzes, setCloudQuizzes] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchCloud = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { data } = await supabase.from('saved_quizzes').select('*').order('created_at', { ascending: false });
+                if (data) setCloudQuizzes(data);
+            }
+        };
+        fetchCloud();
+    }, []);
 
     // SRS State
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -81,9 +98,9 @@ export default function Practice() {
         return { usable, mastered, total: words.length };
     }, [words]);
 
-    // Practiced quizzes for archive
-    const practicedQuizzes = useLiveQuery(() =>
-        db.quizzes.where('isPracticed').equals(1).reverse().sortBy('practicedAt')
+    // Saved Quizzes for archive
+    const savedQuizzes = useLiveQuery(() =>
+        db.quizzes.orderBy('createdAt').reverse().toArray()
     );
 
     const sessionWords = useMemo(() => {
@@ -159,9 +176,45 @@ export default function Practice() {
 
     const playSavedQuiz = (id: number, type: string) => {
         setActiveQuizId(id);
+        setActiveQuizData(null);
         setQuizType(type as QuestionType);
         setMode('quiz');
     };
+
+    const playCloudQuiz = (quiz: any) => {
+        setActiveQuizData({ questions: quiz.questions, explanations: quiz.explanations });
+        setActiveQuizId(null);
+        setQuizType(quiz.type as QuestionType);
+        setMode('quiz');
+    };
+
+    const sections = useMemo(() => {
+        const local = (savedQuizzes || []).map(q => ({ ...q, source: 'local', date: new Date(q.createdAt) }));
+        const cloud = cloudQuizzes.map(q => ({ ...q, source: 'cloud', date: new Date(q.created_at) }));
+
+        // Simple deduplication attempt based on creation time (within 5 seconds) and type
+        // This prevents showing the same quiz twice if it was just saved to both
+        const all = [...local];
+        cloud.forEach(c => {
+            const duplicate = local.find(l =>
+                l.type === c.type &&
+                Math.abs(l.date.getTime() - c.date.getTime()) < 5000
+            );
+            if (!duplicate) {
+                all.push(c);
+            }
+        });
+
+        all.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        const groups: Record<string, any[]> = {};
+        all.forEach(q => {
+            const key = q.date.toLocaleString('default', { month: 'long', year: 'numeric' });
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(q);
+        });
+        return groups;
+    }, [savedQuizzes, cloudQuizzes]);
 
     const openSavedPattern = (pattern: any) => {
         setActivePattern(pattern.content);
@@ -480,7 +533,7 @@ export default function Practice() {
                                     <History className="h-6 w-6 text-muted-foreground" />
                                     <h2 className="text-2xl font-bold text-foreground tracking-tight">Review Archive</h2>
                                     <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
-                                        {(practicedQuizzes?.length || 0) + (savedPatterns?.length || 0)} Items
+                                        {(savedQuizzes?.length || 0) + (savedPatterns?.length || 0)} Items
                                     </span>
                                 </div>
                                 <Button
@@ -500,97 +553,118 @@ export default function Practice() {
                                 </Button>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Saved Patterns */}
-                                {savedPatterns?.map((p) => (
-                                    <div
-                                        key={`pat-${p.id}`}
-                                        className="group relative bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 hover:border-amber-500/30 rounded-2xl p-5 transition-all cursor-pointer flex items-center justify-between"
-                                        onClick={() => openSavedPattern(p)}
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="bg-amber-100 text-amber-600 p-2 rounded-lg">
-                                                <Puzzle className="h-5 w-5" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold text-foreground">{p.title}</h3>
-                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
-                                                    <BrainCircuit className="h-3 w-3" />
-                                                    Pattern: {p.pattern}
+                            <div className="space-y-8">
+                                {Object.entries(sections).map(([month, quizzes]) => (
+                                    <div key={month} className="space-y-4">
+                                        <h3 className="text-lg font-semibold text-muted-foreground border-b border-border pb-2 sticky top-0 bg-background/95 backdrop-blur z-10">
+                                            {month}
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {quizzes.map((q) => (
+                                                <div
+                                                    key={`${q.source}-${q.id}`}
+                                                    className="group relative bg-card/40 border border-border hover:border-primary/30 rounded-2xl p-5 transition-all cursor-pointer flex items-center justify-between"
+                                                    onClick={() => q.source === 'cloud' ? playCloudQuiz(q) : playSavedQuiz(q.id!, q.type)}
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={cn(
+                                                            "p-2 rounded-lg",
+                                                            q.type === 'meaning' ? "bg-emerald-100 text-emerald-600" :
+                                                                q.type === 'synonym' ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"
+                                                        )}>
+                                                            {q.type === 'meaning' ? <BookOpen className="h-5 w-5" /> :
+                                                                q.type === 'synonym' ? <Repeat2 className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-bold text-foreground capitalize flex items-center gap-2">
+                                                                {q.type} Quiz
+                                                                {!q.isPracticed && !q.is_practiced && <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">PENDING</span>}
+                                                                {q.source === 'cloud' && <span className="text-[10px] bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded-full">CLOUD</span>}
+                                                            </h3>
+                                                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                                                                <Clock className="h-3 w-3" />
+                                                                {q.date.toLocaleDateString()}
+                                                                <div className="h-2 w-[1px] bg-border mx-1" />
+                                                                <BrainCircuit className="h-3 w-3" />
+                                                                {q.questions?.length || 0} Questions
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {q.source === 'local' && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (confirm("Delete this quiz permanently?")) {
+                                                                        db.quizzes.delete(q.id!);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
+                                                        <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            {(q.isPracticed || q.is_practiced) ? "Replay" : "Resume"}
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (confirm("Delete this pattern?")) {
-                                                        db.patterns.delete(p.id!);
-                                                    }
-                                                }}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-100 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                Review
-                                            </Button>
+                                            ))}
                                         </div>
                                     </div>
                                 ))}
 
-                                {/* Practiced Quizzes */}
-                                {practicedQuizzes?.slice(0, 10).map((q) => (
-                                    <div
-                                        key={`quiz-${q.id}`}
-                                        className="group relative bg-card/40 border border-border hover:border-primary/30 rounded-2xl p-5 transition-all cursor-pointer flex items-center justify-between"
-                                        onClick={() => playSavedQuiz(q.id!, q.type)}
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className={cn(
-                                                "p-2 rounded-lg",
-                                                q.type === 'meaning' ? "bg-emerald-100 text-emerald-600" :
-                                                    q.type === 'synonym' ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"
-                                            )}>
-                                                {q.type === 'meaning' ? <BookOpen className="h-5 w-5" /> :
-                                                    q.type === 'synonym' ? <Repeat2 className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold text-foreground capitalize">{q.type} Quiz</h3>
-                                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
-                                                    <Clock className="h-3 w-3" />
-                                                    {q.practicedAt ? new Date(q.practicedAt).toLocaleDateString() : 'Unknown'}
-                                                    <div className="h-2 w-[1px] bg-border mx-1" />
-                                                    <BrainCircuit className="h-3 w-3" />
-                                                    {q.questions?.length || 0} Questions
+                                {/* Saved Patterns (kept separate for now as they are different entities) */}
+                                {savedPatterns && savedPatterns.length > 0 && (
+                                    <div className="space-y-4 pt-8">
+                                        <h3 className="text-lg font-semibold text-muted-foreground border-b border-border pb-2">Saved Patterns</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {savedPatterns.map((p) => (
+                                                <div
+                                                    key={`pat-${p.id}`}
+                                                    className="group relative bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 hover:border-amber-500/30 rounded-2xl p-5 transition-all cursor-pointer flex items-center justify-between"
+                                                    onClick={() => openSavedPattern(p)}
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="bg-amber-100 text-amber-600 p-2 rounded-lg">
+                                                            <Puzzle className="h-5 w-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-bold text-foreground">{p.title}</h3>
+                                                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+                                                                <BrainCircuit className="h-3 w-3" />
+                                                                Pattern: {p.pattern}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm("Delete this pattern?")) {
+                                                                    db.patterns.delete(p.id!);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-100 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            Review
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (confirm("Delete this quiz permanently?")) {
-                                                        db.quizzes.delete(q.id!);
-                                                    }
-                                                }}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                            <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                Replay
-                                            </Button>
+                                            ))}
                                         </div>
                                     </div>
-                                ))}
+                                )}
                             </div>
 
-                            {(!practicedQuizzes?.length && !savedPatterns?.length) && (
+                            {(!savedQuizzes?.length && !savedPatterns?.length) && (
                                 <div className="text-center py-12 border-2 border-dashed border-border rounded-3xl">
                                     <Clock className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
                                     <p className="text-muted-foreground font-medium">No activity history yet.</p>
@@ -636,13 +710,15 @@ export default function Practice() {
                 )}
 
                 {/* Quiz Mode */}
-                {mode === 'quiz' && quizType && activeQuizId && (
+                {mode === 'quiz' && quizType && (
                     <QuizSession
                         type={quizType}
                         quizId={activeQuizId}
+                        quizData={activeQuizData}
                         onExit={() => {
                             setMode('menu');
                             setActiveQuizId(null);
+                            setActiveQuizData(null);
                         }}
                     />
                 )}

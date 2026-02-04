@@ -1,6 +1,7 @@
 import { WordData } from '../types/word';
 import { db } from '../services/db';
 import { generateAIQuizData } from '../services/geminiApi';
+import { supabase } from '@/integrations/supabase/client';
 
 export type QuestionType = 'synonym' | 'antonym' | 'meaning' | 'context' | 'dialogue' | 'translation' | 'recall' | 'similarity';
 
@@ -287,6 +288,9 @@ export const generateQuiz = async (
     createdAt: new Date().toISOString(),
   });
 
+  // Background save to Cloud
+  saveQuizToCloud(quizId, type, questions).catch(err => console.error("Cloud save failed:", err));
+
   return quizId;
 };
 
@@ -446,5 +450,26 @@ export const generateAIQuiz = async (
     createdAt: new Date().toISOString(),
   });
 
+  // Background save to Cloud (Fire & Forget)
+  saveQuizToCloud(quizId, type, questions).catch(err => console.error("Cloud save failed:", err));
+
   return quizId;
+};
+
+// Helper to sync quiz to Supabase
+const saveQuizToCloud = async (localId: number, type: string, questions: QuizQuestion[]) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase.from('saved_quizzes').insert({
+      user_id: user.id,
+      type,
+      questions: questions as any, // Cast JSON for compatibility
+      is_practiced: false,
+      created_at: new Date().toISOString()
+    });
+  } catch (e) {
+    console.error("Failed to backup quiz to cloud:", e);
+  }
 };
