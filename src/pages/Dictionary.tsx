@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { WordCard } from "@/components/study/WordCard";
 
-const CEFR_TABS = ["All", "A1", "A2", "B1", "B2", "C1", "C2", "Unknown"];
+const CEFR_TABS = ["All", "Queue", "A1", "A2", "B1", "B2", "C1", "C2", "Unknown"];
 
 export default function Dictionary() {
     const words = useWords();
@@ -22,6 +22,9 @@ export default function Dictionary() {
     // Filter and Sort Words
     const filteredWords = useMemo(() => {
         if (!words) return [];
+
+        // STRICT REQUIREMENT: Show only when searched, UNLESS we are viewing the Queue
+        if (!searchTerm.trim() && activeTab !== "Queue") return [];
 
         let result = words
             .filter(w => !w.is_ft && w.is_ft !== 1 && !(w as any).is_ft) // Explicitly filter out FT words
@@ -39,7 +42,9 @@ export default function Dictionary() {
         }
 
         // Filter by Level Tab
-        if (activeTab !== "All") {
+        if (activeTab === "Queue") {
+            result = result.filter(w => w.progress?.is_reserve);
+        } else if (activeTab !== "All") {
             result = result.filter(w => w.unified_level === activeTab);
         }
 
@@ -71,7 +76,7 @@ export default function Dictionary() {
                             Unified Dictionary
                         </h1>
                         <p className="text-muted-foreground text-sm">
-                            Dashboard for all {filteredWords.length} words (A1-C2).
+                            Dashboard for all words (A1-C2). Search to view details.
                         </p>
                     </div>
                 </div>
@@ -84,6 +89,7 @@ export default function Dictionary() {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-12 h-14 text-lg text-center shadow-sm rounded-2xl border-2 focus-visible:ring-primary/20"
+                        autoFocus
                     />
                 </div>
 
@@ -107,6 +113,22 @@ export default function Dictionary() {
                 {isLoading ? (
                     <div className="space-y-4">
                         {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+                    </div>
+                ) : (!searchTerm.trim() && activeTab !== "Queue") ? (
+                    <div className="text-center py-20 text-muted-foreground animate-in fade-in zoom-in-95 duration-300">
+                        <div className="bg-secondary/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Search className="h-10 w-10 opacity-40" />
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2">Ready to search</h3>
+                        <p className="max-w-xs mx-auto text-sm opacity-80">
+                            Type a word above to search across the entire dictionary.
+                        </p>
+                    </div>
+                ) : filteredWords.length === 0 ? (
+                    <div className="text-center py-20 text-muted-foreground">
+                        <p className="text-lg">
+                            {activeTab === "Queue" ? "Your study queue is empty!" : `No words found for "${searchTerm}"`}
+                        </p>
                     </div>
                 ) : (
                     <div className="space-y-6">
@@ -145,9 +167,9 @@ export default function Dictionary() {
                                 </div>
                             ))}
                         </div>
-                        {filteredWords.length > 100 && (
+                        {filteredWords.length > 50 && (
                             <div className="text-center p-4 text-sm text-muted-foreground">
-                                And {filteredWords.length - 100} more... (Use search to find specific words)
+                                And {filteredWords.length - 50} more...
                             </div>
                         )}
                     </div>
