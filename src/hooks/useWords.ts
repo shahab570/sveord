@@ -596,8 +596,8 @@ export function useStats() {
         learned: new Set((await db.progress.filter(p => !!p.is_reserve && !!p.is_learned).toArray()).map(p => p.word_id)).size
       },
       encounteredStats: {
-        total: totalWords + new Set((await db.progress.filter(p => !!p.is_reserve).toArray()).map(p => p.word_id)).size,
-        learned: learnedWords + new Set((await db.progress.filter(p => !!p.is_reserve).toArray()).map(p => p.word_id)).size
+        total: totalWords,
+        learned: new Set([...learnedWordIds, ...(await db.progress.filter(p => !!p.is_reserve).toArray()).map(p => p.word_id)]).size
       }
     };
   }, [user?.id]);
@@ -678,11 +678,17 @@ export function useDetailedStats() {
       const reservedProgress = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= dTime && new Date(p.reserved_at).getTime() < nextDTime);
       const reservedCount = new Set(reservedProgress.map(p => p.word_id)).size;
 
+      // Calculate encountered as unique union of learned and reserved for this day
+      const encounteredSet = new Set([
+        ...allLearnedToday.map(p => p.word_id),
+        ...reservedProgress.map(p => p.word_id)
+      ]);
+
       dailyCounts.push({
         date: d.toISOString().split("T")[0],
         kelly: kellyCount,
         reserved: reservedCount,
-        encountered: allLearnedTodayCount + reservedCount
+        encountered: encounteredSet.size
       });
     }
 
