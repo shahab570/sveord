@@ -250,6 +250,20 @@ export function WordCard({
     }
   };
 
+  // Optimistic UI state
+  const [optimisticLearned, setOptimisticLearned] = useState<boolean | null>(null);
+  const [optimisticReserve, setOptimisticReserve] = useState<boolean | null>(null);
+
+  // Derived state: Use optimistic if set, otherwise prop
+  const isLearned = optimisticLearned !== null ? optimisticLearned : !!word.progress?.is_learned;
+  const isReserved = optimisticReserve !== null ? optimisticReserve : !!word.progress?.is_reserve;
+
+  // Reset optimistic state when prop updates to match (or just on effect)
+  useEffect(() => {
+    setOptimisticLearned(null);
+    setOptimisticReserve(null);
+  }, [word.progress?.is_learned, word.progress?.is_reserve]);
+
   const handleSaveMeaning = async () => {
     try {
       await upsertProgress.mutateAsync({
@@ -280,7 +294,11 @@ export function WordCard({
 
   const handleToggleLearned = async () => {
     try {
-      const newStatus = !word.progress?.is_learned;
+      const newStatus = !isLearned;
+
+      // Optimistic update
+      setOptimisticLearned(newStatus);
+      if (newStatus) setOptimisticReserve(false); // Mutual exclusion
 
       const payload: any = {
         word_id: word.id,
@@ -289,7 +307,6 @@ export function WordCard({
       };
 
       // ENFORCE MUTUAL EXCLUSIVITY
-      // If marking as learned, remove from reserve
       if (newStatus) {
         payload.is_reserve = 0;
         payload.reserved_at = undefined;
@@ -298,13 +315,20 @@ export function WordCard({
       await upsertProgress.mutateAsync(payload);
       toast.success(newStatus ? "Marked as learned!" : "Marked as unlearned");
     } catch (error) {
+      // Revert on error
+      setOptimisticLearned(null);
+      setOptimisticReserve(null);
       toast.error("Failed to update learned status");
     }
   };
 
   const handleToggleReserve = async () => {
     try {
-      const newStatus = !word.progress?.is_reserve;
+      const newStatus = !isReserved;
+
+      // Optimistic update
+      setOptimisticReserve(newStatus);
+      if (newStatus) setOptimisticLearned(false); // Mutual exclusion
 
       const payload: any = {
         word_id: word.id,
@@ -314,7 +338,6 @@ export function WordCard({
       };
 
       // ENFORCE MUTUAL EXCLUSIVITY
-      // If marking as reserve (Study Later), remove from learned
       if (newStatus) {
         payload.is_learned = 0;
       }
@@ -322,6 +345,9 @@ export function WordCard({
       await upsertProgress.mutateAsync(payload);
       toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
     } catch (error) {
+      // Revert
+      setOptimisticLearned(null);
+      setOptimisticReserve(null);
       toast.error("Failed to update Study Later status");
     }
   };
@@ -373,18 +399,19 @@ export function WordCard({
               {listType} List #{word.frequency_rank || word.id}
             </span>
             <div className="flex gap-2">
+              {/* Header Actions */}
               <button
                 onClick={handleToggleLearned}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all border shadow-sm",
-                  word.progress?.is_learned
-                    ? "bg-success text-white border-success"
-                    : "bg-secondary text-muted-foreground border-border/50 hover:border-primary/30"
+                  isLearned
+                    ? "bg-green-600 text-white border-green-600 shadow-md transform scale-105"
+                    : "bg-secondary text-muted-foreground border-border/50 hover:border-green-500/50 hover:text-green-600 hover:bg-green-50"
                 )}
               >
-                <CheckCircle2 className={cn("h-3.5 w-3.5", word.progress?.is_learned ? "text-white" : "text-muted-foreground/50")} />
+                <CheckCircle2 className={cn("h-3.5 w-3.5", isLearned ? "text-white" : "text-current")} />
                 <span className="text-[10px] font-black uppercase tracking-tight">
-                  {word.progress?.is_learned ? "Learned" : "Mark Learned"}
+                  {isLearned ? "Learned" : "Mark Learned"}
                 </span>
               </button>
 
@@ -392,19 +419,19 @@ export function WordCard({
                 onClick={handleToggleReserve}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1 rounded-full transition-all border shadow-sm",
-                  word.progress?.is_reserve
-                    ? "bg-amber-500 text-white border-amber-500"
-                    : "bg-secondary text-muted-foreground border-border/50 hover:border-primary/30"
+                  isReserved
+                    ? "bg-amber-500 text-white border-amber-500 shadow-md transform scale-105"
+                    : "bg-secondary text-muted-foreground border-border/50 hover:border-amber-500/50 hover:text-amber-600 hover:bg-amber-50"
                 )}
-                title={word.progress?.is_reserve ? "Remove from Study Later" : "Save for Study Later"}
+                title={isReserved ? "Remove from Study Later" : "Save for Study Later"}
               >
-                {word.progress?.is_reserve ? (
+                {isReserved ? (
                   <Bookmark className="h-3.5 w-3.5 fill-current text-white" />
                 ) : (
                   <BookmarkPlus className="h-3.5 w-3.5" />
                 )}
                 <span className="text-[10px] font-black uppercase tracking-tight">
-                  {word.progress?.is_reserve ? "Reserved" : "Study Later"}
+                  {isReserved ? "Reserved" : "Study Later"}
                 </span>
               </button>
               {(word.practice_count ?? 0) > 0 && (
