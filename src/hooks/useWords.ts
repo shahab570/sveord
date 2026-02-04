@@ -374,8 +374,15 @@ export function useUserProgress() {
         newLearnedDate = new Date().toISOString();
       }
 
-      const isLearnedVal = data.is_learned !== undefined ? (data.is_learned ? 1 : 0) : existing?.is_learned;
-      const isReserveVal = data.is_reserve !== undefined ? (data.is_reserve ? 1 : 0) : existing?.is_reserve;
+      let isLearnedVal = data.is_learned !== undefined ? (data.is_learned ? 1 : 0) : existing?.is_learned;
+      let isReserveVal = data.is_reserve !== undefined ? (data.is_reserve ? 1 : 0) : existing?.is_reserve;
+
+      // Enforce mutual exclusivity
+      if (data.is_learned === true) {
+        isReserveVal = 0; // If learning, un-reserve
+      } else if (data.is_reserve === true) {
+        isLearnedVal = 0; // If reserving, un-learn
+      }
 
       const progressUpdate: LocalUserProgress = {
         ...existing,
