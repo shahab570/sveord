@@ -281,11 +281,21 @@ export function WordCard({
   const handleToggleLearned = async () => {
     try {
       const newStatus = !word.progress?.is_learned;
-      await upsertProgress.mutateAsync({
+
+      const payload: any = {
         word_id: word.id,
         swedish_word: word.swedish_word,
         is_learned: newStatus ? 1 : 0,
-      });
+      };
+
+      // ENFORCE MUTUAL EXCLUSIVITY
+      // If marking as learned, remove from reserve
+      if (newStatus) {
+        payload.is_reserve = 0;
+        payload.reserved_at = undefined;
+      }
+
+      await upsertProgress.mutateAsync(payload);
       toast.success(newStatus ? "Marked as learned!" : "Marked as unlearned");
     } catch (error) {
       toast.error("Failed to update learned status");
@@ -295,12 +305,21 @@ export function WordCard({
   const handleToggleReserve = async () => {
     try {
       const newStatus = !word.progress?.is_reserve;
-      await upsertProgress.mutateAsync({
+
+      const payload: any = {
         word_id: word.id,
         swedish_word: word.swedish_word,
         is_reserve: newStatus ? 1 : 0,
         reserved_at: newStatus ? new Date().toISOString() : undefined
-      });
+      };
+
+      // ENFORCE MUTUAL EXCLUSIVITY
+      // If marking as reserve (Study Later), remove from learned
+      if (newStatus) {
+        payload.is_learned = 0;
+      }
+
+      await upsertProgress.mutateAsync(payload);
       toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
     } catch (error) {
       toast.error("Failed to update Study Later status");
