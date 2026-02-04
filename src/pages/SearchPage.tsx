@@ -265,6 +265,7 @@ export default function SearchPage() {
                               compact
                               hideActions
                               className="bg-background/80 hover:bg-background transition-colors text-sm"
+                              onClick={() => setSelectedWord(word)}
                             />
                           </div>
                         )}
@@ -295,6 +296,7 @@ export default function SearchPage() {
                               compact
                               hideActions
                               className="bg-background/80 hover:bg-background transition-colors text-sm"
+                              onClick={() => setSelectedWord(word)}
                             />
                           </div>
                         )}
@@ -325,6 +327,7 @@ export default function SearchPage() {
                               compact
                               hideActions
                               className="bg-background/80 hover:bg-background transition-colors text-sm"
+                              onClick={() => setSelectedWord(word)}
                             />
                           </div>
                         )}
@@ -356,6 +359,7 @@ export default function SearchPage() {
                                 compact
                                 hideActions
                                 className="bg-background/80 hover:bg-background transition-colors text-sm"
+                                onClick={() => setSelectedWord(word)}
                               />
                             </div>
                           )}

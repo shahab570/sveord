@@ -68,6 +68,7 @@ interface WordCardProps {
   compact?: boolean;
   hideActions?: boolean;
   className?: string; // Allow custom styling injection
+  onClick?: () => void;
 }
 
 export function WordCard({
@@ -87,6 +88,7 @@ export function WordCard({
   compact = false,
   hideActions = false,
   className,
+  onClick,
 }: WordCardProps) {
   const { upsertProgress, refreshWordData } = useUserProgress();
   const deleteWordMutation = useDeleteWord();
@@ -117,7 +119,7 @@ export function WordCard({
         await upsertProgress.mutateAsync({
           word_id: word.id,
           swedish_word: word.swedish_word,
-          is_reserve: newStatus,
+          is_reserve: newStatus ? 1 : 0,
           reserved_at: newStatus ? new Date().toISOString() : undefined
         });
         toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
@@ -128,7 +130,7 @@ export function WordCard({
 
     return (
       <div
-        onClick={() => setShowExplanationInput(!showExplanationInput)} // Simple toggle or expand. utilizing existing state for now but maybe just static?
+        onClick={onClick}
         className={cn(
           "group relative flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer hover:shadow-sm h-full",
           isLearned ? "bg-green-500/5 border-green-500/20" : isReserve ? "bg-amber-500/5 border-amber-500/20" : "bg-card border-border",
@@ -145,11 +147,28 @@ export function WordCard({
             <p className="text-xs text-muted-foreground truncate" title={word.word_data?.meanings?.[0]?.english}>{word.word_data?.meanings?.[0]?.english}</p>
           </div>
         </div>
-        {!hideActions && (
-          <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => { e.stopPropagation(); handleToggleReserve(); }}>
-            <Bookmark className={cn("h-3 w-3", isReserve && "fill-amber-500 text-amber-500")} />
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {word.kelly_level && (
+            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded uppercase", `level-badge-${word.kelly_level.toLowerCase()}`)}>
+              {word.kelly_level}
+            </span>
+          )}
+          {word.frequency_rank && (
+            <span className="text-[10px] font-bold bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded">
+              #{word.frequency_rank}
+            </span>
+          )}
+          {word.sidor_rank && (
+            <span className="text-[10px] font-bold bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded">
+              S#{word.sidor_rank}
+            </span>
+          )}
+          {!hideActions && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); handleToggleReserve(); }}>
+              <Bookmark className={cn("h-3 w-3", isReserve && "fill-amber-500 text-amber-500")} />
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -248,7 +267,7 @@ export function WordCard({
       await upsertProgress.mutateAsync({
         word_id: word.id,
         swedish_word: word.swedish_word,
-        is_learned: newStatus,
+        is_learned: newStatus ? 1 : 0,
       });
       toast.success(newStatus ? "Marked as learned!" : "Marked as unlearned");
     } catch (error) {
@@ -262,7 +281,7 @@ export function WordCard({
       await upsertProgress.mutateAsync({
         word_id: word.id,
         swedish_word: word.swedish_word,
-        is_reserve: newStatus,
+        is_reserve: newStatus ? 1 : 0,
         reserved_at: newStatus ? new Date().toISOString() : undefined
       });
       toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");

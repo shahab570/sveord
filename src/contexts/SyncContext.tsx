@@ -50,30 +50,30 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
                     // Optimization: Bulk fetch local progress to preserve local-only fields (SRS, Reserve)
                     // since Supabase might not have these columns or they might be missing
-                    const swedishWords = progress.map((p: any) => {
+                    const wordIds = progress.map((p: any) => {
                         const wd = Array.isArray(p.words) ? p.words[0] : p.words;
-                        return wd?.swedish_word;
+                        return wd?.id;
                     }).filter(Boolean);
 
-                    const localProgressList = await db.progress.where('word_swedish').anyOf(swedishWords).toArray();
-                    const localProgressMap = new Map(localProgressList.map(item => [item.word_swedish, item]));
+                    const localProgressList = await db.progress.where('word_id').anyOf(wordIds).toArray();
+                    const localProgressMap = new Map(localProgressList.map(item => [item.word_id, item]));
 
                     for (const row of progress) {
                         const p = row as any;
                         const wordData = Array.isArray(p.words) ? p.words[0] : p.words;
                         if (!wordData) continue;
 
-                        const existingProgress = localProgressMap.get(wordData.swedish_word);
+                        const existingProgress = localProgressMap.get(wordData.id);
 
                         progressRecords.push({
+                            user_id: user.id,
+                            word_id: wordData.id,
                             word_swedish: wordData.swedish_word,
                             is_learned: p.is_learned ? 1 : 0,
                             user_meaning: p.user_meaning || undefined,
                             custom_spelling: p.custom_spelling || undefined,
                             learned_date: p.learned_date || undefined,
                             last_synced_at: new Date().toISOString(),
-                            // Robust Sync: Prefer remote value if it exists, otherwise preserve local value
-                            // This prevents wiping local state for fields not yet in Supabase (like is_reserve or SRS)
                             is_reserve: p.is_reserve !== undefined ? (p.is_reserve ? 1 : 0) : (existingProgress?.is_reserve || 0),
                             srs_next_review: p.srs_next_review || existingProgress?.srs_next_review,
                             srs_interval: p.srs_interval || existingProgress?.srs_interval,
@@ -81,7 +81,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                         });
 
                         // Ensure we have this word in our local database too!
-                        const existing = await db.words.get(wordData.swedish_word);
+                        const existing = await db.words.get(wordData.id);
                         wordUpdates.push({
                             id: wordData.id,
                             swedish_word: wordData.swedish_word,
@@ -91,7 +91,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                             sidor_rank: wordData.sidor_rank || undefined,
                             word_data: wordData.word_data as any,
                             last_synced_at: new Date().toISOString(),
-                            is_ft: (wordData.word_data as any)?.is_ft ? 1 : existing?.is_ft // Restore from JSON or preserve local
+                            is_ft: (wordData.word_data as any)?.is_ft ? 1 : existing?.is_ft
                         });
                     }
 
@@ -149,9 +149,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                     allWords = [...allWords, ...words];
                     // Bulk put current batch immediately to save memory and show progress if needed
                     const wordUpdates = await Promise.all(words.map(async w => {
-                        const existing = await db.words.get(w.swedish_word);
+                        const existing = await db.words.get(w.id);
                         return {
-                            id: w.id, // CRITICAL FIX: Save the Supabase ID locally
+                            id: w.id,
                             swedish_word: w.swedish_word,
                             kelly_level: w.kelly_level || undefined,
                             kelly_source_id: w.kelly_source_id || undefined,
@@ -159,7 +159,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                             sidor_rank: w.sidor_rank || undefined,
                             word_data: w.word_data as any,
                             last_synced_at: new Date().toISOString(),
-                            is_ft: (w.word_data as any)?.is_ft ? 1 : existing?.is_ft // Restore from JSON or preserve local
+                            is_ft: (w.word_data as any)?.is_ft ? 1 : existing?.is_ft
                         };
                     }));
                     await db.words.bulkPut(wordUpdates);

@@ -149,16 +149,17 @@ export function useWords(filters?: {
     // Create a Set of swedish words to query progress for (optimization)
     const swedishWords = words.map(w => w.swedish_word);
 
-    // Bulk fetch progress for these words
-    const progressList = await db.progress.where('word_swedish').anyOf(swedishWords).toArray();
-    const progressMap = new Map(progressList.map(p => [p.word_swedish, p]));
+    // Bulk fetch progress for these words (Optimized: Use word IDs)
+    const wordIds = words.map(w => w.id).filter((id): id is number => id !== undefined);
+    const progressList = await db.progress.where('word_id').anyOf(wordIds).toArray();
+    const progressMap = new Map(progressList.map(p => [p.word_id, p]));
 
-    // Bulk fetch practice counts (wordUsage)
+    // Bulk fetch practice counts (wordUsage) - Still by spelling is fine for usage
     const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
     const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
 
     for (const w of words) {
-      const progress = progressMap.get(w.swedish_word);
+      const progress = progressMap.get(w.id);
       const usage = usageMap.get(w.swedish_word);
 
       if (filters?.learnedOnly && !progress?.is_learned) continue;
@@ -216,7 +217,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") 
         // We filter the pre-fetched progress items
         let learned = 0;
         for (const p of learnedProgress) {
-          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
+          const w = await db.words.get(p.word_id);
           if (w && w.kelly_level === level) {
             learned++;
           }
@@ -230,7 +231,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") 
 
         let learned = 0;
         for (const p of learnedProgress) {
-          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
+          const w = await db.words.get(p.word_id);
           if (w && w.frequency_rank && w.frequency_rank >= freqLevel.range[0] && w.frequency_rank <= freqLevel.range[1]) {
             learned++;
           }
@@ -245,7 +246,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") 
 
         let learned = 0;
         for (const p of learnedProgress) {
-          const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
+          const w = await db.words.get(p.word_id);
           if (w && w.sidor_rank && w.sidor_rank >= sidorLevel.range[0] && w.sidor_rank <= sidorLevel.range[1]) {
             learned++;
           }
@@ -258,7 +259,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") 
       const total = await db.words.where('is_ft').equals(1).count();
       let learned = 0;
       for (const p of learnedProgress) {
-        const w = await db.words.where('swedish_word').equals(p.word_swedish).first();
+        const w = await db.words.get(p.word_id);
         if (w && w.is_ft) {
           learned++;
         }
@@ -278,10 +279,10 @@ export function useUserProgress() {
     mutationFn: async (data: {
       word_id: number;
       swedish_word?: string;
-      is_learned?: boolean;
+      is_learned?: boolean | number;
       user_meaning?: string;
       custom_spelling?: string;
-      is_reserve?: boolean;
+      is_reserve?: boolean | number;
       reserved_at?: string;
       srs_difficulty?: "easy" | "good" | "hard" | "reset";
     }) => {
@@ -334,7 +335,7 @@ export function useUserProgress() {
       swedishWord = word.swedish_word;
 
       // 2. Calculate SRS if difficulty is provided
-      const existing = await db.progress.where('word_swedish').equals(swedishWord).first();
+      const existing = await db.progress.where('word_id').equals(data.word_id).first();
 
       let srsUpdate: Partial<LocalUserProgress> = {};
       if (data.srs_difficulty) {
@@ -370,7 +371,7 @@ export function useUserProgress() {
       }
 
       // 3. Update Local DB
-      const isNowLearned = data.is_learned === true;
+      const isNowLearned = !!data.is_learned;
       const wasLearned = existing?.is_learned === 1; // stored as number 0/1 locally
 
       // Determine new learned date:
@@ -390,54 +391,54 @@ export function useUserProgress() {
         newLearnedDate = new Date().toISOString();
       }
 
-      const progressData: LocalUserProgress = {
+      const isLearnedVal = data.is_learned !== undefined ? (data.is_learned ? 1 : 0) : existing?.is_learned;
+      const isReserveVal = data.is_reserve !== undefined ? (data.is_reserve ? 1 : 0) : existing?.is_reserve;
+
+      const progressUpdate: LocalUserProgress = {
+        ...existing,
+        user_id: user.id,
+        word_id: data.word_id,
         word_swedish: swedishWord,
-        is_learned: data.is_learned === undefined ? (existing?.is_learned || 0) : (data.is_learned ? 1 : 0),
-        is_reserve: data.is_reserve === undefined ? (existing?.is_reserve || 0) : (data.is_reserve ? 1 : 0),
-        reserved_at: data.reserved_at || existing?.reserved_at,
-        user_meaning: data.user_meaning ?? existing?.user_meaning,
-        custom_spelling: data.custom_spelling ?? existing?.custom_spelling,
+        is_learned: isLearnedVal ?? 0,
+        is_reserve: isReserveVal ?? 0,
+        user_meaning: data.user_meaning !== undefined ? data.user_meaning : existing?.user_meaning,
+        custom_spelling: data.custom_spelling !== undefined ? data.custom_spelling : existing?.custom_spelling,
+        reserved_at: data.reserved_at !== undefined ? data.reserved_at : (isReserveVal === 1 ? (existing?.reserved_at || new Date().toISOString()) : undefined),
         learned_date: newLearnedDate,
-        last_synced_at: new Date().toISOString(),
+        last_synced_at: new Date().toISOString(), // This is for local sync status, not remote
         ...srsUpdate,
       };
 
-      await db.progress.put(progressData);
+      await db.progress.put(progressUpdate);
 
       // 4. Update Supabase (Background)
       // Find all word IDs in Supabase with this swedish_word to keep them in sync
-      const { data: remoteWords } = await supabase
-        .from("words")
-        .select("id")
-        .eq("swedish_word", swedishWord);
+      const remoteWordIds = [data.word_id];
 
-      const remoteWordIds = remoteWords?.map(w => w.id) || [data.word_id];
+      if (user?.id) {
+        for (const rid of remoteWordIds) {
+          const { data: remoteExisting } = await supabase
+            .from("user_progress")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("word_id", rid)
+            .maybeSingle();
 
-      for (const rid of remoteWordIds) {
-        const { data: remoteExisting } = await supabase
-          .from("user_progress")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("word_id", rid)
-          .maybeSingle();
+          const remotePayload = {
+            user_id: user.id,
+            word_id: rid,
+            is_learned: progressUpdate.is_learned === 1,
+            user_meaning: progressUpdate.user_meaning,
+            custom_spelling: progressUpdate.custom_spelling,
+            learned_date: progressUpdate.learned_date,
+            is_reserve: progressUpdate.is_reserve === 1,
+          };
 
-        const remotePayload = {
-          user_id: user.id,
-          word_id: rid,
-          is_learned: !!progressData.is_learned,
-          user_meaning: progressData.user_meaning,
-          custom_spelling: progressData.custom_spelling,
-          learned_date: progressData.learned_date,
-          // Support for Study Later / Reserve tab
-          is_reserve: !!progressData.is_reserve,
-          // Note: Support for SRS columns in Supabase might need a migration if they don't exist
-          // For now we'll store them if possible, but prioritize local IndexedDB for SRS logic
-        };
-
-        if (remoteExisting) {
-          await supabase.from("user_progress").update(remotePayload).eq("id", remoteExisting.id);
-        } else {
-          await supabase.from("user_progress").insert(remotePayload);
+          if (remoteExisting) {
+            await supabase.from("user_progress").update(remotePayload).eq("id", remoteExisting.id);
+          } else {
+            await supabase.from("user_progress").insert(remotePayload);
+          }
         }
       }
     },
@@ -472,12 +473,13 @@ export function useUserProgress() {
         .from('words')
         .select('*')
         .eq('swedish_word', swedishWord)
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
       if (!remoteWord) return;
 
-      const existing = await db.words.get(swedishWord);
+      const existing = await db.words.get(remoteWord.id);
 
       const word: LocalWord = {
         id: remoteWord.id,
@@ -511,11 +513,11 @@ export function useStats() {
     const learnedProgress = await db.progress.filter(p => !!p.is_learned).toArray();
     const learnedWords = learnedProgress.length;
 
-    // Get the swedish words for all learned items
-    const learnedSwedishWords = learnedProgress.map(p => p.word_swedish);
+    // Get the word IDs for all learned items
+    const learnedWordIds = learnedProgress.map(p => p.word_id);
 
-    // Fetch all learned word definitions in bulk to check levels
-    const learnedWordDefs = await db.words.where('swedish_word').anyOf(learnedSwedishWords).toArray();
+    // Fetch all learned word definitions in bulk to check levels (by ID)
+    const learnedWordDefs = await db.words.where('id').anyOf(learnedWordIds).toArray();
 
     // Index learned words by swedish_word for quick lookup (if needed) or just iterate
     // Since we need to aggregate by different levels, iterating the definitions is easiest
@@ -605,8 +607,12 @@ export function useStats() {
         learned: learnedWordDefs.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).length
       },
       reserveStats: {
-        total: await db.progress.where('is_reserve').equals(1).count(),
-        learned: await db.progress.where('is_reserve').equals(1).and(p => p.is_learned === 1).count()
+        total: (await db.progress.filter(p => !!p.is_reserve).toArray()).length,
+        learned: (await db.progress.filter(p => !!p.is_reserve && !!p.is_learned).toArray()).length
+      },
+      encounteredStats: {
+        total: totalWords + (await db.progress.filter(p => !!p.is_reserve).toArray()).length,
+        learned: learnedWords + (await db.progress.filter(p => !!p.is_reserve).toArray()).length
       }
     };
   }, [user?.id]);
@@ -644,10 +650,10 @@ export function useDetailedStats() {
     let sidorToday = 0;
     let ftToday = 0;
 
-    // Bulk fetch words for today's learned items
-    const todaySwedishWords = learnedTodayItems.map(p => p.word_swedish);
-    if (todaySwedishWords.length > 0) {
-      const todayWords = await db.words.where('swedish_word').anyOf(todaySwedishWords).toArray();
+    // Bulk fetch words for today's learned items (by word_id)
+    const todayWordIds = learnedTodayItems.map(p => p.word_id);
+    if (todayWordIds.length > 0) {
+      const todayWords = await db.words.where('id').anyOf(todayWordIds).toArray();
       for (const w of todayWords) {
         if (w.kelly_level) kellyToday++;
         if (w.frequency_rank) frequencyToday++;
@@ -656,43 +662,48 @@ export function useDetailedStats() {
       }
     }
 
-    // Daily counts for chart (Learned vs Reserved)
-    const dailyCounts: { date: string; learned: number; reserved: number }[] = [];
-    let maxDaily = 0;
+    // Daily counts for chart (Kelly, Study Later, Encountered)
+    const dailyCounts: { date: string; kelly: number; reserved: number; encountered: number }[] = [];
+
+    // Fetch word definitions for all learned items to check if they are Kelly (by word_id)
+    const allLearnedIds = allLearned.map(p => p.word_id);
+    const allLearnedWords = await db.words.where('id').anyOf(allLearnedIds).toArray();
+    const learnedKellyIds = new Set(allLearnedWords.filter(w => !!w.kelly_level).map(w => w.id));
+
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const nextD = new Date(d);
       nextD.setDate(nextD.getDate() + 1);
 
-      const learnedCount = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= d && new Date(p.learned_date) < nextD).length;
+      const dTime = d.getTime();
+      const nextDTime = nextD.getTime();
 
-      // For reserved, we use reserved_at. If it's old data without reserved_at, it won't show up here, which is correct (can't guess).
-      const reservedCount = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at) >= d && new Date(p.reserved_at) < nextD).length;
+      const allLearnedTodayCount = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= dTime && new Date(p.learned_date).getTime() < nextDTime).length;
+      const kellyCount = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= dTime && new Date(p.learned_date).getTime() < nextDTime && learnedKellyIds.has(p.word_id)).length;
 
-      if (learnedCount > maxDaily) maxDaily = learnedCount;
-      if (reservedCount > maxDaily) maxDaily = reservedCount;
+      const reservedCount = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= dTime && new Date(p.reserved_at).getTime() < nextDTime).length;
 
       dailyCounts.push({
         date: d.toISOString().split("T")[0],
-        learned: learnedCount,
-        reserved: reservedCount
+        kelly: kellyCount,
+        reserved: reservedCount,
+        encountered: allLearnedTodayCount + reservedCount
       });
     }
 
     return {
+      allTime: allLearned.length,
       learnedToday,
+      learnedThisWeek,
+      learnedThisMonth,
       reservedToday,
       kellyToday,
       frequencyToday,
       sidorToday,
       ftToday,
-      learnedThisWeek,
-      learnedThisMonth,
-      allTime: allLearned.length,
-      avgPerDay: Math.round((learnedThisMonth / 30) * 10) / 10,
-      maxDaily,
       dailyCounts,
+      avgPerDay: Math.round((learnedThisMonth / 30) * 10) / 10
     };
   }, [user?.id]);
 }
@@ -967,13 +978,13 @@ export function useAddWord() {
       sidor_rank?: number;
       sidor_source_id?: number;
     }) => {
-      const { error } = await supabase.from("words").insert({
+      const { data: inserted, error } = await supabase.from("words").insert({
         swedish_word: data.swedish_word.toLowerCase().trim(),
         kelly_level: data.kelly_level || null,
         frequency_rank: data.frequency_rank || null,
         sidor_rank: data.sidor_rank || null,
         sidor_source_id: data.sidor_source_id || null,
-      });
+      }).select("id").single();
 
       if (error) {
         // Provide user-friendly error message for RLS policy violations
@@ -985,6 +996,7 @@ export function useAddWord() {
 
       // Also add to local DB immediately for instant access
       await db.words.put({
+        id: inserted.id,
         swedish_word: data.swedish_word.toLowerCase().trim(),
         kelly_level: data.kelly_level || undefined,
         frequency_rank: data.frequency_rank || undefined,
@@ -1021,10 +1033,12 @@ export function useDeleteWord() {
       }
 
       // 2. Delete from Local DB
-      await db.words.delete(swedishWord);
+      const wordsToDelete = await db.words.where("swedish_word").equals(swedishWord).toArray();
+      const idsToDelete = wordsToDelete.map(w => w.id);
+      await db.words.bulkDelete(idsToDelete);
 
       // 3. Delete any associated progress
-      const progress = await db.progress.where("word_swedish").equals(swedishWord).toArray();
+      const progress = await db.progress.where("word_id").anyOf(idsToDelete).toArray();
       if (progress.length > 0) {
         await db.progress.bulkDelete(progress.map(p => p.id!));
       }

@@ -2,7 +2,7 @@ import Dexie, { Table } from 'dexie';
 import { WordData } from '@/types/word';
 
 export interface LocalWord {
-    id?: number;
+    id: number; // Primary Key
     swedish_word: string;
     kelly_level?: string;
     kelly_source_id?: number;
@@ -15,7 +15,9 @@ export interface LocalWord {
 
 export interface LocalUserProgress {
     id?: string;
-    word_swedish: string;
+    user_id: string; // Cloud sync ID
+    word_id: number; // Foreign key to words.id
+    word_swedish: string; // Helpful redundant info
     is_learned: number;
     user_meaning?: string;
     custom_spelling?: string;
@@ -53,29 +55,14 @@ export class SveordDB extends Dexie {
     patterns!: Table<SavedPattern>;
 
     constructor() {
-        super('Sveord_v2');
-        this.version(3).stores({
-            words: 'swedish_word, id, kelly_level, frequency_rank, sidor_rank',
-            progress: 'word_swedish, is_learned, srs_next_review',
-            audio_cache: 'word'
-        });
-
-        this.version(4).stores({
-            quizzes: '++id, type, isPracticed, createdAt',
-            wordUsage: 'wordSwedish'
-        });
-
-        this.version(5).stores({
-            words: 'swedish_word, id, kelly_level, frequency_rank, sidor_rank, is_ft'
-        });
-
-        this.version(6).stores({
-            patterns: '++id, pattern, created_at',
-            quizzes: '++id, type, isPracticed, createdAt, practicedAt' // Add index for practicedAt
-        });
-
-        this.version(7).stores({
-            progress: 'word_swedish, is_learned, srs_next_review, is_reserve'
+        super('Sveord_v3');
+        this.version(8).stores({
+            words: 'id, swedish_word, kelly_level, frequency_rank, sidor_rank, is_ft',
+            progress: '++id, user_id, word_id, word_swedish, is_learned, srs_next_review, is_reserve',
+            audio_cache: 'word',
+            quizzes: '++id, type, isPracticed, createdAt, practicedAt',
+            wordUsage: 'wordSwedish',
+            patterns: '++id, pattern, created_at'
         });
     }
 
