@@ -85,6 +85,66 @@ export function useWords(filters?: {
   const { user } = useAuth();
 
   return useLiveQuery(async () => {
+    // OPTIMIZATION: For Reserve or Learned lists, query Progress table FIRST
+    // This avoids loading 13,000 words into memory when we only want the 10-50 saved words.
+    if (!filters?.search && (filters?.listType === "reserve" || filters?.learnedOnly)) {
+      let progressQuery = db.progress.toCollection();
+
+      if (filters?.listType === "reserve") {
+        progressQuery = db.progress.where('is_reserve').equals(1);
+      } else if (filters?.learnedOnly) {
+        progressQuery = db.progress.where('is_learned').equals(1);
+      }
+
+      const progressItems = await progressQuery.toArray();
+      const wordIds = progressItems.map(p => p.word_id).filter((id): id is number => !!id);
+
+      // If no reserved words, return empty immediately
+      if (wordIds.length === 0) return [];
+
+      const words = await db.words.where('id').anyOf(wordIds).toArray();
+      const progressMap = new Map(progressItems.map(p => [p.word_id, p]));
+
+      // Also get usage for just these words
+      const swedishWords = words.map(w => w.swedish_word);
+      const usageList = await db.wordUsage.where('wordSwedish').anyOf(swedishWords).toArray();
+      const usageMap = new Map(usageList.map(u => [u.wordSwedish, u]));
+
+      return words.map(w => {
+        const progress = progressMap.get(w.id);
+        const usage = usageMap.get(w.swedish_word);
+        return {
+          id: w.id || 0,
+          swedish_word: w.swedish_word,
+          kelly_level: w.kelly_level || null,
+          kelly_source_id: w.kelly_source_id || null,
+          frequency_rank: w.frequency_rank || null,
+          sidor_source_id: null,
+          sidor_rank: w.sidor_rank || null,
+          is_ft: (w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)) ? 1 : 0,
+          created_at: "",
+          word_data: w.word_data || null,
+          progress: progress ? {
+            id: progress.id || "",
+            user_id: user?.id || "",
+            word_id: w.id || 0,
+            is_learned: !!progress.is_learned,
+            learned_date: progress.learned_date || null,
+            user_meaning: progress.user_meaning || null,
+            custom_spelling: progress.custom_spelling || null,
+            created_at: "",
+            updated_at: "",
+            srs_next_review: progress.srs_next_review,
+            is_reserve: !!progress.is_reserve,
+            // unified_level: progress.unified_level, // Not in DB schema
+          } : undefined,
+          practice_count: usage ? (usage.targetCount || 0) : 0,
+          // last_practiced: usage ? usage.lastPracticed : undefined, // Not in DB schema
+        };
+      });
+    }
+
+    // FALLBACK: Original logic for full corpus browsing (Search, Kelly lists, Frequency lists)
     let collection = db.words.toCollection();
 
     if (filters?.kellyLevel) {
@@ -94,16 +154,8 @@ export function useWords(filters?: {
     } else if (filters?.sidorRange) {
       collection = db.words.where('sidor_rank').between(filters.sidorRange[0], filters.sidorRange[1], true, true);
     } else if (filters?.ftOnly || filters?.listType === "ft") {
-      // FT words
-      collection = db.words.toCollection();
-    } else if (filters?.listType === "reserve") {
-      // Reserve words are those that have is_reserve = 1 in progress table
-      // We can't efficiently filter 'words' table by 'progress' table fields with Dexie.where 
-      // without index, so we'll fetch all and filter in JS or do a separate PK query.
       collection = db.words.toCollection();
     } else {
-      // Default: Search across all lists including FT - use a compound index if possible or just filter
-      // For now, let's ensure the baseline collection includes all rows
       collection = db.words.toCollection();
     }
 
