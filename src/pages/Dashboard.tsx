@@ -27,22 +27,28 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { useEffect } from "react";
 
-function FixConflictsButton() {
+function FixConflictsBanner() {
   const [fixing, setFixing] = useState(false);
   const [count, setCount] = useState<number | null>(null);
+  const [examples, setExamples] = useState<string[]>([]);
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Check for conflicts on mount
+  // Check for conflicts on mount AND get examples
   useEffect(() => {
-    db.progress.filter(p => !!p.is_learned && !!p.is_reserve).count().then(setCount);
+    const checkConflicts = async () => {
+      const conflicts = await db.progress.filter(p => !!p.is_learned && !!p.is_reserve).toArray();
+      setCount(conflicts.length);
+      setExamples(conflicts.slice(0, 5).map(p => p.word_swedish));
+    };
+    checkConflicts();
   }, []);
 
   const handleFix = async () => {
     if (!user) return;
     setFixing(true);
     try {
-      // 1. Find conflicts
+      // 1. Find conflicts again to be safe
       const conflicts = await db.progress.filter(p => !!p.is_learned && !!p.is_reserve).toArray();
 
       if (conflicts.length === 0) {
@@ -57,12 +63,11 @@ function FixConflictsButton() {
       await db.progress.bulkPut(updates);
 
       // 3. Fix Remotely
-      // We do this one by one or batch if possible. For safety, one by one by word_id composite
       let fixedCount = 0;
       for (const p of conflicts) {
         const { error } = await supabase
           .from("user_progress")
-          .update({ is_learned: false, is_reserve: true }) // Explicitly enforce state
+          .update({ is_learned: false, is_reserve: true })
           .eq("user_id", user.id)
           .eq("word_id", p.word_id);
 
@@ -70,13 +75,8 @@ function FixConflictsButton() {
       }
 
       // 4. Invalidate queries to refresh UI
-      await queryClient.invalidateQueries({ queryKey: ["stats"] });
-      // Invalidate the unified hook as well
       await queryClient.invalidateQueries();
-
-      // Force reload to be sure due to stats hook complexity
       window.location.reload();
-
       alert(`Fixed ${fixedCount} words! They are now only in 'Study Later'.`);
       setCount(0);
     } catch (e) {
@@ -90,14 +90,33 @@ function FixConflictsButton() {
   if (count === null || count === 0) return null;
 
   return (
-    <button
-      onClick={handleFix}
-      disabled={fixing}
-      className="absolute top-4 right-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-red-500/10 text-red-600 border border-red-200 rounded-full text-xs font-bold hover:bg-red-500/20 transition-colors"
-    >
-      {fixing ? <Loader2 className="h-3 w-3 animate-spin" /> : <AlertTriangle className="h-3 w-3" />}
-      Fix {count} Conflicts
-    </button>
+    <div className="md:col-span-3 mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+      <div className="flex gap-3">
+        <div className="p-2 bg-amber-100 rounded-full h-fit">
+          <AlertTriangle className="h-5 w-5 text-amber-600" />
+        </div>
+        <div>
+          <h3 className="font-bold text-amber-900">Data Conflict Detected</h3>
+          <p className="text-sm text-amber-700">
+            Found <span className="font-bold">{count} words</span> marked as both "Learned" and "Study Later".
+          </p>
+          <p className="text-xs text-amber-600 mt-1">
+            Examples: {examples.join(", ")} {count > 5 && "..."}
+          </p>
+          <p className="text-xs text-amber-600 mt-1 italic">
+            Per your request, we will move these strictly to "Study Later".
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={handleFix}
+        disabled={fixing}
+        className="whitespace-nowrap px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2 shadow-sm"
+      >
+        {fixing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+        Fix All Conflicts
+      </button>
+    </div>
   );
 }
 
@@ -136,208 +155,212 @@ export default function Dashboard() {
       <div className="max-w-6xl mx-auto space-y-8 pb-10">
 
         {/* 1. Hero / Welcome / Velocity */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-          {/* Welcome Card & Velocity */}
-          <div className="md:col-span-2 relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-secondary/20 border border-border p-6 shadow-sm">
-            <FixConflictsButton />
-            <div className="relative z-10 flex flex-col h-full justify-between">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <h1 className="text-2xl font-bold">Hej, <span className="text-primary">{displayName}</span>!</h1>
-                  <p className="text-sm text-muted-foreground">Here is your daily learning velocity.</p>
-                </div>
-                <div className="flex items-center gap-2 bg-background/50 backdrop-blur-sm p-2 rounded-lg border border-border/50">
-                  <Flame className="h-5 w-5 text-orange-500" />
-                  <span className="font-bold">{stats.velocity.learnedToday}</span>
-                  <span className="text-xs text-muted-foreground uppercase">Streak</span>
-                </div>
-              </div>
+        {/* Main Grid */}
+        <div className="space-y-6">
+          <FixConflictsBanner />
 
-              <div className="mt-6 grid grid-cols-2 gap-4">
-                <div className="p-3 bg-background/60 rounded-xl border border-border/50 backdrop-blur-sm">
-                  <div className="flex items-center gap-2 mb-1">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-xs font-semibold uppercase text-muted-foreground">Learned Today</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+            {/* Welcome Card & Velocity */}
+            <div className="md:col-span-2 relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-secondary/20 border border-border p-6 shadow-sm">
+              <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <h1 className="text-2xl font-bold">Hej, <span className="text-primary">{displayName}</span>!</h1>
+                    <p className="text-sm text-muted-foreground">Here is your daily learning velocity.</p>
                   </div>
-                  <span className="text-2xl font-bold text-foreground">+{stats.velocity.learnedToday}</span>
-                </div>
-                <div
-                  className="p-3 bg-background/60 rounded-xl border border-border/50 backdrop-blur-sm cursor-pointer hover:bg-background/80 transition-colors"
-                  onClick={() => {
-                    setShowReservedToday(true);
-                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Bookmark className="h-4 w-4 text-amber-500" />
-                    <span className="text-xs font-semibold uppercase text-muted-foreground">To Study Queue</span>
+                  <div className="flex items-center gap-2 bg-background/50 backdrop-blur-sm p-2 rounded-lg border border-border/50">
+                    <Flame className="h-5 w-5 text-orange-500" />
+                    <span className="font-bold">{stats.velocity.learnedToday}</span>
+                    <span className="text-xs text-muted-foreground uppercase">Streak</span>
                   </div>
-                  <span className="text-2xl font-bold text-foreground">+{stats.velocity.reservedToday}</span>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-background/60 rounded-xl border border-border/50 backdrop-blur-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span className="text-xs font-semibold uppercase text-muted-foreground">Learned Today</span>
+                    </div>
+                    <span className="text-2xl font-bold text-foreground">+{stats.velocity.learnedToday}</span>
+                  </div>
+                  <div
+                    className="p-3 bg-background/60 rounded-xl border border-border/50 backdrop-blur-sm cursor-pointer hover:bg-background/80 transition-colors"
+                    onClick={() => {
+                      setShowReservedToday(true);
+                      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Bookmark className="h-4 w-4 text-amber-500" />
+                      <span className="text-xs font-semibold uppercase text-muted-foreground">To Study Queue</span>
+                    </div>
+                    <span className="text-2xl font-bold text-foreground">+{stats.velocity.reservedToday}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Proficiency Overview (Mastered vs To Study) */}
-          <div className="bg-card rounded-2xl border border-border p-6 shadow-sm flex flex-col justify-center gap-4">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-              <Target className="h-4 w-4" /> Proficiency Overview
-            </h3>
+            {/* Proficiency Overview (Mastered vs To Study) */}
+            <div className="bg-card rounded-2xl border border-border p-6 shadow-sm flex flex-col justify-center gap-4">
+              <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+                <Target className="h-4 w-4" /> Proficiency Overview
+              </h3>
 
-            <div className="flex items-center gap-4">
-              <div className="flex-1 space-y-1">
-                <div className="flex justify-between items-end">
-                  <span className="text-2xl font-bold text-green-600">{stats.proficiency.mastered}</span>
-                  <span className="text-xs font-medium uppercase text-muted-foreground mb-1">{stats.proficiency.completionPercent}% Mastered</span>
-                </div>
-                <Progress value={stats.proficiency.completionPercent} className="h-2 bg-green-100" indicatorClassName="bg-green-500" />
-              </div>
-              <div className="h-10 w-[1px] bg-border"></div>
-              <div className="flex-1 space-y-1">
-                <div className="flex justify-between items-end">
-                  <span className="text-2xl font-bold text-amber-500">{stats.proficiency.toStudy}</span>
-                  <span className="text-xs font-medium uppercase text-muted-foreground mb-1">
-                    {stats.proficiency.totalUnique > 0 ? Math.round((stats.proficiency.toStudy / stats.proficiency.totalUnique) * 100) : 0}% Queue
-                  </span>
-                </div>
-                {/* Display queue percentage relative to total words for context, or just full bar? Let's use relative to total for visual consistency with mastered */}
-                <Progress value={stats.proficiency.totalUnique > 0 ? (stats.proficiency.toStudy / stats.proficiency.totalUnique) * 100 : 0} className="h-2 bg-amber-100" indicatorClassName="bg-amber-500" />
-              </div>
-            </div>
-
-            <div className="text-xs text-center text-muted-foreground mt-2">
-              {stats.proficiency.totalUnique} Total Unique Words
-            </div>
-          </div>
-        </div>
-
-        {/* 2. CEFR Proficiency (The "Main Event") */}
-        <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
-            <Award className="h-5 w-5 text-primary" /> CEFR Mastery Levels
-          </h2>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {Object.entries(stats.cefrProgress).map(([level, data]) => (
-              level !== "Unknown" && (
-                <div key={level} className="flex flex-col gap-3 p-4 rounded-xl border border-border/50 bg-background/50 hover:bg-secondary/30 transition-colors">
+              <div className="flex items-center gap-4">
+                <div className="flex-1 space-y-1">
                   <div className="flex justify-between items-end">
-                    <span className="text-2xl font-black text-foreground tracking-tight">
-                      {level}
-                    </span>
-                    <span className="text-lg font-bold text-primary">
-                      {data.percent}%
-                    </span>
+                    <span className="text-2xl font-bold text-green-600">{stats.proficiency.mastered}</span>
+                    <span className="text-xs font-medium uppercase text-muted-foreground mb-1">{stats.proficiency.completionPercent}% Mastered</span>
                   </div>
-
-                  <Progress value={data.percent} className="h-2.5 bg-secondary" indicatorClassName="bg-primary" />
-
-                  <div className="flex justify-between text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                    <span>{data.learned} Learned</span>
-                    <span className="opacity-70">of {data.total}</span>
-                  </div>
+                  <Progress value={stats.proficiency.completionPercent} className="h-2 bg-green-100" indicatorClassName="bg-green-500" />
                 </div>
-              )
-            ))}
-          </div>
-        </div>
+                <div className="h-10 w-[1px] bg-border"></div>
+                <div className="flex-1 space-y-1">
+                  <div className="flex justify-between items-end">
+                    <span className="text-2xl font-bold text-amber-500">{stats.proficiency.toStudy}</span>
+                    <span className="text-xs font-medium uppercase text-muted-foreground mb-1">
+                      {stats.proficiency.totalUnique > 0 ? Math.round((stats.proficiency.toStudy / stats.proficiency.totalUnique) * 100) : 0}% Queue
+                    </span>
+                  </div>
+                  {/* Display queue percentage relative to total words for context, or just full bar? Let's use relative to total for visual consistency with mastered */}
+                  <Progress value={stats.proficiency.totalUnique > 0 ? (stats.proficiency.toStudy / stats.proficiency.totalUnique) * 100 : 0} className="h-2 bg-amber-100" indicatorClassName="bg-amber-500" />
+                </div>
+              </div>
 
-        {/* 3. Today's Review Section (Consolidated) */}
-        <div className="animate-fade-in mt-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Moon className="h-5 w-5 text-primary" />
-              Today's Activity
+              <div className="text-xs text-center text-muted-foreground mt-2">
+                {stats.proficiency.totalUnique} Total Unique Words
+              </div>
+            </div>
+          </div>
+
+          {/* 2. CEFR Proficiency (The "Main Event") */}
+          <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
+            <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
+              <Award className="h-5 w-5 text-primary" /> CEFR Mastery Levels
             </h2>
 
-            {/* Toggle Buttons */}
-            <div className="flex gap-2 bg-secondary/30 p-1 rounded-lg">
-              <button
-                onClick={() => setShowReservedToday(false)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${!showReservedToday ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                Learned ({stats.velocity.learnedToday})
-              </button>
-              <button
-                onClick={() => setShowReservedToday(true)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${showReservedToday ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                Added to Queue ({stats.velocity.reservedToday})
-              </button>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {Object.entries(stats.cefrProgress).map(([level, data]) => (
+                level !== "Unknown" && (
+                  <div key={level} className="flex flex-col gap-3 p-4 rounded-xl border border-border/50 bg-background/50 hover:bg-secondary/30 transition-colors">
+                    <div className="flex justify-between items-end">
+                      <span className="text-2xl font-black text-foreground tracking-tight">
+                        {level}
+                      </span>
+                      <span className="text-lg font-bold text-primary">
+                        {data.percent}%
+                      </span>
+                    </div>
+
+                    <Progress value={data.percent} className="h-2.5 bg-secondary" indicatorClassName="bg-primary" />
+
+                    <div className="flex justify-between text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                      <span>{data.learned} Learned</span>
+                      <span className="opacity-70">of {data.total}</span>
+                    </div>
+                  </div>
+                )
+              ))}
             </div>
           </div>
 
-          {activeTodaysLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
-            </div>
-          ) : activeTodaysList && activeTodaysList.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {activeTodaysList.map((word) => (
-                <div
-                  key={word.swedish_word}
-                  className={`p-4 border rounded-xl transition-all cursor-pointer group hover:shadow-md ${showReservedToday
-                    ? 'bg-amber-500/5 border-amber-500/10 hover:border-amber-500/30'
-                    : 'bg-green-500/5 border-green-500/10 hover:border-green-500/30'
-                    }`}
-                  onClick={() => setSelectedWordKey(word.swedish_word)}
+          {/* 3. Today's Review Section (Consolidated) */}
+          <div className="animate-fade-in mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Moon className="h-5 w-5 text-primary" />
+                Today's Activity
+              </h2>
+
+              {/* Toggle Buttons */}
+              <div className="flex gap-2 bg-secondary/30 p-1 rounded-lg">
+                <button
+                  onClick={() => setShowReservedToday(false)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${!showReservedToday ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-foreground group-hover:text-primary transition-colors">
-                      {word.swedish_word}
-                    </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${showReservedToday
-                      ? 'bg-amber-100 text-amber-700 border-amber-200'
-                      : 'bg-green-100 text-green-700 border-green-200'
-                      }`}>
-                      {showReservedToday ? 'To Study' : 'Learned'}
-                    </span>
+                  Learned ({stats.velocity.learnedToday})
+                </button>
+                <button
+                  onClick={() => setShowReservedToday(true)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${showReservedToday ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Added to Queue ({stats.velocity.reservedToday})
+                </button>
+              </div>
+            </div>
+
+            {activeTodaysLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+              </div>
+            ) : activeTodaysList && activeTodaysList.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {activeTodaysList.map((word) => (
+                  <div
+                    key={word.swedish_word}
+                    className={`p-4 border rounded-xl transition-all cursor-pointer group hover:shadow-md ${showReservedToday
+                      ? 'bg-amber-500/5 border-amber-500/10 hover:border-amber-500/30'
+                      : 'bg-green-500/5 border-green-500/10 hover:border-green-500/30'
+                      }`}
+                    onClick={() => setSelectedWordKey(word.swedish_word)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-foreground group-hover:text-primary transition-colors">
+                        {word.swedish_word}
+                      </span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border ${showReservedToday
+                        ? 'bg-amber-100 text-amber-700 border-amber-200'
+                        : 'bg-green-100 text-green-700 border-green-200'
+                        }`}>
+                        {showReservedToday ? 'To Study' : 'Learned'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1">
+                      {(word.progress?.user_meaning || word.word_data?.meanings?.[0]?.english) ?? "No translation"}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-1">
-                    {(word.progress?.user_meaning || word.word_data?.meanings?.[0]?.english) ?? "No translation"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center p-8 border border-dashed border-border rounded-xl bg-secondary/5">
-              <p className="text-muted-foreground text-sm">No words {showReservedToday ? 'added to study queue' : 'learned'} today yet.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Dialog for Word Details */}
-        <Dialog open={!!selectedWord} onOpenChange={(open) => !open && setSelectedWordKey(null)}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogTitle className="sr-only">Word Details</DialogTitle>
-            {selectedWord && (
-              <WordCard
-                word={selectedWord}
-                onPrevious={() => {
-                  const prevIndex = selectedIndex - 1;
-                  if (prevIndex >= 0 && activeTodaysList) {
-                    setSelectedWordKey(activeTodaysList[prevIndex].swedish_word);
-                  }
-                }}
-                onNext={() => {
-                  const nextIndex = selectedIndex + 1;
-                  if (activeTodaysList && nextIndex < activeTodaysList.length) {
-                    setSelectedWordKey(activeTodaysList[nextIndex].swedish_word);
-                  }
-                }}
-                hasPrevious={selectedIndex > 0}
-                hasNext={activeTodaysList ? selectedIndex < activeTodaysList.length - 1 : false}
-                currentIndex={selectedIndex}
-                totalCount={activeTodaysList?.length || 0}
-                learnedCount={0}
-                isRandomMode={false}
-                onToggleRandom={() => { }}
-                showRandomButton={false}
-              />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center p-8 border border-dashed border-border rounded-xl bg-secondary/5">
+                <p className="text-muted-foreground text-sm">No words {showReservedToday ? 'added to study queue' : 'learned'} today yet.</p>
+              </div>
             )}
-          </DialogContent>
-        </Dialog>
+          </div>
 
+          {/* Dialog for Word Details */}
+          <Dialog open={!!selectedWord} onOpenChange={(open) => !open && setSelectedWordKey(null)}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogTitle className="sr-only">Word Details</DialogTitle>
+              {selectedWord && (
+                <WordCard
+                  word={selectedWord}
+                  onPrevious={() => {
+                    const prevIndex = selectedIndex - 1;
+                    if (prevIndex >= 0 && activeTodaysList) {
+                      setSelectedWordKey(activeTodaysList[prevIndex].swedish_word);
+                    }
+                  }}
+                  onNext={() => {
+                    const nextIndex = selectedIndex + 1;
+                    if (activeTodaysList && nextIndex < activeTodaysList.length) {
+                      setSelectedWordKey(activeTodaysList[nextIndex].swedish_word);
+                    }
+                  }}
+                  hasPrevious={selectedIndex > 0}
+                  hasNext={activeTodaysList ? selectedIndex < activeTodaysList.length - 1 : false}
+                  currentIndex={selectedIndex}
+                  totalCount={activeTodaysList?.length || 0}
+                  learnedCount={0}
+                  isRandomMode={false}
+                  onToggleRandom={() => { }}
+                  showRandomButton={false}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+
+        </div>
       </div>
     </AppLayout>
   );
