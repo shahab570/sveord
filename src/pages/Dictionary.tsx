@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/services/db";
+import { syncQueue } from "@/services/syncQueue";
 
 const CEFR_TABS = ["All", "A1", "A2", "B1", "B2", "C1", "C2", "D1"];
 
@@ -155,6 +156,19 @@ export default function Dictionary() {
                         last_synced_at: new Date().toISOString()
                     });
 
+                    syncQueue.add({
+                        type: 'upsert_word',
+                        data: {
+                            id: upsertedWord.id,
+                            swedish_word: wordToAdd,
+                            word_data: wordData,
+                            kelly_level: null,
+                            frequency_rank: null,
+                            sidor_rank: null,
+                            sidor_source_id: null
+                        }
+                    });
+
                     // IMPORTANT: Create a progress record so the word appears in lists
                     await db.progress.put({
                         user_id: user?.id || '',
@@ -163,6 +177,19 @@ export default function Dictionary() {
                         is_learned: 0, // Not learned by default
                         is_reserve: 0, // Not reserved by default
                         last_synced_at: new Date().toISOString()
+                    });
+
+                    syncQueue.add({
+                        type: 'upsert_progress',
+                        data: {
+                            user_id: user?.id || '',
+                            word_id: upsertedWord.id,
+                            is_learned: false,
+                            is_reserve: false,
+                            user_meaning: null,
+                            custom_spelling: null,
+                            learned_date: null
+                        }
                     });
                 }
 

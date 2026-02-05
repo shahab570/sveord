@@ -35,9 +35,6 @@ import {
   AlertTriangle,
   Plus,
   User,
-  Cloud,
-  RefreshCw,
-  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ApiKeySection } from "@/components/settings/ApiKeySection";
@@ -50,7 +47,7 @@ export default function Settings() {
   const { user } = useAuth();
   const { resetProgress } = useUserProgress();
   const { history } = useUploadHistory();
-  const { isSyncing, lastSyncTime, syncAll, syncMissingStories, forceRefresh, pushLocalToCloud } = useSync();
+  useSync();
   const addWord = useAddWord();
 
   const [importProgress, setImportProgress] = useState(0);
@@ -248,53 +245,6 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground">
             Add new words to the dictionary.
           </p>
-        </section>
-
-        <section className="word-card space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-100 rounded-lg">
-              <RefreshCw className="h-5 w-5 text-amber-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Data Recovery</h2>
-              <p className="text-sm text-muted-foreground">Restore missing list data from the cloud</p>
-            </div>
-          </div>
-          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-4">
-            <div>
-              <p className="text-sm text-amber-700 mb-3">
-                If your word counts seem low, use this button to redownload your full data from Supabase.
-              </p>
-              <Button
-                variant="outline"
-                onClick={forceRefresh}
-                disabled={isSyncing}
-                className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-100 w-full md:w-auto"
-              >
-                <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-                Force Refresh (Download All)
-              </Button>
-            </div>
-
-            <div className="border-t border-amber-200 pt-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Cloud className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-bold text-blue-800">New: Cloud Repair</span>
-              </div>
-              <p className="text-xs text-blue-700 mb-3">
-                Use this if your "Study Later" list is missing on other devices or if you just migrated your database. This will safely push your local progress to the cloud.
-              </p>
-              <Button
-                variant="outline"
-                onClick={pushLocalToCloud}
-                disabled={isSyncing}
-                className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 w-full md:w-auto"
-              >
-                <Cloud className="h-4 w-4" />
-                Push Local Backup to Cloud
-              </Button>
-            </div>
-          </div>
         </section>
 
         <section className="word-card space-y-4">

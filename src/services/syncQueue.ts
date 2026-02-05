@@ -96,10 +96,9 @@ export class SyncQueue {
   // Process individual operation
   private async processOperation(operation: SyncOperation): Promise<void> {
     const { supabase } = await import('@/integrations/supabase/client');
-    const { useAuth } = await import('@/contexts/AuthContext');
-    const { user } = useAuth();
-
-    if (!user) throw new Error('User not authenticated');
+    if (operation.type === 'upsert_progress' && !operation.data?.user_id) {
+      throw new Error('Missing user_id for progress sync');
+    }
 
     switch (operation.type) {
       case 'upsert_progress':

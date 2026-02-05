@@ -41,6 +41,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         return unsubscribe;
     }, []);
 
+    // Process any queued sync operations on app start when online
+    useEffect(() => {
+        if (navigator.onLine) {
+            syncQueue.processQueue();
+        }
+    }, []);
+
     // Clear failed operations
     const clearFailedOperations = useCallback(() => {
         syncQueue.clearFailed();
