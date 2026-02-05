@@ -36,51 +36,51 @@ export function useUnifiedStats(): DashboardStats {
             db.progress.toArray()
         ]);
 
-        // 2. SELF-HEALING: De-duplicate records by word_id
-        // Historical sync bugs might have created multiple entries per word
-        const deDuplicated = new Map();
-        const duplicatesToDelete: number[] = [];
+        // 2. Resolve "Ground Truth" for this user
+        // We filter for this user's records but also orphans (which might belong to them)
+        const myEntries = allProgress.filter(p => !p.user_id || p.user_id === user.id);
 
-        for (const p of allProgress) {
+        // 3. De-duplicate by word_id based strictly on RECENCY
+        // Status (Learned vs Reserved) is secondary to what the user did LATEST
+        const bestRecordsMap = new Map();
+
+        for (const p of myEntries) {
             const key = String(p.word_id);
-            const existing = deDuplicated.get(key);
+            const existing = bestRecordsMap.get(key);
 
             if (!existing) {
-                deDuplicated.set(key, p);
+                bestRecordsMap.set(key, p);
             } else {
-                // Keep the "Best" one (priority: Learned > Reserved > most recent)
-                let keepNew = false;
-                if (!existing.is_learned && p.is_learned) keepNew = true;
-                else if (!existing.is_learned && !existing.is_reserve && p.is_reserve) keepNew = true;
-                else if (p.last_synced_at && (!existing.last_synced_at || p.last_synced_at > existing.last_synced_at)) {
-                    // If both have same status, keep the newer one
-                    if (existing.is_learned === p.is_learned && existing.is_reserve === p.is_reserve) keepNew = true;
-                }
+                // Determine which one is more recent/reliable
+                const pTime = Math.max(
+                    new Date(p.learned_date || 0).getTime(),
+                    new Date(p.reserved_at || 0).getTime(),
+                    new Date(p.last_synced_at || 0).getTime()
+                );
+                const existingTime = Math.max(
+                    new Date(existing.learned_date || 0).getTime(),
+                    new Date(existing.reserved_at || 0).getTime(),
+                    new Date(existing.last_synced_at || 0).getTime()
+                );
 
-                if (keepNew) {
-                    if (existing.id) duplicatesToDelete.push(existing.id as any);
-                    deDuplicated.set(key, p);
-                } else {
-                    if (p.id) duplicatesToDelete.push(p.id as any);
+                // Priority: UserID > Recency > Status
+                let useNew = false;
+                if (!existing.user_id && p.user_id) useNew = true;
+                else if (p.user_id === existing.user_id && pTime > existingTime) useNew = true;
+
+                if (useNew) {
+                    bestRecordsMap.set(key, p);
                 }
             }
         }
 
-        // Silent Cleanup
-        if (duplicatesToDelete.length > 0) {
-            console.log(`[Stats] Cleaning up ${duplicatesToDelete.length} duplicates...`);
-            db.progress.bulkDelete(duplicatesToDelete as any);
-        }
+        const filteredProgress = Array.from(bestRecordsMap.values());
 
-        const myProgressList = Array.from(deDuplicated.values());
-        const filteredProgress = myProgressList.filter(p => !p.user_id || p.user_id === user.id);
-
-        // 3. ZERO-TRUST TOTALS (Directly from clean progress list)
+        // 4. Calculate Totals
         const totalMastered = filteredProgress.filter(p => !!p.is_learned).length;
         const totalToStudy = filteredProgress.filter(p => !!p.is_reserve).length;
 
-        console.log(`[Stats] Records: Clean=${myProgressList.length}, TotalUnique=${deDuplicated.size}`);
-        console.log(`[Stats] Direct Counts -> Mastered: ${totalMastered}, Queue: ${totalToStudy}`);
+        console.log(`[DashboardStats] ${user.id}: Words=${allWords.length}, CleanRecords=${filteredProgress.length}, Mastered=${totalMastered}, ToStudy=${totalToStudy}`);
 
         // 3. Build Mapping for Level Bars (Hybrid ID + Swedish Word matching)
         const progressMap = new Map(); // Map by string ID
@@ -123,17 +123,20 @@ export function useUnifiedStats(): DashboardStats {
         // 6. Calculate Daily Velocity
         const todayStart = startOfDay(new Date()).getTime();
 
-        const learnedTodayCount = filteredProgress.filter(p =>
-            !!p.is_learned &&
-            p.learned_date &&
-            new Date(p.learned_date).getTime() >= todayStart
+        const learnedProgress = filteredProgress.filter(p => !!p.is_learned);
+        const reservedProgress = filteredProgress.filter(p => !!p.is_reserve);
+
+        const learnedTodayCount = learnedProgress.filter(p =>
+            p.learned_date && new Date(p.learned_date).getTime() >= todayStart
         ).length;
 
-        const reservedTodayCount = filteredProgress.filter(p =>
-            !!p.is_reserve &&
-            p.reserved_at &&
-            new Date(p.reserved_at).getTime() >= todayStart
+        const reservedTodayCount = reservedProgress.filter(p =>
+            p.reserved_at && new Date(p.reserved_at).getTime() >= todayStart
         ).length;
+
+        console.log(`[DashboardStats] Velocity -> LearnedToday: ${learnedTodayCount}, ReservedToday: ${reservedTodayCount}`);
+
+        console.log(`[Stats] Velocity Today -> Learned: ${learnedTodayCount}, Reserved: ${reservedTodayCount}`);
 
         // 7. Format Output
         const cefrProgress: any = {};

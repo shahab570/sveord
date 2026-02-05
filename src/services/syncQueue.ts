@@ -103,7 +103,7 @@ export class SyncQueue {
     switch (operation.type) {
       case 'upsert_progress': {
         // 1. Clean data for Supabase (remove local IDs and non-existent columns)
-        const { id, word_swedish, last_synced_at, ...supabaseData } = operation.data;
+        const { id, word_swedish, last_synced_at, reserved_at, ...supabaseData } = operation.data;
 
         // 2. Perform the upsert with explicit conflict Resolution
         const { error } = await supabase
