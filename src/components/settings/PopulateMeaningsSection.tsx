@@ -16,10 +16,8 @@ import {
 } from "lucide-react";
 
 export function PopulateMeaningsSection() {
-    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused, lastBatchInfo, resetGrammar } = usePopulation();
+    const { status, startPopulation, isPopulating, error, processedCount, sessionTotal, pausePopulation, resumePopulation, isPaused, lastBatchInfo, resetGrammar, fillMissingCEFRLevels } = usePopulation();
     const [overwrite, setOverwrite] = useState(false);
-
-    if (!status || status.total === 0) return null;
 
     return (
         <section className="word-card space-y-6">
@@ -65,13 +63,15 @@ export function PopulateMeaningsSection() {
                         <div className="flex justify-between items-center mb-1">
                             <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Grammar Forms Coverage</span>
                             <span className="text-xs font-bold text-blue-600">
-                                {Math.round((status.grammarCount / status.total) * 100)}%
+                                {status?.total ? Math.round((status.grammarCount / status.total) * 100) : 0}%
                             </span>
                         </div>
                         <p className="text-2xl font-bold text-blue-700">
-                            {status.grammarCount} <span className="text-sm font-normal text-blue-400">/ {status.total}</span>
+                            {status?.grammarCount || 0} <span className="text-sm font-normal text-blue-400">/ {status?.total || 0}</span>
                         </p>
-                        <p className="text-xs text-blue-600/80 mt-1">Total words with AI-verified forms</p>
+                        <p className="text-xs text-blue-600/80 mt-1">
+                            {status?.total ? "Total words with AI-verified forms" : "No words loaded yet"}
+                        </p>
                     </div>
                 </div>
 
@@ -124,6 +124,37 @@ export function PopulateMeaningsSection() {
                         </p>
                     </div>
                 </div>
+
+                <div className="border-t border-border my-2" />
+
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                            <Wand2 className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-foreground">
+                                CEFR Level Classification
+                            </h2>
+                            <p className="text-sm text-muted-foreground">
+                                Fill missing CEFR levels (A1–C2, D1) for your words
+                            </p>
+                        </div>
+                    </div>
+                    <Button
+                        onClick={fillMissingCEFRLevels}
+                        disabled={isPopulating}
+                        className="gap-2 bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200"
+                    >
+                        {isPopulating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                        Fill Missing CEFR Levels
+                    </Button>
+                </div>
+                {lastBatchInfo && (
+                    <p className="text-[10px] text-green-700 font-medium">
+                        {lastBatchInfo}
+                    </p>
+                )}
 
 
 
