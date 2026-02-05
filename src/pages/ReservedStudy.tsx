@@ -12,11 +12,11 @@ import { toast } from "sonner";
 export default function ReservedStudy() {
   const reservedWords = useWords({ listType: "reserve" });
   const { upsertProgress } = useUserProgress();
-  
+
   // Handle undefined data from useLiveQuery
   const reservedWordsList = reservedWords || [];
   const isLoading = !reservedWords;
-  
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -27,7 +27,7 @@ export default function ReservedStudy() {
   useEffect(() => {
     setCurrentIndex(0);
   }, [searchTerm]);
-  
+
   const currentWord = filteredReservedWords[currentIndex];
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex < filteredReservedWords.length - 1;
@@ -52,9 +52,9 @@ export default function ReservedStudy() {
         is_learned: true,
         is_reserve: false,
       });
-      
+
       toast.success("Word marked as learned and removed from reserved list!");
-      
+
       // If this was the last word, go to previous
       if (currentIndex >= filteredReservedWords.length - 1) {
         setCurrentIndex(Math.max(0, currentIndex - 1));
@@ -88,9 +88,9 @@ export default function ReservedStudy() {
         <div className="max-w-4xl mx-auto p-4">
           <div className="text-center py-16">
             <BookOpen className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <h2 className="text-2xl font-semibold mb-2">No Reserved Words</h2>
+            <h2 className="text-2xl font-semibold mb-2">Queue is Empty</h2>
             <p className="text-muted-foreground">
-              You don't have any reserved words to study. Reserve words from the dictionary to see them here.
+              You don't have any words in your Study Later Queue. Add words from the dictionary to see them here.
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function ReservedStudy() {
 
         <div className="flex items-center gap-2">
           <Input
-            placeholder="Search reserved words..."
+            placeholder="Search queue..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
           />

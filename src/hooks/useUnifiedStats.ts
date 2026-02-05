@@ -55,13 +55,14 @@ export function useUnifiedStats(): DashboardStats {
                 cefrCounts["Unknown"].total++;
             }
 
-            // Check Status
-            if (prog?.is_learned) {
-                if (cefrCounts[level]) cefrCounts[level].learned++;
-                totalMastered++;
-            } else if (prog?.is_reserve) {
+            // Check Status - Prioritize Reserve (To Study) over Learned if both exist
+            // This ensures intent to study is reflected in the dashboard queue count
+            if (prog?.is_reserve) {
                 if (cefrCounts[level]) cefrCounts[level].reserved++;
                 totalToStudy++;
+            } else if (prog?.is_learned) {
+                if (cefrCounts[level]) cefrCounts[level].learned++;
+                totalMastered++;
             }
         }
 

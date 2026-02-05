@@ -22,7 +22,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/dictionary", label: "Dictionary", icon: Book },
   { href: "/practice", label: "Practice", icon: BrainCircuit },
-  { href: "/reserved-study", label: "Study Reserved", icon: Bookmark },
+  { href: "/reserved-study", label: "Study Later Queue", icon: Bookmark },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -36,7 +36,7 @@ export function AppSidebar() {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
-    
+
     if (minutes < 1) return "Just now";
     if (minutes < 60) return `${minutes}m ago`;
     if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
@@ -98,7 +98,7 @@ export function AppSidebar() {
               </>
             )}
           </div>
-          
+
           {/* Queue Status */}
           {(queueStatus.pending > 0 || queueStatus.failed > 0) && (
             <div className="space-y-1">
@@ -107,7 +107,7 @@ export function AppSidebar() {
                   <span className="text-blue-600">{queueStatus.pending} pending</span>
                 </div>
               )}
-              
+
               {queueStatus.failed > 0 && (
                 <div className="flex items-center gap-1">
                   <span className="text-red-600 text-xs">{queueStatus.failed} failed</span>

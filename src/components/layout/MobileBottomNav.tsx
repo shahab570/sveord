@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
     { href: "/dictionary", label: "Dictionary", icon: Book },
-    { href: "/reserved-study", label: "Study", icon: Bookmark },
+    { href: "/reserved-study", label: "Queue", icon: Bookmark },
     { href: "/practice", label: "SRS", icon: BrainCircuit },
     { href: "/search", label: "Search", icon: Search },
 ];

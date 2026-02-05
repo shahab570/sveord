@@ -124,7 +124,7 @@ export function WordCard({
         };
         if (newStatus) payload.is_learned = 0;
         await upsertProgress.mutateAsync(payload);
-        toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
+        toast.success(newStatus ? "Added to Study Later!" : "Removed from Queue");
       } catch (error) {
         toast.error("Failed to update Study Later status");
       }
@@ -166,7 +166,13 @@ export function WordCard({
             </span>
           )}
           {!hideActions && (
-            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); handleToggleReserve(); }}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => { e.stopPropagation(); handleToggleReserve(); }}
+              title={isReserve ? "Remove from Queue" : "Study Later"}
+            >
               <Bookmark className={cn("h-3 w-3", isReserve && "fill-amber-500 text-amber-500")} />
             </Button>
           )}
@@ -346,7 +352,7 @@ export function WordCard({
       }
 
       await upsertProgress.mutateAsync(payload);
-      toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
+      toast.success(newStatus ? "Added to Study Later!" : "Removed from Queue");
     } catch (error) {
       // Revert
       setOptimisticLearned(null);
@@ -434,7 +440,7 @@ export function WordCard({
                   <BookmarkPlus className="h-3.5 w-3.5" />
                 )}
                 <span className="text-[10px] font-black uppercase tracking-tight">
-                  {isReserved ? "Reserved" : "Study Later"}
+                  {isReserved ? "In Queue" : "Study Later"}
                 </span>
               </button>
               {(word.practice_count ?? 0) > 0 && (

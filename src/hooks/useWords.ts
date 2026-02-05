@@ -424,9 +424,9 @@ export function useUserProgress() {
       let isReserveVal = data.is_reserve !== undefined ? (data.is_reserve ? 1 : 0) : existing?.is_reserve;
 
       // Enforce mutual exclusivity
-      if (data.is_learned === true) {
+      if (!!data.is_learned) {
         isReserveVal = 0; // If learning, un-reserve
-      } else if (data.is_reserve === true) {
+      } else if (!!data.is_reserve) {
         isLearnedVal = 0; // If reserving, un-learn
       }
 
