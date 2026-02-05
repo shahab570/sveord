@@ -153,7 +153,7 @@ export const generateQuiz = async (
     // Auto-repair: If we somehow picked a word that has "Generation Failed" in the DB (even though we filtered), 
     // clear it out to allow re-generation.
     if (isInvalidMeaning(data.meanings?.[0]?.english)) {
-      db.words.update(target.swedish_word, { word_data: undefined });
+      await db.words.where('swedish_word').equals(target.swedish_word).modify({ word_data: undefined });
       return;
     }
 

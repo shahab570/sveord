@@ -102,11 +102,11 @@ export default function Dictionary() {
                     examples: generatedContent.examples || [],
                     synonyms: generatedContent.synonyms || [],
                     antonyms: generatedContent.antonyms || [],
-                    partOfSpeech: generatedContent.partOfSpeech,
+                    word_type: generatedContent.partOfSpeech || 'noun',
                     gender: generatedContent.gender,
                     inflectionExplanation: generatedContent.inflectionExplanation,
                     grammaticalForms: generatedContent.grammaticalForms || [],
-                    cefr_level: "D1" // Set D1 level
+                    cefr_level: "D1"
                 };
                 console.log('Word data created:', wordData);
 
@@ -145,7 +145,6 @@ export default function Dictionary() {
                 const { db } = await import('@/services/db');
                 const wordDataForDb = {
                     ...wordData,
-                    word_type: 'generated',
                     populated_at: new Date().toISOString()
                 };
                 if (upsertedWord) {
@@ -337,7 +336,11 @@ export default function Dictionary() {
                             className="pl-12 h-14 text-lg text-center shadow-sm rounded-2xl border-2 focus-visible:ring-primary/20"
                             autoFocus
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter' && searchTerm.trim() && filteredWords.length === 0) {
+                                if (
+                                    e.key === 'Enter' &&
+                                    searchTerm.trim() &&
+                                    !(words?.some(w => w.swedish_word.toLowerCase() === searchTerm.toLowerCase()))
+                                ) {
                                     handleAddWord();
                                 }
                             }}

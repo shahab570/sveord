@@ -270,7 +270,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                 };
 
                 await supabase.from('words').update({ word_data: wordData }).eq('id', wordId);
-                await db.words.update(swedishWord, { word_data: wordData });
+                await db.words.where('swedish_word').equals(swedishWord).modify({ word_data: wordData });
                 toast.success(`Updated "${swedishWord}"`);
                 await fetchStatus();
             } else {
@@ -390,7 +390,11 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             updatedData.populated_at = new Date().toISOString();
 
             await supabase.from('words').update({ word_data: updatedData as any }).eq('id', wordId);
-            await db.words.update(currentWord.swedish_word, { word_data: updatedData as any });
+            if (currentWord.id) {
+                await db.words.update(currentWord.id, { word_data: updatedData as any });
+            } else {
+                await db.words.where('swedish_word').equals(currentWord.swedish_word).modify({ word_data: updatedData as any });
+            }
             toast.success("AI Content updated!");
             await fetchStatus();
         } catch (err: any) {

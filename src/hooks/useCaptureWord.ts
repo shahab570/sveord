@@ -60,7 +60,7 @@ export function useCaptureWord() {
             const baseForm = (result.baseForm || cleanedWord).trim().toLowerCase();
 
             // 3. Check if base form already exists in DB
-            const existingBase = await db.words.get(baseForm);
+            const existingBase = await db.words.where('swedish_word').equals(baseForm).first();
             if (existingBase) {
                 // WARN CONDITION: Not a base form, but base exists
                 if (!force && baseForm !== cleanedWord) {

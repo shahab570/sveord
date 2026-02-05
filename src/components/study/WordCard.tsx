@@ -116,12 +116,14 @@ export function WordCard({
     const handleToggleReserve = async () => {
       try {
         const newStatus = !word.progress?.is_reserve;
-        await upsertProgress.mutateAsync({
+        const payload: any = {
           word_id: word.id,
           swedish_word: word.swedish_word,
           is_reserve: newStatus ? 1 : 0,
           reserved_at: newStatus ? new Date().toISOString() : undefined
-        });
+        };
+        if (newStatus) payload.is_learned = 0;
+        await upsertProgress.mutateAsync(payload);
         toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
       } catch (error) {
         toast.error("Failed to update Study Later status");
@@ -175,7 +177,7 @@ export function WordCard({
   const [isFetchingAudio, setIsFetchingAudio] = useState(false);
 
   // Live query to ensure deep reactivity when word_data changes (AI generation)
-  const liveWord = useLiveQuery(() => db.words.get(word.swedish_word), [word.swedish_word]);
+  const liveWord = useLiveQuery(() => db.words.where('swedish_word').equals(word.swedish_word).first(), [word.swedish_word]);
   const wordData = liveWord?.word_data || word.word_data;
 
   const fetchAudioForms = async () => {
@@ -245,6 +247,7 @@ export function WordCard({
         setShowMeaningInput(false);
         setCustomInstrMeaning("");
       }
+      await refreshWordData.mutateAsync(word.swedish_word);
     } finally {
       setIsRegenerating(null);
     }
