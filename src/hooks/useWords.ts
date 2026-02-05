@@ -466,7 +466,7 @@ export function useUserProgress() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["detailedStats"] });
-      
+
       // No need for immediate sync - queue will handle it automatically
     },
   });
@@ -533,7 +533,10 @@ export function useStats() {
     const totalWords = await db.words.count();
 
     // Fetch all learned words once (truthy)
-    const learnedProgress = await db.progress.filter(p => !!p.is_learned).toArray();
+    const learnedProgress = await db.progress
+      .where('user_id').equals(user.id)
+      .filter(p => p.is_learned === 1)
+      .toArray();
 
     // Get the word IDs for all learned items
     const learnedWordIds = learnedProgress.map(p => p.word_id);
@@ -606,12 +609,12 @@ export function useStats() {
         learned: learnedWordDefs.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).length
       },
       reserveStats: {
-        total: new Set((await db.progress.filter(p => !!p.is_reserve).toArray()).map(p => p.word_id)).size,
-        learned: new Set((await db.progress.filter(p => !!p.is_reserve && !!p.is_learned).toArray()).map(p => p.word_id)).size
+        total: new Set((await db.progress.where('user_id').equals(user.id).filter(p => p.is_reserve === 1).toArray()).map(p => p.word_id)).size,
+        learned: new Set((await db.progress.where('user_id').equals(user.id).filter(p => p.is_reserve === 1 && p.is_learned === 1).toArray()).map(p => p.word_id)).size
       },
       encounteredStats: {
         total: totalWords,
-        learned: new Set([...learnedWordIds, ...(await db.progress.filter(p => !!p.is_reserve).toArray()).map(p => p.word_id)]).size
+        learned: new Set([...learnedWordIds, ...(await db.progress.where('user_id').equals(user.id).filter(p => p.is_reserve === 1).toArray()).map(p => p.word_id)]).size
       }
     };
   }, [user?.id]);
@@ -631,21 +634,21 @@ export function useDetailedStats() {
     const monthAgo = new Date(today);
     monthAgo.setMonth(monthAgo.getMonth() - 1);
 
-    const allReserved = await db.progress.filter(p => !!p.is_reserve).toArray();
+    const allReserved = await db.progress.where('user_id').equals(user.id).filter(p => p.is_reserve === 1).toArray();
 
     // Reserve stats
     const reservedTodayItems = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= localStartOfToday);
     const reservedToday = new Set(reservedTodayItems.map(p => p.word_id)).size;
 
-    const allLearned = await db.progress.filter(p => !!p.is_learned).toArray();
+    const allLearned = await db.progress.where('user_id').equals(user.id).filter(p => p.is_learned === 1).toArray();
 
     const learnedTodayItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= localStartOfToday);
     const learnedToday = new Set(learnedTodayItems.map(p => p.word_id)).size;
 
-    const learnedThisWeekItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= weekAgo);
+    const learnedThisWeekItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= weekAgo.getTime());
     const learnedThisWeek = new Set(learnedThisWeekItems.map(p => p.word_id)).size;
 
-    const learnedThisMonthItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date) >= monthAgo);
+    const learnedThisMonthItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= monthAgo.getTime());
     const learnedThisMonth = new Set(learnedThisMonthItems.map(p => p.word_id)).size;
 
     // Breakdown for today
