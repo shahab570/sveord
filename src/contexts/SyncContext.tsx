@@ -85,8 +85,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                     const progressRecords: any[] = [];
                     const wordUpdates: LocalWord[] = [];
 
-                    // Optimization: Bulk fetch local progress to preserve local-only fields (SRS, Reserve)
-                    // since Supabase might not have these columns or they might be missing
+                    // Bulk fetch local progress to preserve local-only fields (SRS, Reserve)
                     const wordIds = progress.map((p: any) => {
                         const wd = Array.isArray(p.words) ? p.words[0] : p.words;
                         return wd?.id;
@@ -103,6 +102,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                         const existingProgress = localProgressMap.get(wordData.id);
 
                         progressRecords.push({
+                            id: existingProgress?.id, // CRITICAL: Preserve local ID to prevent duplicates!
                             user_id: user.id,
                             word_id: wordData.id,
                             word_swedish: wordData.swedish_word,
@@ -118,7 +118,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                         });
 
                         // Ensure we have this word in our local database too!
-                        const existing = await db.words.get(wordData.id);
+                        const existingWord = await db.words.get(wordData.id);
                         wordUpdates.push({
                             id: wordData.id,
                             swedish_word: wordData.swedish_word,
@@ -128,7 +128,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                             sidor_rank: wordData.sidor_rank || undefined,
                             word_data: wordData.word_data as any,
                             last_synced_at: new Date().toISOString(),
-                            is_ft: (wordData.word_data as any)?.is_ft ? 1 : existing?.is_ft
+                            is_ft: (wordData.word_data as any)?.is_ft ? 1 : existingWord?.is_ft
                         });
                     }
 
@@ -136,7 +136,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                         await db.words.bulkPut(wordUpdates);
                     }
                     if (progressRecords.length > 0) {
-                        await db.progress.bulkPut(progressRecords as any);
+                        // bulkPut will update existing records because we now include the 'id'
+                        await db.progress.bulkPut(progressRecords);
                     }
 
                     if (progress.length < PAGE_SIZE) {
@@ -483,14 +484,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }, [user?.id, syncAll, syncProgress]);
 
     return (
-        <SyncContext.Provider value={{ 
-            isSyncing, 
-            lastSyncTime, 
+        <SyncContext.Provider value={{
+            isSyncing,
+            lastSyncTime,
             queueStatus,
-            syncAll, 
-            syncProgress, 
-            syncMissingStories, 
-            forceRefresh, 
+            syncAll,
+            syncProgress,
+            syncMissingStories,
+            forceRefresh,
             pushLocalToCloud,
             clearFailedOperations,
             retryFailedOperations
