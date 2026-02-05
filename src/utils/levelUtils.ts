@@ -8,6 +8,6 @@ export function determineUnifiedLevel(word: {
         return word.word_data.cefr_level;
     }
 
-    // Default fallback
-    return "Unknown";
+    // Default fallback to D1 to avoid empty stats when CEFR is missing
+    return "D1";
 }
