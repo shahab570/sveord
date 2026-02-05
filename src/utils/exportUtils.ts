@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 // Simple level determination based on word_data
 function determineLevel(word: any) {
     if (word.word_data?.cefr_level) return word.word_data.cefr_level;
-    return "D1";
+    return "Unknown";
 }
 
 export async function exportUnifiedList() {
