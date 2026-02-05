@@ -18,7 +18,7 @@ export interface DashboardStats {
     hasData: boolean;
 }
 
-const CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2", "D1"];
 
 export function useUnifiedStats(): DashboardStats {
     const stats = useLiveQuery(async () => {
@@ -38,8 +38,8 @@ export function useUnifiedStats(): DashboardStats {
         let totalMastered = 0;
         let totalToStudy = 0;
 
-        // Filter out FT words for count
-        const validWords = allWords.filter(w => !w.is_ft && w.is_ft !== 1);
+        // Include all words (FT and corpus) so queue/learned counts reflect actual usage
+        const validWords = allWords;
         const totalUnique = validWords.length;
 
         // 2. Iterate words to classify and count
@@ -77,8 +77,7 @@ export function useUnifiedStats(): DashboardStats {
             allProgress.filter(p =>
                 p.is_learned &&
                 p.learned_date &&
-                p.learned_date >= todayStart &&
-                validWordIds.has(p.word_id)
+                p.learned_date >= todayStart
             ).map(p => p.word_id)
         ).size;
 
@@ -86,8 +85,7 @@ export function useUnifiedStats(): DashboardStats {
             allProgress.filter(p =>
                 p.is_reserve &&
                 p.reserved_at &&
-                p.reserved_at >= todayStart &&
-                validWordIds.has(p.word_id)
+                p.reserved_at >= todayStart
             ).map(p => p.word_id)
         ).size;
 
