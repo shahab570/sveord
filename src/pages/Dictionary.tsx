@@ -4,16 +4,18 @@ import { useWords, useAddWord } from "@/hooks/useWords";
 import { determineUnifiedLevel } from "@/utils/levelUtils";
 import { Book, Search, Filter, CheckCircle, Bookmark, Plus, Loader2, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button"; // Assuming you have this
-import { Badge } from "@/components/ui/badge"; // Assuming you have this
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { WordCard } from "@/components/study/WordCard";
 import { toast } from "sonner";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { generateFTWordContent as generateWordContent } from "@/services/geminiApi";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/services/db";
 
 const CEFR_TABS = ["All", "A1", "A2", "B1", "B2", "C1", "C2", "D1"];
 
@@ -22,6 +24,7 @@ export default function Dictionary() {
     const addWord = useAddWord();
     const { apiKeys } = useApiKeys();
     const queryClient = useQueryClient();
+    const { user } = useAuth();
     const isLoading = words === undefined || addWord.isPending;
     const isAdding = addWord.isPending;
     const [isGenerating, setIsGenerating] = useState(false);
@@ -151,6 +154,16 @@ export default function Dictionary() {
                         word_data: wordDataForDb,
                         last_synced_at: new Date().toISOString()
                     });
+
+                    // IMPORTANT: Create a progress record so the word appears in lists
+                    await db.progress.put({
+                        user_id: user?.id || '',
+                        word_id: upsertedWord.id,
+                        word_swedish: wordToAdd,
+                        is_learned: 0, // Not learned by default
+                        is_reserve: 0, // Not reserved by default
+                        last_synced_at: new Date().toISOString()
+                    });
                 }
 
                 toast.success(`Generated and added "${wordToAdd}" to D1 level!`);
@@ -172,6 +185,25 @@ export default function Dictionary() {
                 // Fallback to basic add if generation fails
                 try {
                     await addWord.mutateAsync({ swedish_word: wordToAdd });
+                    
+                    // IMPORTANT: Create a progress record for fallback case too
+                    const { data: addedWord } = await supabase
+                        .from('words')
+                        .select('id')
+                        .eq('swedish_word', wordToAdd)
+                        .single();
+                    
+                    if (addedWord) {
+                        await db.progress.put({
+                            user_id: user?.id || '',
+                            word_id: addedWord.id,
+                            word_swedish: wordToAdd,
+                            is_learned: 0, // Not learned by default
+                            is_reserve: 0, // Not reserved by default
+                            last_synced_at: new Date().toISOString()
+                        });
+                    }
+                    
                     toast.success(`Added "${wordToAdd}" to dictionary (basic mode)`);
                     setSelectedWordKey(wordToAdd);
                 } catch (fallbackError: any) {
@@ -396,6 +428,9 @@ export default function Dictionary() {
             <Dialog open={!!selectedWord} onOpenChange={(open) => !open && setSelectedWordKey(null)}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogTitle className="sr-only">Word Details</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        View and edit details for the selected word.
+                    </DialogDescription>
                     {selectedWord && (
                         <WordCard
                             word={selectedWord}

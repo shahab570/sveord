@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "dexie-react-hooks";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSync } from "@/contexts/SyncContext";
+import { syncQueue } from "@/services/syncQueue";
+import { validateProgress, sanitizeProgress } from "@/services/dataValidation";
 import { db, LocalWord, LocalUserProgress } from "@/services/db";
 import type { WordData } from "@/types/word";
 
@@ -77,13 +80,16 @@ export function useWords(filters?: {
       }
 
       const progressItems = await progressQuery.toArray();
-      const wordIds = progressItems.map(p => p.word_id).filter((id): id is number => !!id);
+      const filteredProgressItems = filters?.listType === "reserve"
+        ? progressItems.filter(p => !p.is_learned)
+        : progressItems;
+      const wordIds = filteredProgressItems.map(p => p.word_id).filter((id): id is number => !!id);
 
       // If no reserved words, return empty immediately
       if (wordIds.length === 0) return [];
 
       const words = await db.words.where('id').anyOf(wordIds).toArray();
-      const progressMap = new Map(progressItems.map(p => [p.word_id, p]));
+      const progressMap = new Map(filteredProgressItems.map(p => [p.word_id, p]));
 
       // Also get usage for just these words
       const swedishWords = words.map(w => w.swedish_word);
@@ -195,7 +201,7 @@ export function useWords(filters?: {
       const usage = usageMap.get(w.swedish_word);
 
       if (filters?.learnedOnly && !progress?.is_learned) continue;
-      if (filters?.listType === "reserve" && !progress?.is_reserve) continue;
+      if (filters?.listType === "reserve" && (!progress?.is_reserve || progress?.is_learned)) continue;
 
       result.push({
         id: w.id || 0,
@@ -280,6 +286,7 @@ export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") 
 export function useUserProgress() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { syncProgress } = useSync();
 
   const upsertProgress = useMutation({
     mutationFn: async (data: {
@@ -339,6 +346,22 @@ export function useUserProgress() {
       }
 
       swedishWord = word.swedish_word;
+
+      // Validate and sanitize data (now that required fields are available)
+      const validation = validateProgress({
+        ...data,
+        user_id: user.id,
+        word_swedish: swedishWord,
+      });
+      if (!validation.isValid) {
+        throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      const sanitizedData = sanitizeProgress({
+        ...data,
+        user_id: user.id,
+        word_swedish: swedishWord,
+      });
 
       // 2. Calculate SRS if difficulty is provided
       const existing = await db.progress.where('word_id').equals(data.word_id).first();
@@ -424,40 +447,27 @@ export function useUserProgress() {
 
       await db.progress.put(progressUpdate);
 
-      // 4. Update Supabase (Background)
-      // Find all word IDs in Supabase with this swedish_word to keep them in sync
-      const remoteWordIds = [data.word_id];
+      // 4. Queue sync operation instead of immediate sync
+      const remotePayload = {
+        user_id: user.id,
+        word_id: sanitizedData.word_id,
+        is_learned: progressUpdate.is_learned === 1,
+        user_meaning: progressUpdate.user_meaning,
+        custom_spelling: progressUpdate.custom_spelling,
+        learned_date: progressUpdate.learned_date,
+        is_reserve: progressUpdate.is_reserve === 1,
+      };
 
-      if (user?.id) {
-        for (const rid of remoteWordIds) {
-          const { data: remoteExisting } = await supabase
-            .from("user_progress")
-            .select("id")
-            .eq("user_id", user.id)
-            .eq("word_id", rid)
-            .maybeSingle();
-
-          const remotePayload = {
-            user_id: user.id,
-            word_id: rid,
-            is_learned: progressUpdate.is_learned === 1,
-            user_meaning: progressUpdate.user_meaning,
-            custom_spelling: progressUpdate.custom_spelling,
-            learned_date: progressUpdate.learned_date,
-            is_reserve: progressUpdate.is_reserve === 1,
-          };
-
-          if (remoteExisting) {
-            await supabase.from("user_progress").update(remotePayload).eq("id", remoteExisting.id);
-          } else {
-            await supabase.from("user_progress").insert(remotePayload);
-          }
-        }
-      }
+      syncQueue.add({
+        type: 'upsert_progress',
+        data: remotePayload
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["detailedStats"] });
+      
+      // No need for immediate sync - queue will handle it automatically
     },
   });
 

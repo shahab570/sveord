@@ -6,6 +6,12 @@ export interface LocalWord {
     swedish_word: string;
     word_data?: WordData;
     last_synced_at?: string;
+    kelly_level?: string;
+    kelly_source_id?: number;
+    frequency_rank?: number;
+    sidor_rank?: number;
+    sidor_source_id?: number;
+    is_ft?: number;
 }
 
 export interface LocalUserProgress {

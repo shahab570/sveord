@@ -2,16 +2,21 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { db, LocalWord, LocalUserProgress } from '@/services/db';
+import { syncQueue, SyncQueueStatus } from '@/services/syncQueue';
+import { validateWord, validateProgress, sanitizeWord, sanitizeProgress } from '@/services/dataValidation';
 import { toast } from 'sonner';
 
 interface SyncContextType {
     isSyncing: boolean;
     lastSyncTime: Date | null;
+    queueStatus: SyncQueueStatus;
     syncAll: () => Promise<void>;
     syncProgress: () => Promise<void>;
     syncMissingStories: () => Promise<void>;
     forceRefresh: () => Promise<void>;
     pushLocalToCloud: () => Promise<void>;
+    clearFailedOperations: () => void;
+    retryFailedOperations: () => Promise<void>;
 }
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
@@ -20,12 +25,37 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const { user } = useAuth();
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+    const [queueStatus, setQueueStatus] = useState<SyncQueueStatus>({ pending: 0, failed: 0, processing: false });
     const syncLockRef = useRef(false);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const isUserActiveRef = useRef(true);
 
     const setSyncing = (val: boolean) => {
         syncLockRef.current = val;
         setIsSyncing(val);
     };
+
+    // Subscribe to sync queue status changes
+    useEffect(() => {
+        const unsubscribe = syncQueue.subscribe(setQueueStatus);
+        return unsubscribe;
+    }, []);
+
+    // Clear failed operations
+    const clearFailedOperations = useCallback(() => {
+        syncQueue.clearFailed();
+        toast.info('Cleared failed sync operations');
+    }, []);
+
+    // Retry failed operations
+    const retryFailedOperations = useCallback(async () => {
+        try {
+            await syncQueue.retryFailed();
+            toast.info('Retrying failed operations');
+        } catch (error) {
+            toast.error('Failed to retry operations');
+        }
+    }, []);
 
     const syncProgress = useCallback(async (silent = false) => {
         if (!user) return;
@@ -346,6 +376,81 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             setSyncing(false);
         }
     }, [user]);
+
+    // Periodic sync every 1 minute when user is active
+    const startPeriodicSync = useCallback(() => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+        }
+
+        intervalRef.current = setInterval(async () => {
+            if (!user || !isUserActiveRef.current || syncLockRef.current) return;
+
+            console.log('Performing periodic sync...');
+            try {
+                await syncProgress(true);
+                setLastSyncTime(new Date());
+            } catch (error) {
+                console.error('Periodic sync failed:', error);
+            }
+        }, 60000); // 1 minute
+    }, [user, syncProgress]);
+
+    // Stop periodic sync
+    const stopPeriodicSync = useCallback(() => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+    }, []);
+
+    // Track user activity
+    useEffect(() => {
+        const handleUserActivity = () => {
+            isUserActiveRef.current = true;
+        };
+
+        const handleUserInactivity = () => {
+            isUserActiveRef.current = false;
+        };
+
+        // Consider user inactive after 5 minutes of no activity
+        let inactivityTimer: NodeJS.Timeout;
+        const resetInactivityTimer = () => {
+            clearTimeout(inactivityTimer);
+            isUserActiveRef.current = true;
+            inactivityTimer = setTimeout(handleUserInactivity, 5 * 60 * 1000); // 5 minutes
+        };
+
+        // Listen for user activity events
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+        events.forEach(event => {
+            document.addEventListener(event, resetInactivityTimer, true);
+        });
+
+        resetInactivityTimer(); // Start the timer
+
+        return () => {
+            events.forEach(event => {
+                document.removeEventListener(event, resetInactivityTimer, true);
+            });
+            clearTimeout(inactivityTimer);
+        };
+    }, []);
+
+    // Start/stop periodic sync based on user authentication
+    useEffect(() => {
+        if (user) {
+            startPeriodicSync();
+        } else {
+            stopPeriodicSync();
+        }
+
+        return () => {
+            stopPeriodicSync();
+        };
+    }, [user, startPeriodicSync, stopPeriodicSync]);
+
     useEffect(() => {
         const checkAndSync = async () => {
             if (!user) return;
@@ -371,7 +476,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }, [user?.id, syncAll, syncProgress]);
 
     return (
-        <SyncContext.Provider value={{ isSyncing, lastSyncTime, syncAll, syncProgress, syncMissingStories, forceRefresh, pushLocalToCloud }}>
+        <SyncContext.Provider value={{ 
+            isSyncing, 
+            lastSyncTime, 
+            queueStatus,
+            syncAll, 
+            syncProgress, 
+            syncMissingStories, 
+            forceRefresh, 
+            pushLocalToCloud,
+            clearFailedOperations,
+            retryFailedOperations
+        }}>
             {children}
         </SyncContext.Provider>
     );

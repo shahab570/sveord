@@ -20,6 +20,7 @@ const AdminDashboard = lazyRetry(() => import("./pages/AdminDashboard"), "AdminD
 const Dashboard = lazyRetry(() => import("./pages/Dashboard"), "Dashboard");
 const Dictionary = lazyRetry(() => import("./pages/Dictionary"), "Dictionary");
 const Practice = lazyRetry(() => import("./pages/Practice"), "Practice");
+const ReservedStudy = lazyRetry(() => import("./pages/ReservedStudy"), "ReservedStudy");
 const Settings = lazyRetry(() => import("./pages/Settings"), "Settings");
 const NotFound = lazyRetry(() => import("./pages/NotFound"), "NotFound");
 
@@ -60,6 +61,7 @@ const App = () => (
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/dictionary" element={<Dictionary />} />
                     <Route path="/practice" element={<Practice />} />
+                    <Route path="/reserved-study" element={<ReservedStudy />} />
                     <Route path="/settings" element={<Settings />} />
                   </Route>
 

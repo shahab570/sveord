@@ -1,6 +1,7 @@
 import { db } from './db';
 
 const FORVO_API_KEY = import.meta.env.VITE_FORVO_API_KEY;
+let hasWarnedMissingKey = false;
 const FORVO_BASE_URL = 'https://apifree.forvo.com';
 
 export interface ForvoPronunciation {
@@ -25,7 +26,10 @@ export interface ForvoPronunciation {
  */
 export async function getForvoAudioUrl(word: string): Promise<string | null> {
     if (!FORVO_API_KEY) {
-        console.warn('VITE_FORVO_API_KEY is not set');
+        if (!hasWarnedMissingKey) {
+            console.warn('VITE_FORVO_API_KEY is not set');
+            hasWarnedMissingKey = true;
+        }
         return null;
     }
 
