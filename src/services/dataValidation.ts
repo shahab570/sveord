@@ -182,12 +182,27 @@ export const sanitizeWord = (data: any): any => {
   };
 };
 
-export const sanitizeProgress = (data: any): any => {
-  return {
+export const sanitizeProgress = (data: any, existing?: any): any => {
+  const sanitized = {
+    ...existing,
     ...data,
-    is_learned: data.is_learned ? 1 : 0,
-    is_reserve: data.is_reserve ? 1 : 0,
-    user_meaning: data.user_meaning?.toString().trim() || null,
-    custom_spelling: data.custom_spelling?.toString().trim() || null
+    // Strictly convert status to 0 or 1
+    is_learned: data.is_learned === true || data.is_learned === 1 ? 1 : (data.is_learned === false || data.is_learned === 0 ? 0 : (existing?.is_learned ?? 0)),
+    is_reserve: data.is_reserve === true || data.is_reserve === 1 ? 1 : (data.is_reserve === false || data.is_reserve === 0 ? 0 : (existing?.is_reserve ?? 0)),
+
+    // Ensure IDs and Strings are clean
+    user_id: data.user_id || existing?.user_id,
+    word_id: Number(data.word_id || existing?.word_id),
+    word_swedish: (data.word_swedish || existing?.word_swedish)?.toString().toLowerCase(),
+
+    // Dates
+    learned_date: data.learned_date || existing?.learned_date || null,
+    reserved_at: data.reserved_at || existing?.reserved_at || null,
+
+    // Content
+    user_meaning: data.user_meaning !== undefined ? data.user_meaning?.toString().trim() : existing?.user_meaning,
+    custom_spelling: data.custom_spelling !== undefined ? data.custom_spelling?.toString().trim() : existing?.custom_spelling
   };
+
+  return sanitized;
 };

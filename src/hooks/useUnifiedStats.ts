@@ -33,11 +33,22 @@ export function useUnifiedStats(): DashboardStats {
             db.progress.where('user_id').equals(user.id).toArray()
         ]);
 
-        // 2. Build Progress Map - Use String keys for maximum robustness against mixed ID types (number vs string)
+        // 2. Build Progress Map & SILENT CLEANUP of legacy data
         const progressMap = new Map();
-        for (const p of allProgress) {
-            // If somehow we have duplicates (buggy sync), the latest one wins
-            progressMap.set(String(p.word_id), p);
+        for (const rawP of allProgress) {
+            const p = rawP as any;
+            // Self-heal: If we find boolean or string statuses, fix them in the DB silently
+            if (typeof p.is_learned !== 'number' || typeof p.is_reserve !== 'number') {
+                const fixed = {
+                    ...p,
+                    is_learned: p.is_learned === true || p.is_learned === 1 || p.is_learned === "1" ? 1 : 0,
+                    is_reserve: p.is_reserve === true || p.is_reserve === 1 || p.is_reserve === "1" ? 1 : 0
+                };
+                db.progress.put(fixed);
+                progressMap.set(String(p.word_id), fixed);
+            } else {
+                progressMap.set(String(p.word_id), p);
+            }
         }
 
         // 3. Initialize stats containers
@@ -61,12 +72,11 @@ export function useUnifiedStats(): DashboardStats {
                 cefrCounts["Unknown"].total++;
             }
 
-            // Check Status - PRIORITIZE Reserve (To Study) over Learned if both exist
-            // This ensures any newly "Study Later" marked word immediately shows in Queue
-            if (!!prog?.is_reserve) {
+            // 4. Check Status - Simple 0/1 checks
+            if (prog?.is_reserve === 1) {
                 if (cefrCounts[level]) cefrCounts[level].reserved++;
                 totalToStudy++;
-            } else if (!!prog?.is_learned) {
+            } else if (prog?.is_learned === 1) {
                 if (cefrCounts[level]) cefrCounts[level].learned++;
                 totalMastered++;
             }

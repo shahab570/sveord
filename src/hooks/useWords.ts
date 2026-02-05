@@ -301,167 +301,61 @@ export function useUserProgress() {
     }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // 1. Get word info
-      let swedishWord = data.swedish_word;
-      let word: LocalWord | undefined;
+      // 1. Resolve Word (Local or Remote)
+      let swedishWord = data.swedish_word?.toLowerCase();
+      let word: LocalWord | undefined = await db.words.where('swedish_word').equals(swedishWord || "").first() || await db.words.get(data.word_id);
 
-      // If we have the swedish_word (PK), use it directly - fastest
-      // If we have the swedish_word, use it to find the word correctly
-      if (swedishWord) {
-        word = await db.words.where('swedish_word').equals(swedishWord).first();
-      }
-
-      // If we don't have it, or it wasn't found by spelling, try to find by ID (primary key)
-      if (!word && data.word_id) {
-        word = await db.words.get(data.word_id);
-      }
-
-      // Fallback: If still not found locally (partial sync?), fetch from Supabase and cache it
-      if (!word) {
-        console.log(`Word "${data.swedish_word || data.word_id}" not found locally, fetching from remote...`);
-
-        let query = supabase.from('words').select('*');
-        if (data.swedish_word) {
-          query = query.eq('swedish_word', data.swedish_word);
-        } else {
-          query = query.eq('id', data.word_id);
+      if (!word && swedishWord) {
+        const { data: remoteWord } = await supabase.from('words').select('*').eq('swedish_word', swedishWord).single();
+        if (remoteWord) {
+          word = { id: remoteWord.id, swedish_word: remoteWord.swedish_word, word_data: remoteWord.word_data as any, kelly_level: remoteWord.kelly_level || undefined };
+          await db.words.put(word);
         }
+      }
+      if (!word) throw new Error("Word not found");
 
-        const { data: remoteWord, error } = await query.single();
+      // 2. Resolve Existing Progress
+      const existing = await db.progress.where('word_id').equals(word.id).first();
 
-        if (error || !remoteWord) throw new Error("Word not found in local DB or Remote");
+      // 3. ENFORCE MUTUAL EXCLUSIVITY & Calculate Dates
+      const updatePayload: any = { ...data, word_id: word.id, word_swedish: word.swedish_word, user_id: user.id };
 
-        word = {
-          id: remoteWord.id,
-          swedish_word: remoteWord.swedish_word,
-          kelly_level: remoteWord.kelly_level || undefined,
-          kelly_source_id: remoteWord.kelly_source_id || undefined,
-          frequency_rank: remoteWord.frequency_rank || undefined,
-          sidor_rank: remoteWord.sidor_rank || undefined,
-          word_data: remoteWord.word_data as any,
-          last_synced_at: new Date().toISOString()
-        };
-
-        // Self-heal local DB
-        await db.words.put(word);
+      if (data.is_learned === true || data.is_learned === 1) {
+        updatePayload.is_reserve = 0;
+        updatePayload.reserved_at = null;
+        updatePayload.learned_date = existing?.learned_date || new Date().toISOString();
+      } else if (data.is_reserve === true || data.is_reserve === 1) {
+        updatePayload.is_learned = 0;
+        updatePayload.learned_date = null;
+        updatePayload.reserved_at = existing?.reserved_at || data.reserved_at || new Date().toISOString();
       }
 
-      swedishWord = word.swedish_word;
+      // 4. Sanitize Everything
+      const progressUpdate = sanitizeProgress(updatePayload, existing);
 
-      // Validate and sanitize data (now that required fields are available)
-      const validation = validateProgress({
-        ...data,
-        user_id: user.id,
-        word_swedish: swedishWord,
-      });
-      if (!validation.isValid) {
-        throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
-      }
-
-      const sanitizedData = sanitizeProgress({
-        ...data,
-        user_id: user.id,
-        word_swedish: swedishWord,
-      });
-
-      // 2. Calculate SRS if difficulty is provided
-      const existing = await db.progress.where('word_id').equals(data.word_id).first();
-
-      let srsUpdate: Partial<LocalUserProgress> = {};
+      // 5. Calculate SRS difficulty if provided
       if (data.srs_difficulty) {
-        let ease = existing?.srs_ease || 2.5;
-        let interval = existing?.srs_interval || 0;
-
-        switch (data.srs_difficulty) {
-          case "hard":
-            interval = 1;
-            ease = Math.max(1.3, ease - 0.2);
-            break;
-          case "good":
-            interval = interval === 0 ? 1 : Math.ceil(interval * ease);
-            break;
-          case "easy":
-            interval = interval === 0 ? 4 : Math.ceil(interval * ease * 1.3);
-            ease += 0.15;
-            break;
-          case "reset":
-            interval = 0;
-            ease = 2.5;
-            break;
-        }
+        let ease = progressUpdate.srs_ease || 2.5;
+        let interval = progressUpdate.srs_interval || 0;
+        // Simple SRS calculation logic inline for clarity
+        if (data.srs_difficulty === 'hard') { interval = 1; ease = Math.max(1.3, ease - 0.2); }
+        else if (data.srs_difficulty === 'good') { interval = interval === 0 ? 1 : Math.ceil(interval * ease); }
+        else if (data.srs_difficulty === 'easy') { interval = interval === 0 ? 4 : Math.ceil(interval * ease * 1.3); ease += 0.15; }
+        else if (data.srs_difficulty === 'reset') { interval = 0; ease = 2.5; }
 
         const nextReview = new Date();
         nextReview.setDate(nextReview.getDate() + interval);
-
-        srsUpdate = {
-          srs_next_review: nextReview.toISOString(),
-          srs_interval: interval,
-          srs_ease: ease,
-        };
+        progressUpdate.srs_next_review = nextReview.toISOString();
+        progressUpdate.srs_interval = interval;
+        progressUpdate.srs_ease = ease;
       }
 
-      // 3. Update Local DB
-      const isNowLearned = !!data.is_learned;
-      const wasLearned = existing?.is_learned === 1; // stored as number 0/1 locally
-
-      // Determine new learned date:
-      // 1. If explicitly marking learned now -> update date to now (refreshes Today's review)
-      // 2. If just updating content (meaning/spelling) while already learned -> keep existing date
-      // 3. If unlearning -> keep existing date (or null? usually keep for history)
-
-      let newLearnedDate = existing?.learned_date;
-      if (isNowLearned && !wasLearned) {
-        // Transitioning to learned -> Set new date
-        newLearnedDate = new Date().toISOString();
-      } else if (isNowLearned && wasLearned) {
-        // Already learned, just updating fields -> Keep date (unless it was somehow null)
-        newLearnedDate = existing?.learned_date || new Date().toISOString();
-      } else if (isNowLearned) {
-        // Fallback
-        newLearnedDate = new Date().toISOString();
-      }
-
-      let isLearnedVal = data.is_learned !== undefined ? (data.is_learned ? 1 : 0) : existing?.is_learned;
-      let isReserveVal = data.is_reserve !== undefined ? (data.is_reserve ? 1 : 0) : existing?.is_reserve;
-
-      // Enforce mutual exclusivity
-      if (!!data.is_learned) {
-        isReserveVal = 0; // If learning, un-reserve
-      } else if (!!data.is_reserve) {
-        isLearnedVal = 0; // If reserving, un-learn
-      }
-
-      const progressUpdate: LocalUserProgress = {
-        ...existing,
-        user_id: user.id,
-        word_id: data.word_id,
-        word_swedish: swedishWord,
-        is_learned: isLearnedVal ?? 0,
-        is_reserve: isReserveVal ?? 0,
-        user_meaning: data.user_meaning !== undefined ? data.user_meaning : existing?.user_meaning,
-        custom_spelling: data.custom_spelling !== undefined ? data.custom_spelling : existing?.custom_spelling,
-        reserved_at: data.reserved_at !== undefined ? data.reserved_at : (isReserveVal === 1 ? (existing?.reserved_at || new Date().toISOString()) : undefined),
-        learned_date: newLearnedDate,
-        last_synced_at: new Date().toISOString(), // This is for local sync status, not remote
-        ...srsUpdate,
-      };
-
+      // 6. Final Save and Sync Queue
       await db.progress.put(progressUpdate);
-
-      // 4. Queue sync operation instead of immediate sync
-      const remotePayload = {
-        user_id: user.id,
-        word_id: sanitizedData.word_id,
-        is_learned: progressUpdate.is_learned === 1,
-        user_meaning: progressUpdate.user_meaning,
-        custom_spelling: progressUpdate.custom_spelling,
-        learned_date: progressUpdate.learned_date,
-        is_reserve: progressUpdate.is_reserve === 1,
-      };
 
       syncQueue.add({
         type: 'upsert_progress',
-        data: remotePayload
+        data: { ...progressUpdate, is_learned: progressUpdate.is_learned === 1, is_reserve: progressUpdate.is_reserve === 1 }
       });
     },
     onSuccess: () => {
