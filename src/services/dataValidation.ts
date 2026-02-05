@@ -88,13 +88,13 @@ export class ProgressValidator implements DataValidator {
       errors.push('Word Swedish must be a string');
     }
 
-    // Boolean fields validation
-    if (data.is_learned !== undefined && typeof data.is_learned !== 'number') {
-      errors.push('is_learned must be a number (0 or 1)');
+    // Unified status fields (support both 0/1 and boolean true/false)
+    if (data.is_learned !== undefined && typeof data.is_learned !== 'number' && typeof data.is_learned !== 'boolean') {
+      errors.push('is_learned must be a number or boolean');
     }
 
-    if (data.is_reserve !== undefined && typeof data.is_reserve !== 'number') {
-      errors.push('is_reserve must be a number (0 or 1)');
+    if (data.is_reserve !== undefined && typeof data.is_reserve !== 'number' && typeof data.is_reserve !== 'boolean') {
+      errors.push('is_reserve must be a number or boolean');
     }
 
     // Date validation
@@ -141,9 +141,9 @@ export function validateData(validator: DataValidator) {
 
     descriptor.value = async function (...args: any[]) {
       const data = args[0]; // Assume first argument is the data to validate
-      
+
       const result = validator.validate(data);
-      
+
       if (!result.isValid) {
         const error = new Error(`Validation failed: ${result.errors.join(', ')}`);
         (error as any).validationErrors = result.errors;

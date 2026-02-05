@@ -63,10 +63,10 @@ export function useUnifiedStats(): DashboardStats {
 
             // Check Status - PRIORITIZE Reserve (To Study) over Learned if both exist
             // This ensures any newly "Study Later" marked word immediately shows in Queue
-            if (prog?.is_reserve === 1) {
+            if (!!prog?.is_reserve) {
                 if (cefrCounts[level]) cefrCounts[level].reserved++;
                 totalToStudy++;
-            } else if (prog?.is_learned === 1) {
+            } else if (!!prog?.is_learned) {
                 if (cefrCounts[level]) cefrCounts[level].learned++;
                 totalMastered++;
             }

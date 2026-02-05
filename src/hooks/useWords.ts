@@ -306,13 +306,14 @@ export function useUserProgress() {
       let word: LocalWord | undefined;
 
       // If we have the swedish_word (PK), use it directly - fastest
+      // If we have the swedish_word, use it to find the word correctly
       if (swedishWord) {
-        word = await db.words.get(swedishWord);
+        word = await db.words.where('swedish_word').equals(swedishWord).first();
       }
 
-      // If we don't have it, or it wasn't found by PK, try to find by ID (slower scan)
-      if (!word) {
-        word = await db.words.filter(w => w.id === data.word_id).first();
+      // If we don't have it, or it wasn't found by spelling, try to find by ID (primary key)
+      if (!word && data.word_id) {
+        word = await db.words.get(data.word_id);
       }
 
       // Fallback: If still not found locally (partial sync?), fetch from Supabase and cache it
