@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { supabase } from '@/integrations/supabase/client';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { db } from '@/services/db';
-import { generateWordMeaning, generateMeaningsTrueBatch } from '@/services/geminiApi';
+import { generateWordMeaning, generateMeaningsTrueBatch, classifyCEFRBatch } from '@/services/geminiApi';
 import { toast } from 'sonner';
 
 interface PopulationStatus {
@@ -36,6 +36,7 @@ interface PopulationContextType {
     regenerateSingleWord: (wordId: number, swedishWord: string) => Promise<void>;
     regenerateFieldWithInstruction: (wordId: number, field: 'explanation' | 'meanings', instruction: string, swedishWordFallback?: string) => Promise<void>;
     enhanceUserNote: (text: string) => Promise<string>;
+    fillMissingCEFRLevels: () => Promise<void>;
 }
 
 const PopulationContext = createContext<PopulationContextType | undefined>(undefined);
@@ -538,6 +539,90 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
+    const fillMissingCEFRLevels = async () => {
+        if (!apiKeys.geminiApiKey) {
+            toast.error("Add a Gemini API Key in Settings to classify CEFR.");
+            return;
+        }
+
+        setIsPopulating(true);
+        setLastBatchInfo("Classifying CEFR for words missing levels...");
+        try {
+            let lastId = 0;
+            let hasMore = true;
+            let updatedCount = 0;
+
+            // Fetch in pages and classify only missing CEFR locally per page
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .from('words')
+                    .select('id, swedish_word, word_data')
+                    .gt('id', lastId)
+                    .order('id', { ascending: true })
+                    .limit(1000);
+
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    hasMore = false;
+                    break;
+                }
+
+                lastId = data[data.length - 1].id;
+                const missing = data.filter(w =>
+                    !w.word_data ||
+                    !w.word_data.cefr_level ||
+                    (typeof w.word_data.cefr_level === 'string' && w.word_data.cefr_level.trim() === '')
+                );
+
+                if (missing.length === 0) {
+                    setLastBatchInfo(`Scanning... up to ID ${lastId}`);
+                    continue;
+                }
+
+                // Classify in smaller chunks to reduce API load
+                const CHUNK_SIZE = 200;
+                for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
+                    const chunk = missing.slice(i, i + CHUNK_SIZE);
+                    const words = chunk.map(w => w.swedish_word);
+                    const map = await classifyCEFRBatch(words, apiKeys.geminiApiKey);
+
+                    const supUpdates: any[] = [];
+                    const dexUpdates: any[] = [];
+
+                    for (const w of chunk) {
+                        const level = map.get(w.swedish_word);
+                        if (!level) continue;
+                        const updatedData = { ...(w.word_data || {}), cefr_level: level };
+                        const full = {
+                            id: w.id,
+                            swedish_word: w.swedish_word,
+                            word_data: updatedData as any,
+                            last_synced_at: new Date().toISOString(),
+                        };
+                        supUpdates.push(full);
+                        dexUpdates.push(full);
+                    }
+
+                    if (supUpdates.length > 0) {
+                        await supabase.from('words').upsert(supUpdates);
+                        await db.words.bulkPut(dexUpdates);
+                        updatedCount += supUpdates.length;
+                        setLastBatchInfo(`Classified ${updatedCount} CEFR levels...`);
+                    }
+                }
+            }
+
+            toast.success(`Filled CEFR levels for ${updatedCount} words.`);
+            await fetchStatus();
+        } catch (err: any) {
+            console.error('fillMissingCEFRLevels failed:', err);
+            toast.error(err.message || "CEFR classification failed");
+        } finally {
+            setIsPopulating(false);
+            setLastBatchInfo(null);
+        }
+    };
+
     return (
         <PopulationContext.Provider value={{
             status, isPopulating, isPaused, overwrite: currentMode === 'overwrite', setOverwrite: (val) => setCurrentMode(val ? 'overwrite' : 'missing_data'),
@@ -545,7 +630,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
             lastBatchInfo, error, processedCount, sessionTotal,
             startPopulation, pausePopulation, resumePopulation,
             fetchStatus, cleanGrammar, resetGrammar, regenerateSingleWord, regenerateFieldWithInstruction,
-            enhanceUserNote
+            enhanceUserNote, fillMissingCEFRLevels
         }}>
             {children}
         </PopulationContext.Provider>

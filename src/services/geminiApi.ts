@@ -98,6 +98,75 @@ export interface GeminiError {
 }
 
 /**
+ * Classify CEFR level (A1–C2, D1) for a batch of Swedish words.
+ */
+export async function classifyCEFRBatch(
+    words: string[],
+    apiKey: string,
+    modelOverride?: string,
+    versionOverride?: string
+): Promise<Map<string, string>> {
+    const model = modelOverride || ACTIVE_MODEL;
+    const version = versionOverride || ACTIVE_VERSION;
+    const results = new Map<string, string>();
+
+    if (words.length === 0) return results;
+
+    const prompt = `You are a Swedish language curriculum expert.
+Task: Assign a CEFR level to each Swedish word in this list: ${JSON.stringify(words)}.
+
+Allowed levels: "A1", "A2", "B1", "B2", "C1", "C2", "D1".
+- A1–A2: very common beginner vocabulary
+- B1–B2: intermediate, common but more complex or specific
+- C1–C2: advanced/academic/rare
+- D1: specialty/uncategorized where CEFR is not clear
+
+Output ONLY a JSON array like:
+[
+  { "word": "bok", "cefr_level": "A1" },
+  { "word": "känna", "cefr_level": "B1" }
+]`;
+
+    try {
+        const response = await fetch(`${getApiUrl(version, model)}?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature: 0.2,
+                    responseMimeType: "application/json"
+                }
+            }),
+        });
+
+        if (!response.ok) {
+            console.error('CEFR batch classification failed with HTTP', response.status);
+            return results;
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const parsed = parseGeminiResponse(responseText);
+
+        if (Array.isArray(parsed)) {
+            for (const item of parsed) {
+                const w = (item?.word || '').toString().trim().toLowerCase();
+                const level = (item?.cefr_level || '').toString().trim().toUpperCase();
+                if (w && ["A1","A2","B1","B2","C1","C2","D1"].includes(level)) {
+                    // Preserve original case by mapping via provided list
+                    const original = words.find(x => x.toLowerCase() === w) || w;
+                    results.set(original, level);
+                }
+            }
+        }
+    } catch (e) {
+        console.error('CEFR batch classification error:', e);
+    }
+
+    return results;
+}
+/**
  * Generate detailed meaning for a Swedish word using Gemini API
  */
 export async function generateWordMeaning(
