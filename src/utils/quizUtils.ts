@@ -147,14 +147,14 @@ export const generateQuiz = async (
   const shuffledTargets = shuffle(validTargets).slice(0, count);
   const updatedUsages = new Map<string, { target: number; option: number }>();
 
-  shuffledTargets.forEach(target => {
+  for (const target of shuffledTargets) {
     const data = target.word_data as WordData;
 
     // Auto-repair: If we somehow picked a word that has "Generation Failed" in the DB (even though we filtered), 
     // clear it out to allow re-generation.
     if (isInvalidMeaning(data.meanings?.[0]?.english)) {
       await db.words.where('swedish_word').equals(target.swedish_word).modify({ word_data: undefined });
-      return;
+      continue;
     }
 
     // Track target usage
@@ -269,7 +269,7 @@ export const generateQuiz = async (
         options: rawOptions
       });
     }
-  });
+  }
 
   // 4. Save Usage and Quiz
   for (const [word, counts] of updatedUsages.entries()) {
