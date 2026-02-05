@@ -12,6 +12,7 @@ import { usePopulation } from "@/contexts/PopulationContext";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/services/db";
 import { useUserProgress, WordWithProgress } from "@/hooks/useWords";
+import { determineUnifiedLevel } from "@/utils/levelUtils";
 import { toast } from "sonner";
 
 interface FlashcardProps {
@@ -98,7 +99,7 @@ export function Flashcard({ word, onRate }: FlashcardProps) {
                     {/* Front Side */}
                     <div className="space-y-4">
                         <span className="text-sm font-medium text-primary/60 uppercase tracking-widest">
-                            {word.kelly_level ? `Level ${word.kelly_level}` : "Vocabulary"}
+                            Level {determineUnifiedLevel(word)}
                         </span>
                         <h2 className="text-5xl md:text-6xl font-bold text-foreground tracking-tight">
                             {displayWord}

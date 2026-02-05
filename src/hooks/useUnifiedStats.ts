@@ -113,9 +113,9 @@ export function useUnifiedStats(): DashboardStats {
                 cefrCounts["Unknown"].total++;
             }
 
-            if (!!prog?.is_reserve) {
+            if (prog?.is_reserve) {
                 if (cefrCounts[level]) cefrCounts[level].reserved++;
-            } else if (!!prog?.is_learned) {
+            } else if (prog?.is_learned) {
                 if (cefrCounts[level]) cefrCounts[level].learned++;
             }
         }

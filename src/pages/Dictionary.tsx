@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { WordCard } from "@/components/study/WordCard";
 import { toast } from "sonner";
 import { useApiKeys } from "@/hooks/useApiKeys";
-import { generateFTWordContent as generateWordContent } from "@/services/geminiApi";
+import { generateWordContent } from "@/services/geminiApi";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -62,10 +62,6 @@ export default function Dictionary() {
                 await db.words.put({
                     id: remoteExisting.id,
                     swedish_word: remoteExisting.swedish_word,
-                    kelly_level: remoteExisting.kelly_level || undefined,
-                    kelly_source_id: remoteExisting.kelly_source_id || undefined,
-                    frequency_rank: remoteExisting.frequency_rank || undefined,
-                    sidor_rank: remoteExisting.sidor_rank || undefined,
                     word_data: remoteExisting.word_data as any,
                     last_synced_at: new Date().toISOString(),
                 });
@@ -160,11 +156,7 @@ export default function Dictionary() {
                         data: {
                             id: upsertedWord.id,
                             swedish_word: wordToAdd,
-                            word_data: wordData,
-                            kelly_level: null,
-                            frequency_rank: null,
-                            sidor_rank: null,
-                            sidor_source_id: null
+                            word_data: wordData
                         }
                     });
 

@@ -189,34 +189,19 @@ export type Database = {
       words: {
         Row: {
           created_at: string | null
-          frequency_rank: number | null
           id: number
-          kelly_level: string | null
-          kelly_source_id: number | null
-          sidor_rank: number | null
-          sidor_source_id: number | null
           swedish_word: string
           word_data: Json | null
         }
         Insert: {
           created_at?: string | null
-          frequency_rank?: number | null
           id?: number
-          kelly_level?: string | null
-          kelly_source_id?: number | null
-          sidor_rank?: number | null
-          sidor_source_id?: number | null
           swedish_word: string
           word_data?: Json | null
         }
         Update: {
           created_at?: string | null
-          frequency_rank?: number | null
           id?: number
-          kelly_level?: string | null
-          kelly_source_id?: number | null
-          sidor_rank?: number | null
-          sidor_source_id?: number | null
           swedish_word?: string
           word_data?: Json | null
         }

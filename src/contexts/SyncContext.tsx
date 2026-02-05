@@ -122,13 +122,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                         wordUpdates.push({
                             id: wordData.id,
                             swedish_word: wordData.swedish_word,
-                            kelly_level: wordData.kelly_level || undefined,
-                            kelly_source_id: wordData.kelly_source_id || undefined,
-                            frequency_rank: wordData.frequency_rank || undefined,
-                            sidor_rank: wordData.sidor_rank || undefined,
                             word_data: wordData.word_data as any,
                             last_synced_at: new Date().toISOString(),
-                            is_ft: (wordData.word_data as any)?.is_ft ? 1 : existingWord?.is_ft
                         });
                     }
 
@@ -191,13 +186,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                         return {
                             id: w.id,
                             swedish_word: w.swedish_word,
-                            kelly_level: w.kelly_level || undefined,
-                            kelly_source_id: w.kelly_source_id || undefined,
-                            frequency_rank: w.frequency_rank || undefined,
-                            sidor_rank: w.sidor_rank || undefined,
                             word_data: w.word_data as any,
                             last_synced_at: new Date().toISOString(),
-                            is_ft: (w.word_data as any)?.is_ft ? 1 : existing?.is_ft
                         };
                     }));
                     await db.words.bulkPut(wordUpdates);

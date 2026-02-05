@@ -617,10 +617,10 @@ export async function getQuizExplanation(
 }
 
 /**
- * Specialized generator for FT List words (manually added).
+ * Generator for manually added dictionary words.
  * Ensures 2-3 meanings, 2-3 examples, and correct metadata.
  */
-export async function generateFTWordContent(
+export async function generateWordContent(
     swedishWord: string,
     apiKey: string
 ): Promise<WordMeaningResult | GeminiError> {

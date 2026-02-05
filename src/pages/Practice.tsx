@@ -61,11 +61,6 @@ export default function Practice() {
                 results.push({
                     ...w,
                     id: w.id || 0,
-                    kelly_level: w.kelly_level || null,
-                    kelly_source_id: w.kelly_source_id || null,
-                    frequency_rank: w.frequency_rank || null,
-                    sidor_source_id: null,
-                    sidor_rank: w.sidor_rank || null,
                     created_at: "",
                     word_data: w.word_data || null,
                     progress: {

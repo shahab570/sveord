@@ -25,17 +25,6 @@ export class WordValidator implements DataValidator {
     }
 
     // Optional fields validation
-    if (data.kelly_level && !['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1'].includes(data.kelly_level)) {
-      warnings.push('Invalid Kelly level');
-    }
-
-    if (data.frequency_rank && (typeof data.frequency_rank !== 'number' || data.frequency_rank < 1)) {
-      warnings.push('Frequency rank must be a positive number');
-    }
-
-    if (data.sidor_rank && (typeof data.sidor_rank !== 'number' || data.sidor_rank < 1)) {
-      warnings.push('Sidor rank must be a positive number');
-    }
 
     // Word data validation
     if (data.word_data) {
@@ -175,9 +164,6 @@ export const sanitizeWord = (data: any): any => {
   return {
     ...data,
     swedish_word: data.swedish_word?.toString().trim().toLowerCase(),
-    kelly_level: data.kelly_level || null,
-    frequency_rank: data.frequency_rank || null,
-    sidor_rank: data.sidor_rank || null,
     word_data: data.word_data || null
   };
 };

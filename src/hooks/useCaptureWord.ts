@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { generateFTWordContent } from "@/services/geminiApi";
+import { generateWordContent } from "@/services/geminiApi";
 import { db } from "@/services/db";
 import { supabase } from "@/integrations/supabase/client";
 import { useApiKeys } from "@/hooks/useApiKeys";
@@ -30,11 +30,6 @@ export function useCaptureWord() {
                 word: {
                     ...existingOriginal,
                     id: existingOriginal.id || 0,
-                    kelly_level: existingOriginal.kelly_level || null,
-                    kelly_source_id: existingOriginal.kelly_source_id || null,
-                    frequency_rank: existingOriginal.frequency_rank || null,
-                    sidor_rank: existingOriginal.sidor_rank || null,
-                    sidor_source_id: null,
                     created_at: "",
                     word_data: existingOriginal.word_data as any,
                     progress: undefined
@@ -50,7 +45,7 @@ export function useCaptureWord() {
         setIsCapturing(true);
         try {
             // 2. Generate content and detect base form
-            const result = await generateFTWordContent(cleanedWord, apiKeys.geminiApiKey);
+            const result = await generateWordContent(cleanedWord, apiKeys.geminiApiKey);
 
             if ('error' in result) {
                 toast.error(`Generation failed: ${result.error}`);
@@ -70,11 +65,6 @@ export function useCaptureWord() {
                         existingWord: {
                             ...existingBase,
                             id: existingBase.id || 0,
-                            kelly_level: existingBase.kelly_level || null,
-                            kelly_source_id: existingBase.kelly_source_id || null,
-                            frequency_rank: existingBase.frequency_rank || null,
-                            sidor_rank: existingBase.sidor_rank || null,
-                            sidor_source_id: null,
                             created_at: "",
                             word_data: existingBase.word_data as any,
                             progress: undefined
@@ -82,44 +72,29 @@ export function useCaptureWord() {
                     };
                 }
 
-                console.log(`Base form "${baseForm}" already exists. ensuring it is marked as FT...`);
+                console.log(`Base form "${baseForm}" already exists. using existing entry...`);
 
                 // Update local
                 const updatedLocal = {
                     ...existingBase,
-                    is_ft: 1, // Force into FT list
                     last_synced_at: new Date().toISOString()
                 };
                 await db.words.put(updatedLocal as any);
 
-                // Update Cloud (Merge is_ft: true)
-                // We do this optimistically without waiting for it to block UI
-                if (existingBase.id) {
-                    supabase.from('words')
-                        .select('word_data')
-                        .eq('id', existingBase.id)
-                        .single()
-                        .then(async ({ data }) => {
-                            if (data?.word_data) {
-                                const newWordData = { ...(data.word_data as any), is_ft: true };
-                                await supabase.from('words').update({ word_data: newWordData }).eq('id', existingBase.id);
-                            }
-                        });
-                }
+                // No special cloud update needed
 
                 return {
                     status: 'success',
                     word: {
                         ...updatedLocal,
-                        sidor_source_id: null,
                         created_at: "",
                         progress: undefined
                     } as unknown as WordWithProgress
                 };
             }
 
-            // 4. If not exists, save the base form as a new FT word
-            console.log(`Adding new base form "${baseForm}" to FT List for "${cleanedWord}".`);
+            // 4. If not exists, save the base form as a new word
+            console.log(`Adding new base form "${baseForm}" for "${cleanedWord}".`);
             const wordData = {
                 word_type: result.partOfSpeech || 'noun',
                 gender: result.gender,
@@ -130,7 +105,6 @@ export function useCaptureWord() {
                 inflectionExplanation: result.inflectionExplanation,
                 grammaticalForms: result.grammaticalForms || [],
                 populated_at: new Date().toISOString(),
-                is_ft: true // Save to cloud JSON
             };
 
             // 5. Persist to Supabase first to get a real ID (Cloud Persistence)
@@ -150,7 +124,6 @@ export function useCaptureWord() {
                     console.log(`Saved "${baseForm}" to cloud with ID: ${cloudId}`);
                 } else if (remoteError?.code === '23505') {
                     // Unique constraint violation - word exists
-                    // We MUST fetch it and update it to have is_ft: true
                     const { data: existingRemote } = await supabase
                         .from('words')
                         .select('id, word_data')
@@ -159,13 +132,6 @@ export function useCaptureWord() {
 
                     if (existingRemote) {
                         cloudId = existingRemote.id;
-                        // Checking if we need to patch word_data to include is_ft
-                        const currentData = existingRemote.word_data as any;
-                        if (!currentData?.is_ft) {
-                            console.log("Merging is_ft into existing cloud word...");
-                            const newWordData = { ...currentData, is_ft: true };
-                            await supabase.from('words').update({ word_data: newWordData }).eq('id', cloudId);
-                        }
                     }
                 }
             } catch (err) {
@@ -176,7 +142,6 @@ export function useCaptureWord() {
                 id: cloudId, // Might be undefined if cloud insert failed
                 swedish_word: baseForm, // Use base form as primary entry
                 word_data: wordData as any,
-                is_ft: 1,
                 last_synced_at: new Date().toISOString()
             };
 
@@ -192,11 +157,6 @@ export function useCaptureWord() {
                 word: {
                     ...wordToSave,
                     id: 0,
-                    kelly_level: null,
-                    kelly_source_id: null,
-                    frequency_rank: null,
-                    sidor_rank: null,
-                    sidor_source_id: null,
                     created_at: new Date().toISOString(),
                     progress: undefined
                 } as unknown as WordWithProgress

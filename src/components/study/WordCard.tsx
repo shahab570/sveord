@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
 import { WordWithProgress, useUserProgress } from "@/hooks/useWords";
+import { determineUnifiedLevel } from "@/utils/levelUtils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,7 @@ interface WordCardProps {
   isRandomMode?: boolean;
   onToggleRandom?: () => void;
   showRandomButton?: boolean;
-  listType?: "kelly" | "frequency" | "sidor" | "ft";
+  listType?: undefined;
   onDelete?: () => void;
   // New props for Search/Compact view
   compact?: boolean;
@@ -83,7 +84,6 @@ export function WordCard({
   isRandomMode = false,
   onToggleRandom,
   showRandomButton = true,
-  listType = "frequency",
   onDelete,
   compact = false,
   hideActions = false,
@@ -124,7 +124,7 @@ export function WordCard({
         };
         if (newStatus) payload.is_learned = 0;
         await upsertProgress.mutateAsync(payload);
-        toast.success(newStatus ? "Added to Study Later!" : "Removed from Queue");
+        toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
       } catch (error) {
         toast.error("Failed to update Study Later status");
       }
@@ -150,29 +150,9 @@ export function WordCard({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {word.kelly_level && (
-            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded uppercase", `level-badge-${word.kelly_level.toLowerCase()}`)}>
-              {word.kelly_level}
-            </span>
-          )}
-          {word.frequency_rank && (
-            <span className="text-[10px] font-bold bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded">
-              #{word.frequency_rank}
-            </span>
-          )}
-          {word.sidor_rank && (
-            <span className="text-[10px] font-bold bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded">
-              S#{word.sidor_rank}
-            </span>
-          )}
+          {/* Legacy badges removed */}
           {!hideActions && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => { e.stopPropagation(); handleToggleReserve(); }}
-              title={isReserve ? "Remove from Queue" : "Study Later"}
-            >
+            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); handleToggleReserve(); }}>
               <Bookmark className={cn("h-3 w-3", isReserve && "fill-amber-500 text-amber-500")} />
             </Button>
           )}
@@ -352,7 +332,7 @@ export function WordCard({
       }
 
       await upsertProgress.mutateAsync(payload);
-      toast.success(newStatus ? "Added to Study Later!" : "Removed from Queue");
+      toast.success(newStatus ? "Added to Study Later!" : "Removed from Study Later");
     } catch (error) {
       // Revert
       setOptimisticLearned(null);
@@ -405,7 +385,7 @@ export function WordCard({
         <div className="p-8 pb-4 text-center space-y-4">
           <div className="flex items-center justify-between gap-4">
             <span className="text-[10px] font-black text-primary/40 uppercase tracking-[0.2em]">
-              {listType} List #{word.frequency_rank || word.id}
+              Level {determineUnifiedLevel(word)} · #{word.id}
             </span>
             <div className="flex gap-2">
               {/* Header Actions */}
@@ -440,7 +420,7 @@ export function WordCard({
                   <BookmarkPlus className="h-3.5 w-3.5" />
                 )}
                 <span className="text-[10px] font-black uppercase tracking-tight">
-                  {isReserved ? "In Queue" : "Study Later"}
+                  {isReserved ? "Reserved" : "Study Later"}
                 </span>
               </button>
               {(word.practice_count ?? 0) > 0 && (
@@ -451,16 +431,7 @@ export function WordCard({
                   </span>
                 </div>
               )}
-              {word.kelly_level && (
-                <span
-                  className={cn(
-                    "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
-                    `level-badge-${word.kelly_level.toLowerCase()}`
-                  )}
-                >
-                  {word.kelly_level}
-                </span>
-              )}
+              {/* Legacy level badge removed */}
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>

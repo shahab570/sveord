@@ -11,12 +11,6 @@ import type { WordData } from "@/types/word";
 export interface Word {
   id: number;
   swedish_word: string;
-  kelly_level: string | null;
-  kelly_source_id: number | null;
-  frequency_rank: number | null;
-  sidor_source_id: number | null;
-  sidor_rank: number | null;
-  is_ft?: number | boolean;
   created_at: string;
   word_data: WordData | null;
 }
@@ -58,13 +52,9 @@ export interface UploadHistoryItem {
 export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2", "D1"] as const;
 
 export function useWords(filters?: {
-  kellyLevel?: string;
-  frequencyRange?: [number, number];
-  sidorRange?: [number, number];
   learnedOnly?: boolean;
   search?: string;
-  listType?: "kelly" | "frequency" | "sidor" | "ft" | "reserve";
-  ftOnly?: boolean;
+  listType?: "reserve";
 }) {
   const { user } = useAuth();
 
@@ -103,12 +93,6 @@ export function useWords(filters?: {
         return {
           id: w.id || 0,
           swedish_word: w.swedish_word,
-          kelly_level: w.kelly_level || null,
-          kelly_source_id: w.kelly_source_id || null,
-          frequency_rank: w.frequency_rank || null,
-          sidor_source_id: null,
-          sidor_rank: w.sidor_rank || null,
-          is_ft: (w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)) ? 1 : 0,
           created_at: "",
           word_data: w.word_data || null,
           progress: progress ? {
@@ -134,37 +118,13 @@ export function useWords(filters?: {
     // FALLBACK: Original logic for full corpus browsing (Search, Kelly lists, Frequency lists)
     let collection = db.words.toCollection();
 
-    if (filters?.kellyLevel) {
-      collection = db.words.where('kelly_level').equals(filters.kellyLevel);
-    } else if (filters?.frequencyRange) {
-      collection = db.words.where('frequency_rank').between(filters.frequencyRange[0], filters.frequencyRange[1], true, true);
-    } else if (filters?.sidorRange) {
-      collection = db.words.where('sidor_rank').between(filters.sidorRange[0], filters.sidorRange[1], true, true);
-    } else if (filters?.ftOnly || filters?.listType === "ft") {
-      collection = db.words.toCollection();
-    } else {
-      collection = db.words.toCollection();
-    }
+    collection = db.words.toCollection();
 
     let words = await collection.toArray();
 
     // Filter by list type exclusively if not already filtered by range
-    if (!filters?.kellyLevel && !filters?.frequencyRange && !filters?.sidorRange) {
-      if (filters?.listType === "kelly") {
-        words = words.filter(w => !!w.kelly_level);
-      } else if (filters?.listType === "frequency") {
-        words = words.filter(w => !!w.frequency_rank);
-      } else if (filters?.listType === "sidor") {
-        words = words.filter(w => !!w.sidor_rank);
-      } else if (filters?.listType === "ft") {
-        words = words.filter(w =>
-          w.is_ft === 1 ||
-          (w.word_data && !w.kelly_level && !w.frequency_rank && !w.sidor_rank) ||
-          (w.word_data as any)?.is_ft === true // Check inside JSON too
-        );
-      } else if (filters?.listType === "reserve") {
-        // We will filter by progress Map below
-      }
+    if (filters?.listType === "reserve") {
+      // We will filter by progress Map below
     }
 
     // Search filter
@@ -173,14 +133,8 @@ export function useWords(filters?: {
       words = words.filter(w => w.swedish_word.toLowerCase().includes(search));
     }
 
-    // Sort
-    if (filters?.listType === "kelly" || filters?.kellyLevel) {
-      words.sort((a, b) => (a.kelly_source_id || 0) - (b.kelly_source_id || 0));
-    } else if (filters?.listType === "frequency") {
-      words.sort((a, b) => (a.frequency_rank || 0) - (b.frequency_rank || 0));
-    } else if (filters?.listType === "sidor") {
-      words.sort((a, b) => (a.sidor_rank || 0) - (b.sidor_rank || 0));
-    }
+    // Sort alphabetically
+    words.sort((a, b) => a.swedish_word.localeCompare(b.swedish_word));
 
     // Merge with progress - Optimized: Fetch all relevant progress at once
     const result: WordWithProgress[] = [];
@@ -207,12 +161,6 @@ export function useWords(filters?: {
       result.push({
         id: w.id || 0,
         swedish_word: w.swedish_word,
-        kelly_level: w.kelly_level || null,
-        kelly_source_id: w.kelly_source_id || null,
-        frequency_rank: w.frequency_rank || null,
-        sidor_source_id: null,
-        sidor_rank: w.sidor_rank || null,
-        is_ft: (w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)) ? 1 : 0,
         created_at: "",
         word_data: w.word_data || null,
         progress: progress ? {
@@ -236,53 +184,7 @@ export function useWords(filters?: {
   }, [filters, user?.id]);
 }
 
-// Hook to get level stats for a specific list type
-export function useLevelStats(listType: "kelly" | "frequency" | "sidor" | "ft") {
-  const { user } = useAuth();
-
-  return useLiveQuery(async () => {
-    // Initialize stats object
-    const stats: Record<string, { total: number; learned: number }> = {};
-
-    // Get all learned items first to avoid repeated queries
-    const learnedProgress = await db.progress.filter(p => !!p.is_learned).toArray();
-    const learnedWordIds = Array.from(new Set(learnedProgress.map(p => p.word_id)));
-
-    // Bulk fetch unique words
-    const learnedWords = await db.words.where('id').anyOf(learnedWordIds).toArray();
-
-    if (listType === "kelly") {
-      for (const level of CEFR_LEVELS) {
-        // Count total words in this level
-        const total = await db.words.where('kelly_level').equals(level).count();
-
-        // Count learned words in this level from unique set
-        const learned = learnedWords.filter(w => w.kelly_level === level).length;
-
-        stats[level] = { total, learned };
-      }
-    } else if (listType === "frequency") {
-      // TODO: Implement frequency stats based on word_data CEFR levels
-      // For now, return empty stats
-      CEFR_LEVELS.forEach(level => {
-        stats[level] = { total: 0, learned: 0 };
-      });
-    } else if (listType === "sidor") {
-      // TODO: Implement sidor stats based on word_data CEFR levels  
-      // For now, return empty stats
-      CEFR_LEVELS.forEach(level => {
-        stats[level] = { total: 0, learned: 0 };
-      });
-    } else {
-      // FT list
-      const total = await db.words.where('is_ft').equals(1).count();
-      const learned = learnedWords.filter(w => w.is_ft).length;
-      stats["Total"] = { total, learned };
-    }
-
-    return stats;
-  }, [listType, user?.id]);
-}
+// Legacy list stats removed
 
 export function useUserProgress() {
   const { user } = useAuth();
@@ -309,7 +211,7 @@ export function useUserProgress() {
       if (!word && swedishWord) {
         const { data: remoteWord } = await supabase.from('words').select('*').eq('swedish_word', swedishWord).single();
         if (remoteWord) {
-          word = { id: remoteWord.id, swedish_word: remoteWord.swedish_word, word_data: remoteWord.word_data as any, kelly_level: remoteWord.kelly_level || undefined };
+          word = { id: remoteWord.id, swedish_word: remoteWord.swedish_word, word_data: remoteWord.word_data as any, last_synced_at: new Date().toISOString() } as LocalWord;
           await db.words.put(word);
         }
       }
@@ -403,13 +305,8 @@ export function useUserProgress() {
       const word: LocalWord = {
         id: remoteWord.id,
         swedish_word: remoteWord.swedish_word,
-        kelly_level: remoteWord.kelly_level || undefined,
-        kelly_source_id: remoteWord.kelly_source_id || undefined,
-        frequency_rank: remoteWord.frequency_rank || undefined,
-        sidor_rank: remoteWord.sidor_rank || undefined,
         word_data: remoteWord.word_data as any,
         last_synced_at: new Date().toISOString(),
-        is_ft: ((remoteWord.word_data as any)?.is_ft) ? 1 : existing?.is_ft
       };
 
       await db.words.put(word);
@@ -440,70 +337,9 @@ export function useStats() {
     // Calculate unique learned words count
     const learnedWords = new Set(learnedWordIds).size;
 
-    // Fetch all learned word definitions in bulk to check levels (by ID)
-    const learnedWordDefs = await db.words.where('id').anyOf(learnedWordIds).toArray();
-
-    // Index learned words by swedish_word for quick lookup (if needed) or just iterate
-    // Since we need to aggregate by different levels, iterating the definitions is easiest
-
-    // Initialize stats
-    const kellyStats: Record<string, { total: number; learned: number }> = {};
-    CEFR_LEVELS.forEach(l => kellyStats[l] = { total: 0, learned: 0 });
-
-    const frequencyStats: Record<string, { total: number; learned: number }> = {};
-    CEFR_LEVELS.forEach(l => frequencyStats[l] = { total: 0, learned: 0 });
-
-    const sidorStats: Record<string, { total: number; learned: number }> = {};
-    CEFR_LEVELS.forEach(l => sidorStats[l] = { total: 0, learned: 0 });
-
-    // 1. Calculate totals based on word_data CEFR levels
-    await Promise.all([
-      ...CEFR_LEVELS.map(async level => {
-        // For now, just count Kelly levels (legacy)
-        const count = await db.words.where('kelly_level').equals(level).count();
-        if (kellyStats[level]) kellyStats[level].total = count;
-      }),
-      // TODO: Implement frequency and sidor stats based on word_data
-    ]);
-
-    // 2. Aggregate learned counts from the bulk-fetched definitions
-    for (const w of learnedWordDefs) {
-      // Kelly (legacy)
-      if (w.kelly_level && kellyStats[w.kelly_level]) {
-        kellyStats[w.kelly_level].learned++;
-      }
-
-      // TODO: Implement frequency and sidor aggregation based on word_data
-    }
-
     return {
       totalWords,
       learnedWords,
-      kellyStats: {
-        ...kellyStats,
-        total: Object.values(kellyStats).reduce((acc, curr) => ({
-          total: acc.total + curr.total,
-          learned: acc.learned + curr.learned
-        }), { total: 0, learned: 0 })
-      },
-      frequencyStats: {
-        ...frequencyStats,
-        total: Object.values(frequencyStats).reduce((acc, curr) => ({
-          total: acc.total + curr.total,
-          learned: acc.learned + curr.learned
-        }), { total: 0, learned: 0 })
-      },
-      sidorStats: {
-        ...sidorStats,
-        total: Object.values(sidorStats).reduce((acc, curr) => ({
-          total: acc.total + curr.total,
-          learned: acc.learned + curr.learned
-        }), { total: 0, learned: 0 })
-      },
-      ftStats: {
-        total: await db.words.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).count(),
-        learned: learnedWordDefs.filter(w => !!w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)).length
-      },
       reserveStats: {
         total: new Set((await db.progress.where('user_id').equals(user.id).filter(p => p.is_reserve === 1).toArray()).map(p => p.word_id)).size,
         learned: new Set((await db.progress.where('user_id').equals(user.id).filter(p => p.is_reserve === 1 && p.is_learned === 1).toArray()).map(p => p.word_id)).size
@@ -547,31 +383,17 @@ export function useDetailedStats() {
     const learnedThisMonthItems = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= monthAgo.getTime());
     const learnedThisMonth = new Set(learnedThisMonthItems.map(p => p.word_id)).size;
 
-    // Breakdown for today
-    let kellyToday = 0;
-    let frequencyToday = 0;
-    let sidorToday = 0;
-    let ftToday = 0;
-
     // Bulk fetch words for today's learned items (by word_id)
     const todayWordIds = learnedTodayItems.map(p => p.word_id);
     if (todayWordIds.length > 0) {
       const todayWords = await db.words.where('id').anyOf(todayWordIds).toArray();
-      for (const w of todayWords) {
-        if (w.kelly_level) kellyToday++;
-        if (w.frequency_rank) frequencyToday++;
-        if (w.sidor_rank) sidorToday++;
-        if (w.is_ft || (!w.kelly_level && !w.frequency_rank && !w.sidor_rank)) ftToday++;
-      }
+      // No per-list breakdown needed anymore
     }
 
-    // Daily counts for chart (Kelly, Study Later, Encountered)
-    const dailyCounts: { date: string; kelly: number; reserved: number; encountered: number }[] = [];
+    // Daily counts for chart (Learned, Study Later, Encountered)
+    const dailyCounts: { date: string; learned: number; reserved: number; encountered: number }[] = [];
 
-    // Fetch word definitions for all learned items to check if they are Kelly (by word_id)
     const allLearnedIds = allLearned.map(p => p.word_id);
-    const allLearnedWords = await db.words.where('id').anyOf(allLearnedIds).toArray();
-    const learnedKellyIds = new Set(allLearnedWords.filter(w => !!w.kelly_level).map(w => w.id));
 
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
@@ -585,8 +407,7 @@ export function useDetailedStats() {
       const allLearnedToday = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= dTime && new Date(p.learned_date).getTime() < nextDTime);
       const allLearnedTodayCount = new Set(allLearnedToday.map(p => p.word_id)).size;
 
-      const kellyProgress = allLearned.filter(p => p.learned_date && new Date(p.learned_date).getTime() >= dTime && new Date(p.learned_date).getTime() < nextDTime && learnedKellyIds.has(p.word_id));
-      const kellyCount = new Set(kellyProgress.map(p => p.word_id)).size;
+      const learnedCount = allLearnedTodayCount;
 
       const reservedProgress = allReserved.filter(p => p.reserved_at && new Date(p.reserved_at).getTime() >= dTime && new Date(p.reserved_at).getTime() < nextDTime);
       const reservedCount = new Set(reservedProgress.map(p => p.word_id)).size;
@@ -599,7 +420,7 @@ export function useDetailedStats() {
 
       dailyCounts.push({
         date: d.toISOString().split("T")[0],
-        kelly: kellyCount,
+        learned: learnedCount,
         reserved: reservedCount,
         encountered: encounteredSet.size
       });
@@ -611,10 +432,6 @@ export function useDetailedStats() {
       learnedThisWeek,
       learnedThisMonth,
       reservedToday,
-      kellyToday,
-      frequencyToday,
-      sidorToday,
-      ftToday,
       dailyCounts,
       avgPerDay: Math.round((learnedThisMonth / 30) * 10) / 10
     };
@@ -683,42 +500,11 @@ export function useB1GoalProgress() {
     const b1WordsSet = new Set<string>();
     const learnedB1WordsSet = new Set<string>();
 
-    // Kelly list - A1, A2, B1 levels
-    for (const level of targetLevels) {
-      const kellyWords = await db.words.where('kelly_level').equals(level).toArray();
-      for (const w of kellyWords) {
-        b1WordsSet.add(w.swedish_word);
-        if (learnedSwedishWords.has(w.swedish_word)) {
-          learnedB1WordsSet.add(w.swedish_word);
-        }
-      }
-    }
-
-    // Frequency list - A1 (1-1500), A2 (1501-3000), B1 (3001-5000)
-    const frequencyRanges = [
-      [1, 1500],    // A1
-      [1501, 3000], // A2
-      [3001, 5000], // B1
-    ];
-    for (const [min, max] of frequencyRanges) {
-      const freqWords = await db.words.where('frequency_rank').between(min, max, true, true).toArray();
-      for (const w of freqWords) {
-        b1WordsSet.add(w.swedish_word);
-        if (learnedSwedishWords.has(w.swedish_word)) {
-          learnedB1WordsSet.add(w.swedish_word);
-        }
-      }
-    }
-
-    // Sidor list - A1 (1-600), A2 (601-1200), B1 (1201-1800)
-    const sidorRanges = [
-      [1, 600],     // A1
-      [601, 1200],  // A2
-      [1201, 1800], // B1
-    ];
-    for (const [min, max] of sidorRanges) {
-      const sidorWords = await db.words.where('sidor_rank').between(min, max, true, true).toArray();
-      for (const w of sidorWords) {
+    // Unified approach: Use CEFR level from word_data
+    const allWords = await db.words.toArray();
+    for (const w of allWords) {
+      const level = (w.word_data as any)?.cefr_level;
+      if (level && targetLevels.includes(level)) {
         b1WordsSet.add(w.swedish_word);
         if (learnedSwedishWords.has(w.swedish_word)) {
           learnedB1WordsSet.add(w.swedish_word);
@@ -805,11 +591,6 @@ export function useTodaysLearnedWords() {
         result.push({
           id: w.id || 0,
           swedish_word: w.swedish_word,
-          kelly_level: w.kelly_level || null,
-          kelly_source_id: w.kelly_source_id || null,
-          frequency_rank: w.frequency_rank || null,
-          sidor_source_id: null,
-          sidor_rank: w.sidor_rank || null,
           created_at: "",
           word_data: w.word_data || null,
           progress: {
@@ -899,19 +680,11 @@ export function useAddWord() {
   return useMutation({
     mutationFn: async (data: {
       swedish_word: string;
-      kelly_level?: string;
-      frequency_rank?: number;
-      sidor_rank?: number;
-      sidor_source_id?: number;
     }) => {
       // 1. Try to INSERT
       const cleanWord = data.swedish_word.toLowerCase().trim();
       const { data: inserted, error } = await supabase.from("words").insert({
         swedish_word: cleanWord,
-        kelly_level: data.kelly_level || null,
-        frequency_rank: data.frequency_rank || null,
-        sidor_rank: data.sidor_rank || null,
-        sidor_source_id: data.sidor_source_id || null,
       }).select("id").single();
 
       let wordId: number;
@@ -943,10 +716,6 @@ export function useAddWord() {
       await db.words.put({
         id: wordId,
         swedish_word: cleanWord,
-        kelly_level: data.kelly_level || undefined,
-        frequency_rank: data.frequency_rank || undefined,
-        sidor_rank: data.sidor_rank || undefined,
-        kelly_source_id: undefined,
         last_synced_at: new Date().toISOString()
       });
     },
@@ -993,40 +762,6 @@ export function useDeleteWord() {
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["levelStats"] });
       queryClient.invalidateQueries({ queryKey: ["learningPrediction"] });
-      queryClient.invalidateQueries({ queryKey: ["nextFrequencyId"] });
-      queryClient.invalidateQueries({ queryKey: ["nextSidorId"] });
-    },
-  });
-}
-
-export function useNextFrequencyId() {
-  return useQuery({
-    queryKey: ["nextFrequencyId"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("words")
-        .select("frequency_rank")
-        .not("frequency_rank", "is", null)
-        .order("frequency_rank", { ascending: false })
-        .limit(1);
-
-      return (data?.[0]?.frequency_rank || 0) + 1;
-    },
-  });
-}
-
-export function useNextSidorId() {
-  return useQuery({
-    queryKey: ["nextSidorId"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("words")
-        .select("sidor_rank")
-        .not("sidor_rank", "is", null)
-        .order("sidor_rank", { ascending: false })
-        .limit(1);
-
-      return (data?.[0]?.sidor_rank || 0) + 1;
     },
   });
 }

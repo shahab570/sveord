@@ -514,7 +514,7 @@ export function PopulationProvider({ children }: { children: React.ReactNode }) 
                     // Fully remove the key to ensure the counter hits 0
                     const updatedData = { ...data };
                     delete updatedData.grammaticalForms;
-                    // Spread the entire word to preserve all other DB columns (kelly_level, rank, etc.)
+                    // Spread the entire word to preserve all other DB columns
                     const updatedFullWord = { ...word, word_data: updatedData };
                     supabaseUpdates.push(updatedFullWord);
                     dexieUpdates.push(updatedFullWord);
