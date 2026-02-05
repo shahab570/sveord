@@ -22,7 +22,7 @@ export class SyncQueue {
   constructor() {
     // Load queue from localStorage on init
     this.loadQueue();
-    
+
     // Listen for online/offline events
     window.addEventListener('online', () => this.processQueue());
     window.addEventListener('offline', () => this.stopProcessing());
@@ -41,7 +41,7 @@ export class SyncQueue {
     this.queue.push(fullOperation);
     this.saveQueue();
     this.notifyListeners();
-    
+
     // Try to process immediately if online
     if (navigator.onLine && !this.processing) {
       this.processQueue();
@@ -62,7 +62,7 @@ export class SyncQueue {
     try {
       while (this.queue.length > 0 && navigator.onLine) {
         const operation = this.queue[0];
-        
+
         try {
           await this.processOperation(operation);
           this.queue.shift(); // Remove successful operation
@@ -70,9 +70,9 @@ export class SyncQueue {
           this.notifyListeners();
         } catch (error) {
           console.error(`Operation failed (${operation.type}):`, error);
-          
+
           operation.retryCount++;
-          
+
           if (operation.retryCount >= operation.maxRetries) {
             // Max retries reached, move to failed
             console.error(`Max retries reached for operation ${operation.id}`);
@@ -82,7 +82,7 @@ export class SyncQueue {
             const delay = Math.pow(2, operation.retryCount) * 1000;
             await new Promise(resolve => setTimeout(resolve, delay));
           }
-          
+
           this.saveQueue();
           this.notifyListeners();
         }
@@ -101,22 +101,33 @@ export class SyncQueue {
     }
 
     switch (operation.type) {
-      case 'upsert_progress':
-        await supabase.from('user_progress').upsert(operation.data);
+      case 'upsert_progress': {
+        // 1. Clean data for Supabase (remove local IDs and non-existent columns)
+        const { id, word_swedish, last_synced_at, ...supabaseData } = operation.data;
+
+        // 2. Perform the upsert with explicit conflict Resolution
+        const { error } = await supabase
+          .from('user_progress')
+          .upsert(supabaseData, {
+            onConflict: 'user_id,word_id'
+          });
+
+        if (error) throw error;
         break;
-        
+      }
+
       case 'delete_progress':
-        await supabase.from('user_progress').delete().eq('id', operation.data.id);
+        await supabase.from('user_progress').delete().eq('user_id', operation.data.user_id).eq('word_id', operation.data.word_id);
         break;
-        
+
       case 'upsert_word':
         await supabase.from('words').upsert(operation.data);
         break;
-        
+
       case 'delete_word':
         await supabase.from('words').delete().eq('id', operation.data.id);
         break;
-        
+
       default:
         throw new Error(`Unknown operation type: ${operation.type}`);
     }
@@ -156,7 +167,7 @@ export class SyncQueue {
   subscribe(listener: (status: SyncQueueStatus) => void): () => void {
     this.listeners.push(listener);
     listener(this.getStatus());
-    
+
     return () => {
       const index = this.listeners.indexOf(listener);
       if (index > -1) {

@@ -15,13 +15,21 @@ export function useTodaysReservedWords() {
 
         // Fetch progress for reserved today from local DB
         // Using reserved_at timestamp
-        const todaysReserved = await db.progress
+        const todaysReservedRaw = await db.progress
+            .where('user_id').equals(user.id)
             .filter(p =>
                 !!p.is_reserve &&
                 !!p.reserved_at &&
                 new Date(p.reserved_at).getTime() >= localStartOfToday
             )
             .toArray();
+
+        // De-duplicate in case of sync issues
+        const uniqueMap = new Map();
+        for (const p of todaysReservedRaw) {
+            if (!uniqueMap.has(p.word_id)) uniqueMap.set(p.word_id, p);
+        }
+        const todaysReserved = Array.from(uniqueMap.values());
 
         if (!todaysReserved.length) return [];
 

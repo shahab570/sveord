@@ -36,6 +36,7 @@ export interface UserProgress {
   srs_interval?: number;
   srs_ease?: number;
   is_reserve?: boolean | number;
+  reserved_at?: string | null;
 }
 
 export interface WordWithProgress extends Word {
@@ -773,9 +774,17 @@ export function useTodaysLearnedWords() {
     const localStartOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
     // Fetch progress for today from local DB
-    const todaysProgress = await db.progress
+    const todaysProgressRaw = await db.progress
+      .where('user_id').equals(user.id)
       .filter(p => !!p.is_learned && !!p.learned_date && new Date(p.learned_date).getTime() >= localStartOfToday)
       .toArray();
+
+    // De-duplicate in case of sync issues
+    const uniqueMap = new Map();
+    for (const p of todaysProgressRaw) {
+      if (!uniqueMap.has(p.word_id)) uniqueMap.set(p.word_id, p);
+    }
+    const todaysProgress = Array.from(uniqueMap.values());
 
     if (!todaysProgress.length) return [];
 
